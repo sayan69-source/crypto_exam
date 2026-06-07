@@ -1,0 +1,146 @@
+{
+  "meta": {
+    "filename_prefix": "CryptoExamNode",
+    "creation_date": "2026-06-07",
+    "source": "KiCad 7.0.11",
+    "units": "mm",
+    "board_revision": "1.0",
+    "board_dimensions": "100x80mm",
+    "layers": 4,
+    "finish": "ENIG",
+    "soldermask_color": "matte_black",
+    "silkscreen_color": "white",
+    "board_thickness": 1.6,
+    "copper_weight": "1oz (35um)",
+    "min_trace": 0.15,
+    "min_space": 0.15,
+    "min_drill": 0.3,
+    "manufacturer_notes": "4-layer, FR-4, 1.6mm, ENIG, controlled impedance (90ohm USB, 100ohm Ethernet)"
+  },
+  "gerber_files": [
+    {
+      "filename": "CryptoExamNode-F_Cu.gbr",
+      "layer": "F.Cu",
+      "description": "Front copper - signal routing, CM4 module, TPM SPI, GPS UART, USB-C",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-In1_Cu.gbr",
+      "layer": "In1.Cu",
+      "description": "Inner layer 1 - solid GND plane with minimal clearances",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-In2_Cu.gbr",
+      "layer": "In2.Cu",
+      "description": "Inner layer 2 - split power plane: +3.3V (70%) and +1.8V (30%)",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-B_Cu.gbr",
+      "layer": "B.Cu",
+      "description": "Back copper - supercapacitor, bypass caps, power distribution",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-F_SilkS.gbr",
+      "layer": "F.SilkS",
+      "description": "Front silkscreen - component references, logo, pinouts",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-B_SilkS.gbr",
+      "layer": "B.SilkS",
+      "description": "Back silkscreen - CryptoExam branding, serial number location",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-F_Mask.gbr",
+      "layer": "F.Mask",
+      "description": "Front solder mask - matte black finish",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-B_Mask.gbr",
+      "layer": "B.Mask",
+      "description": "Back solder mask - matte black finish",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-F_Paste.gbr",
+      "layer": "F.Paste",
+      "description": "Front solder paste - for SMD reflow",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-B_Paste.gbr",
+      "layer": "B.Paste",
+      "description": "Back solder paste",
+      "format": "Gerber X2 (RS-274X)"
+    },
+    {
+      "filename": "CryptoExamNode-Edge_Cuts.gbr",
+      "layer": "Edge.Cuts",
+      "description": "Board outline - 100x80mm with 3mm corner radius, 4x M3 mounting holes",
+      "format": "Gerber X2 (RS-274X)"
+    }
+  ],
+  "drill_files": [
+    {
+      "filename": "CryptoExamNode-PTH.drl",
+      "type": "plated_through_hole",
+      "description": "Plated vias and through-hole components (RJ45, supercap, tamper switches)",
+      "format": "Excellon",
+      "tool_list": [
+        {"tool": "T1", "diameter_mm": 0.3, "count": 145, "type": "via"},
+        {"tool": "T2", "diameter_mm": 0.8, "count": 20, "type": "component_pth"},
+        {"tool": "T3", "diameter_mm": 1.0, "count": 16, "type": "rj45_pins"},
+        {"tool": "T4", "diameter_mm": 3.2, "count": 4, "type": "mounting_hole"}
+      ]
+    },
+    {
+      "filename": "CryptoExamNode-NPTH.drl",
+      "type": "non_plated",
+      "description": "Non-plated mounting holes and alignment features",
+      "format": "Excellon",
+      "tool_list": [
+        {"tool": "T1", "diameter_mm": 3.2, "count": 4, "type": "mounting"},
+        {"tool": "T2", "diameter_mm": 1.0, "count": 2, "type": "alignment"}
+      ]
+    }
+  ],
+  "assembly_files": [
+    {
+      "filename": "CryptoExamNode-top_pos.csv",
+      "description": "Top side pick-and-place positions for SMT assembly"
+    },
+    {
+      "filename": "CryptoExamNode-bottom_pos.csv",
+      "description": "Bottom side pick-and-place positions"
+    }
+  ],
+  "manufacturing_specs": {
+    "pcb_class": "IPC Class 2",
+    "impedance_control": true,
+    "impedance_specs": [
+      {"net": "USB_D+/D-", "type": "differential", "impedance_ohm": 90, "tolerance": "10%"},
+      {"net": "ETH_TXD/RXD", "type": "differential", "impedance_ohm": 100, "tolerance": "10%"},
+      {"net": "SPI_CLK", "type": "single-ended", "impedance_ohm": 50, "tolerance": "10%"}
+    ],
+    "via_structure": {
+      "standard_via": {"drill_mm": 0.3, "annular_mm": 0.15, "type": "through"},
+      "note": "No blind/buried vias required - reduces manufacturing cost"
+    },
+    "panelization": {
+      "panel_size": "200x160mm",
+      "boards_per_panel": 4,
+      "v_score": true,
+      "fiducials": 3
+    },
+    "testing": {
+      "flying_probe": true,
+      "e_test": true,
+      "visual_inspection": "AOI (Automated Optical Inspection)"
+    }
+  }
+}

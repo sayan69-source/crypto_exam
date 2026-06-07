@@ -1,0 +1,241 @@
+(kicad_sch (version 20230121) (generator eeschema)
+  (uuid "b1d2c3e4-5678-9abc-def0-123456789abc")
+  (paper "A3")
+  (title_block
+    (title "CryptoExam Core Hardware Security Node")
+    (date "2026-06-07")
+    (rev "1.0")
+    (company "CryptoExam Team - FAR AWAY 2026")
+    (comment 1 "4-Layer PCB | 100x80mm | ENIG Finish")
+    (comment 2 "TPM 2.0 + GPS + ATECC608A + Tamper Mesh")
+    (comment 3 "Zero-Trust Exam Delivery Node")
+    (comment 4 "DPDP Act 2023 Compliant - No PII Stored")
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; Power Section
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "power:+3V3") (at 50 25) (unit 1)
+    (uuid "pwr-3v3-main")
+    (property "Reference" "#PWR01" (at 50 22 0))
+    (property "Value" "+3V3" (at 50 22 0))
+  )
+
+  (symbol (lib_id "power:GND") (at 50 175) (unit 1)
+    (uuid "pwr-gnd-main")
+    (property "Reference" "#PWR02" (at 50 178 0))
+    (property "Value" "GND" (at 50 178 0))
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U1: Raspberry Pi CM4 (100-pin board-to-board)
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "MCU_Module:RaspberryPi_CM4") (at 150 80) (unit 1)
+    (uuid "u1-cm4")
+    (property "Reference" "U1" (at 150 30 0))
+    (property "Value" "CM4104032" (at 150 35 0))
+    (property "Footprint" "Module:RaspberryPi_CM4_DDR4" (at 150 180 0))
+    (property "Description" "Raspberry Pi CM4, 4GB RAM, 32GB eMMC, WiFi" (at 150 185 0))
+    ;; Key Pins:
+    ;; GPIO_SPI0_MOSI (Pin 36) -> TPM SPI MOSI
+    ;; GPIO_SPI0_MISO (Pin 35) -> TPM SPI MISO
+    ;; GPIO_SPI0_SCLK (Pin 34) -> TPM SPI CLK
+    ;; GPIO_SPI0_CE0  (Pin 33) -> TPM CS
+    ;; GPIO_SDA1      (Pin 3)  -> I2C SDA (ATECC608A, RTC)
+    ;; GPIO_SCL1      (Pin 5)  -> I2C SCL (ATECC608A, RTC)
+    ;; UART_TXD       (Pin 8)  -> GPS UART TX
+    ;; UART_RXD       (Pin 10) -> GPS UART RX
+    ;; GPIO_17        (Pin 11) -> GPS 1PPS
+    ;; GPIO_27        (Pin 13) -> Tamper Mesh Interrupt
+    ;; GPIO_22        (Pin 15) -> Status LED Data
+    ;; GPIO_SPI1_MOSI (Pin 38) -> TFT SPI MOSI
+    ;; GPIO_SPI1_SCLK (Pin 40) -> TFT SPI CLK
+    ;; GPIO_SPI1_CE0  (Pin 36) -> TFT CS
+    ;; GPIO_25        (Pin 22) -> TFT DC
+    ;; GPIO_24        (Pin 18) -> TFT RST
+    ;; ETH_CLK        -> LAN8720A REFCLK
+    ;; ETH_TXD0/1     -> LAN8720A TXD
+    ;; ETH_RXD0/1     -> LAN8720A RXD
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U2: Infineon TPM 2.0 (SLB9670)
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Security:SLB9670") (at 50 80) (unit 1)
+    (uuid "u2-tpm")
+    (property "Reference" "U2" (at 50 55 0))
+    (property "Value" "SLB9670XQ20FW" (at 50 60 0))
+    (property "Footprint" "Package_DFN_QFN:VQFN-32-1EP_5x5mm_P0.5mm" (at 50 170 0))
+    (property "Description" "Infineon TPM 2.0, SPI, Common Criteria EAL4+" (at 50 175 0))
+    ;; Pins:
+    ;; VCC (Pin 1)     -> +3.3V via ferrite bead
+    ;; GND (Pin 9,17)  -> GND
+    ;; SPI_CLK (Pin 4) -> CM4 SPI0_SCLK
+    ;; SPI_MOSI (Pin 5)-> CM4 SPI0_MOSI
+    ;; SPI_MISO (Pin 6)-> CM4 SPI0_MISO
+    ;; SPI_CS (Pin 7)  -> CM4 SPI0_CE0 (active low)
+    ;; RST_N (Pin 14)  -> +3.3V via 10K pullup
+    ;; PP (Pin 15)     -> GND (physical presence)
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U3: u-blox NEO-M9N GPS Module
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "GPS:NEO-M9N") (at 250 80) (unit 1)
+    (uuid "u3-gps")
+    (property "Reference" "U3" (at 250 55 0))
+    (property "Value" "NEO-M9N-00B" (at 250 60 0))
+    (property "Footprint" "GPS:u-blox_NEO-M9N_LCC-24" (at 250 170 0))
+    (property "Description" "u-blox multi-GNSS, GPS/GLONASS/BeiDou, 1PPS" (at 250 175 0))
+    ;; Pins:
+    ;; VCC (Pin 11)    -> +3.3V
+    ;; GND (Pin 3,8,15)-> GND
+    ;; TXD (Pin 18)    -> CM4 UART_RXD
+    ;; RXD (Pin 19)    -> CM4 UART_TXD
+    ;; TIMEPULSE (Pin 6)-> CM4 GPIO_17 (1PPS)
+    ;; V_BCKP (Pin 12) -> 3V coin cell (RTC backup)
+    ;; RF_IN (Pin 1)   -> SMA antenna connector
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U4: ATECC608A Secure Element
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Security:ATECC608A") (at 50 140) (unit 1)
+    (uuid "u4-atecc")
+    (property "Reference" "U4" (at 50 125 0))
+    (property "Value" "ATECC608A-MAHDA" (at 50 130 0))
+    (property "Footprint" "Package_DFN_QFN:UDFN-8_2x3mm_P0.5mm" (at 50 165 0))
+    (property "Description" "Microchip ECDSA/ECDH secure element, I2C" (at 50 170 0))
+    ;; Pins:
+    ;; VCC (Pin 8)  -> +3.3V
+    ;; GND (Pin 4)  -> GND
+    ;; SDA (Pin 5)  -> CM4 I2C SDA (with 4.7K pullup)
+    ;; SCL (Pin 6)  -> CM4 I2C SCL (with 4.7K pullup)
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U5: ST7789 TFT Display (240x320, SPI)
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Display:ST7789") (at 250 140) (unit 1)
+    (uuid "u5-tft")
+    (property "Reference" "U5" (at 250 125 0))
+    (property "Value" "ST7789V2-240x320" (at 250 130 0))
+    (property "Footprint" "Display:TFT_2.0inch_240x320_SPI" (at 250 165 0))
+    (property "Description" "2.0 inch TFT, 240x320 RGB, SPI interface" (at 250 170 0))
+    ;; Shows: Node status, exam countdown, GPS fix, tamper status
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U10: DS3231SN RTC
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Timer:DS3231SN") (at 150 140) (unit 1)
+    (uuid "u10-rtc")
+    (property "Reference" "U10" (at 150 125 0))
+    (property "Value" "DS3231SN" (at 150 130 0))
+    (property "Footprint" "Package_SO:SOIC-16W_7.5x10.3mm_P1.27mm" (at 150 165 0))
+    (property "Description" "Maxim TCXO RTC, +/-2ppm, I2C, battery backup" (at 150 170 0))
+    ;; Shares I2C bus with ATECC608A
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; U11: LAN8720A Ethernet PHY
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Interface_Ethernet:LAN8720A") (at 350 80) (unit 1)
+    (uuid "u11-eth")
+    (property "Reference" "U11" (at 350 55 0))
+    (property "Value" "LAN8720A" (at 350 60 0))
+    (property "Footprint" "Package_DFN_QFN:QFN-24_4x4mm_P0.5mm" (at 350 170 0))
+    (property "Description" "Microchip 10/100 Ethernet PHY, RMII" (at 350 175 0))
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; Power Regulation
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Regulator_Linear:AMS1117-3.3") (at 50 25) (unit 1)
+    (uuid "u6-vreg33")
+    (property "Reference" "U6" (at 50 15 0))
+    (property "Value" "AMS1117-3.3" (at 50 20 0))
+    (property "Footprint" "Package_TO_SOT_SMD:SOT-223-3_TabPin2" (at 50 35 0))
+  )
+
+  (symbol (lib_id "Regulator_Linear:AMS1117-1.8") (at 150 25) (unit 1)
+    (uuid "u7-vreg18")
+    (property "Reference" "U7" (at 150 15 0))
+    (property "Value" "AMS1117-1.8" (at 150 20 0))
+    (property "Footprint" "Package_TO_SOT_SMD:SOT-223-3_TabPin2" (at 150 35 0))
+    ;; 1.8V rail for TPM core voltage
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; Connectors
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Connector:USB_C_Receptacle") (at 350 25) (unit 1)
+    (uuid "j1-usbc")
+    (property "Reference" "J1" (at 350 15 0))
+    (property "Value" "USB-C" (at 350 20 0))
+    (property "Footprint" "Connector_USB:USB_C_Receptacle_GCT_USB4105" (at 350 35 0))
+    ;; USB-C PD for power input (5V/3A or 9V/2A)
+  )
+
+  (symbol (lib_id "Connector:RJ45_Shielded") (at 350 140) (unit 1)
+    (uuid "j2-rj45")
+    (property "Reference" "J2" (at 350 125 0))
+    (property "Value" "RJ45" (at 350 130 0))
+    (property "Footprint" "Connector_RJ:RJ45_HR911105A" (at 350 165 0))
+    ;; 10/100 Ethernet with integrated magnetics
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; Tamper Mesh
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Device:R") (at 50 175) (unit 1)
+    (uuid "mesh-sense")
+    (property "Reference" "MESH1" (at 50 165 0))
+    (property "Value" "TAMPER_MESH" (at 50 170 0))
+    (property "Description" "Serpentine Cu trace on Kapton flex, 47 ohm nominal" (at 50 180 0))
+    ;; Connected to CM4 GPIO_27 via interrupt circuit
+    ;; Open circuit triggers NMI -> key zeroisation
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; Supercapacitor UPS
+  ;; ═══════════════════════════════════════════════
+
+  (symbol (lib_id "Device:CP") (at 250 25) (unit 1)
+    (uuid "c22-supercap")
+    (property "Reference" "C22" (at 250 15 0))
+    (property "Value" "50F/2.7V" (at 250 20 0))
+    (property "Description" "EDLC supercapacitor, 30s graceful shutdown UPS" (at 250 35 0))
+  )
+
+  ;; ═══════════════════════════════════════════════
+  ;; Net connections (abbreviated — full netlist in PCB)
+  ;; ═══════════════════════════════════════════════
+
+  ;; SPI Bus: CM4 <-> TPM 2.0
+  ;; (wire (pts (xy 100 75) (xy 80 75)))  ;; SPI_MOSI
+  ;; (wire (pts (xy 100 80) (xy 80 80)))  ;; SPI_MISO
+  ;; (wire (pts (xy 100 85) (xy 80 85)))  ;; SPI_CLK
+  ;; (wire (pts (xy 100 90) (xy 80 90)))  ;; SPI_CS
+
+  ;; I2C Bus: CM4 <-> ATECC608A + DS3231 RTC
+  ;; (wire (pts (xy 100 100) (xy 80 100))) ;; SDA
+  ;; (wire (pts (xy 100 105) (xy 80 105))) ;; SCL
+
+  ;; UART: CM4 <-> u-blox GPS
+  ;; (wire (pts (xy 200 75) (xy 220 75)))  ;; UART_TXD
+  ;; (wire (pts (xy 200 80) (xy 220 80)))  ;; UART_RXD
+  ;; (wire (pts (xy 200 85) (xy 220 85)))  ;; GPS_1PPS
+
+)
