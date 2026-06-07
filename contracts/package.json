@@ -1,0 +1,19 @@
+{
+  "name": "cryptoexam-contracts",
+  "version": "1.0.0",
+  "description": "CryptoExam Core — Solidity Smart Contracts (Polygon Amoy)",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy:amoy": "npx hardhat run deploy/01_deploy.ts --network amoy",
+    "verify": "npx hardhat verify --network amoy"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  }
+}
