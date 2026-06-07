@@ -268,6 +268,36 @@ class HardwareNode(Base):
     # Relationships
     center = relationship("Center", back_populates="hardware_nodes")
 
+    # Virtual properties for API
+    @property
+    def is_online(self) -> bool:
+        """Node is online if it has a recent heartbeat and status is not OFFLINE."""
+        return self.status != NodeStatus.OFFLINE
+
+    @property
+    def center_name(self) -> str | None:
+        return self.center.name if self.center else None
+
+    @property
+    def state(self) -> str | None:
+        return self.center.state if self.center else None
+
+    @property
+    def latitude(self):
+        if self.gps_calibration and "latitude" in self.gps_calibration:
+            return self.gps_calibration["latitude"]
+        return self.center.latitude if self.center else None
+
+    @property
+    def longitude(self):
+        if self.gps_calibration and "longitude" in self.gps_calibration:
+            return self.gps_calibration["longitude"]
+        return self.center.longitude if self.center else None
+
+    @property
+    def tpm_verified(self) -> bool:
+        return self.tpm_ek_cert_hash is not None
+
 
 class Enrollment(Base):
     """Candidate-exam-center mapping with set assignment."""
@@ -303,7 +333,8 @@ class Session(Base):
     enrollment_id = Column(UUID(as_uuid=True), ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
-    answers_encrypted = Column(LargeBinary, nullable=True)
+    answers_encrypted = Column(JSONB, nullable=True)  # In-session JSON, encrypted at final commit
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
     answers_nonce = Column(LargeBinary, nullable=True)
     answer_hash = Column(LargeBinary, nullable=True)
     merkle_leaf = Column(LargeBinary, nullable=True)
@@ -358,17 +389,23 @@ class AdminAuditLog(Base):
 
 
 class DPDPAuditLog(Base):
-    """DPDP Act 2023 compliance — data subject rights tracking."""
+    """DPDP Act 2023 compliance — data subject rights + admin action tracking."""
     __tablename__ = "dpdp_audit_log"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     principal_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=True)
+    resource_type = Column(String(50), nullable=True)
+    resource_id = Column(String(100), nullable=True)
+    details = Column(JSONB, nullable=True)
+    ip_address = Column(INET, nullable=True)
     requested_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     fulfilled_at = Column(DateTime(timezone=True), nullable=True)
     fulfilled_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     data_categories = Column(ARRAY(Text), nullable=True)
     notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
 class ShamirShard(Base):
