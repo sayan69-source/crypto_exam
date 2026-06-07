@@ -1,0 +1,343 @@
+/*
+ * CryptoExam Core — Global Stylesheet
+ * 
+ * Design System CSS Custom Properties + Base Styles
+ * § 4 — Shared Design System. All three interfaces use these exact tokens.
+ *
+ * Interface A (Candidate): Calm Institutionalism — White/light, navy anchors
+ * Interface B (Setter):    Bloomberg Terminal — Dense, dark, data-forward
+ * Interface C (Admin):     Mission Control — Darkest, real-time everything
+ */
+
+/* ── Google Fonts Import ── */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&display=swap');
+
+/* ══════════════════════════════════════════════
+   CSS Custom Properties — Design Tokens
+   ══════════════════════════════════════════════ */
+:root {
+  /* ── Navy Palette ── */
+  --color-navy-950: #080E1E;
+  --color-navy-900: #0D1526;
+  --color-navy-800: #132040;
+  --color-navy-700: #1A2D5A;
+  --color-navy-600: #213573;
+  --color-navy-500: #2942A6;
+  --color-navy-400: #3D5CBE;
+  --color-navy-300: #6B84D4;
+  --color-navy-200: #A8B9EA;
+  --color-navy-100: #D8DEF4;
+  --color-navy-50:  #EFF1FA;
+
+  /* ── Saffron Palette ── */
+  --color-saffron-700: #7B3000;
+  --color-saffron-600: #C45C00;
+  --color-saffron-500: #E07020;
+  --color-saffron-400: #F09040;
+  --color-saffron-300: #F8B870;
+  --color-saffron-200: #FDDCB0;
+  --color-saffron-100: #FEF0E0;
+
+  /* ── India Identity ── */
+  --color-india-saffron:      #FF9933;
+  --color-india-white:        #FFFFFF;
+  --color-india-green:        #138808;
+  --color-india-ashoka:       #000080;
+  --color-india-gold:         #C9A84C;
+  --color-india-deep-saffron: #F4833A;
+
+  /* ── Status Colors ── */
+  --color-success:       #1A7A4C;
+  --color-success-light: #D1FAE5;
+  --color-success-text:  #065F46;
+  --color-warning:       #C47A1E;
+  --color-warning-light: #FEF3C7;
+  --color-warning-text:  #92400E;
+  --color-danger:        #C82020;
+  --color-danger-light:  #FEE2E2;
+  --color-danger-text:   #991B1B;
+  --color-info:          #1E6FA0;
+  --color-info-light:    #DBEAFE;
+  --color-info-text:     #1E40AF;
+
+  /* ── Blockchain Status ── */
+  --color-blockchain-confirmed:   #1A7A4C;
+  --color-blockchain-pending:     #C47A1E;
+  --color-blockchain-unconfirmed: #9A9A9A;
+  --color-blockchain-failed:      #C82020;
+
+  /* ── Interface Backgrounds ── */
+  --bg-exam:   #F8F9FC;
+  --bg-setter: #0F1319;
+  --bg-admin:  #090D14;
+
+  /* ── Font Stacks ── */
+  --font-sans:        'Sora', 'Noto Sans Devanagari', 'Noto Sans', sans-serif;
+  --font-mono:        'JetBrains Mono', 'Fira Code', monospace;
+  --font-display:     'Instrument Serif', 'Sora', sans-serif;
+  --font-devanagari:  'Noto Sans Devanagari', 'Mangal', sans-serif;
+  --font-bengali:     'Noto Sans Bengali', sans-serif;
+  --font-tamil:       'Noto Sans Tamil', sans-serif;
+  --font-telugu:      'Noto Sans Telugu', sans-serif;
+  --font-kannada:     'Noto Sans Kannada', sans-serif;
+  --font-malayalam:   'Noto Sans Malayalam', sans-serif;
+  --font-gujarati:    'Noto Sans Gujarati', sans-serif;
+  --font-odia:        'Noto Sans Oriya', sans-serif;
+
+  /* ── Spacing ── */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+  --space-4xl: 96px;
+
+  /* ── Border Radii ── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-sm:     0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md:     0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg:     0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl:     0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow:   0 0 20px rgba(41, 66, 166, 0.15);
+  --shadow-crypto: 0 0 30px rgba(196, 168, 76, 0.2);
+
+  /* ── Z-Index ── */
+  --z-dropdown:  1000;
+  --z-sticky:    1100;
+  --z-overlay:   1200;
+  --z-modal:     1300;
+  --z-popover:   1400;
+  --z-toast:     1500;
+  --z-tooltip:   1600;
+  --z-anticheat: 9000;
+  --z-emergency: 9999;
+
+  /* ── Animation Curves ── */
+  --ease-crypto-reveal: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-lock-down:     cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-india-reveal:  cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-dashboard-in:  cubic-bezier(0.0, 0.0, 0.2, 1.0);
+  --ease-block-confirm: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+
+/* ══════════════════════════════════════════════
+   CSS Reset & Base Styles
+   ══════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  color: var(--color-navy-900);
+  background: var(--bg-exam);
+  min-height: 100vh;
+}
+
+/* ── Focus Styles (WCAG 2.1 AA) ── */
+:focus-visible {
+  outline: 2px solid var(--color-navy-500);
+  outline-offset: 2px;
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--color-navy-200);
+  color: var(--color-navy-900);
+}
+
+/* ── Headings ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-navy-900);
+}
+
+h1 { font-size: 36px; font-weight: 700; line-height: 1.2; }
+h2 { font-size: 28px; }
+h3 { font-size: 22px; }
+h4 { font-size: 18px; }
+
+/* ── Links ── */
+a {
+  color: var(--color-navy-500);
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+a:hover {
+  color: var(--color-navy-700);
+}
+
+/* ── Code / Mono ── */
+code, pre, .mono {
+  font-family: var(--font-mono);
+}
+
+/* ── Images ── */
+img, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── Tables ── */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* ── Scrollbar (dark mode interfaces) ── */
+.dark-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-navy-950);
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-navy-700);
+  border-radius: var(--radius-full);
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-navy-600);
+}
+
+
+/* ══════════════════════════════════════════════
+   Animation Keyframes
+   ══════════════════════════════════════════════ */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes cryptoReveal {
+  from { opacity: 0; transform: scale(0.95); filter: blur(4px); }
+  to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes lockDown {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(0.98); }
+  100% { transform: scale(1); box-shadow: 0 0 40px rgba(200, 32, 32, 0.3); }
+}
+
+@keyframes timerPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.02); }
+}
+
+@keyframes blockConfirm {
+  0%   { background-color: var(--color-blockchain-pending); }
+  100% { background-color: var(--color-blockchain-confirmed); }
+}
+
+@keyframes indiaReveal {
+  0%   { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Utility Animation Classes ── */
+.animate-fade-in     { animation: fadeIn 300ms var(--ease-dashboard-in) forwards; }
+.animate-slide-right { animation: slideInRight 300ms var(--ease-dashboard-in) forwards; }
+.animate-pulse       { animation: pulse 2s ease-in-out infinite; }
+.animate-spin        { animation: spin 1s linear infinite; }
+.animate-crypto      { animation: cryptoReveal 500ms var(--ease-crypto-reveal) forwards; }
+.animate-lock        { animation: lockDown 700ms var(--ease-lock-down) forwards; }
+.animate-timer-pulse { animation: timerPulse 1s ease-in-out infinite; }
+.animate-block-confirm { animation: blockConfirm 400ms var(--ease-block-confirm) forwards; }
+.animate-india-reveal  { animation: indiaReveal 900ms var(--ease-india-reveal) forwards; }
+
+
+/* ══════════════════════════════════════════════
+   Print Styles (Candidate Receipt — A4)
+   ══════════════════════════════════════════════ */
+
+@media print {
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 10pt;
+    color: #666;
+  }
+
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+}
+
+
+/* ══════════════════════════════════════════════
+   Reduced Motion (WCAG 2.1)
+   ══════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
