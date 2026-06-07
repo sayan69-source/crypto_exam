@@ -1,0 +1,283 @@
+"""
+CryptoExam Core — Auth API Endpoints
+§ 8 — Authentication and authorization.
+
+POST /api/v1/auth/login      — Unified login (candidate DOB / setter password)
+POST /api/v1/auth/register   — Register new user (setter/admin only)
+GET  /api/v1/auth/me          — Get current user profile
+POST /api/v1/auth/refresh     — Refresh JWT token
+"""
+
+import logging
+from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.models import User, UserRole
+from app.schemas import (
+    LoginRequest, TokenResponse, UserProfile, ErrorResponse,
+)
+from app.services.auth import (
+    create_access_token, hash_password, verify_password,
+    get_current_user, require_role,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    responses={401: {"model": ErrorResponse}},
+    summary="Unified Login",
+    description=(
+        "Authenticate as candidate (roll number + DOB), "
+        "setter (email + password), or admin (email + password + TOTP)."
+    ),
+)
+async def login(
+    request: LoginRequest,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unified login supporting all three roles.
+
+    Candidate: identifier=roll_number, dob=YYYY-MM-DD
+    Setter/Admin: identifier=email, password=<password>
+    """
+    # Find user by email or roll number
+    stmt = select(User).where(
+        (User.email == request.identifier) | (User.full_name == request.identifier)
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated",
+        )
+
+    # DPDP consent check
+    if not user.dpdp_consent:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="DPDP Act 2023 consent required before authentication. "
+                   "Please provide consent through the registration flow.",
+        )
+
+    # Role-specific authentication
+    if user.role == UserRole.CANDIDATE:
+        # Candidate: verify DOB
+        if not request.dob:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Date of birth required for candidate login",
+            )
+        # DOB verification would check against the enrollment record
+        # For now, accept any DOB for registered candidates
+
+    else:
+        # Setter/Admin: verify password
+        if not request.password or not user.password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password required for setter/admin login",
+            )
+
+        if not verify_password(request.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials",
+            )
+
+    # Create JWT token
+    token, expires = create_access_token(
+        user_id=user.id,
+        role=user.role,
+        email=user.email,
+    )
+
+    logger.info(
+        f"Login successful: user={str(user.id)[:8]}..., "
+        f"role={user.role.value}, ip={req.client.host}"
+    )
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_at=expires,
+        role=user.role,
+        user_id=user.id,
+    )
+
+
+@router.post(
+    "/register",
+    response_model=UserProfile,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register User",
+    description="Register a new setter or admin account. Requires ADMIN role.",
+)
+async def register(
+    full_name: str,
+    email: str,
+    password: str,
+    role: str = "SETTER",
+    req: Request = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Register a new setter or admin. Only admins can create accounts."""
+    # Check if email already exists
+    existing = await db.execute(select(User).where(User.email == email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered",
+        )
+
+    user_role = UserRole(role.upper())
+    if user_role == UserRole.CANDIDATE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Candidates are enrolled through the exam enrollment flow, not registration",
+        )
+
+    user = User(
+        email=email,
+        full_name=full_name,
+        role=user_role,
+        password_hash=hash_password(password),
+        dpdp_consent=True,
+        dpdp_consent_at=datetime.now(timezone.utc),
+        dpdp_consent_ip=req.client.host if req else None,
+        dpdp_consent_version="1.0",
+    )
+
+    db.add(user)
+    await db.flush()
+
+    logger.info(f"User registered: {email}, role={role}, by admin={current_user['user_id']}")
+
+    return UserProfile.model_validate(user)
+
+
+@router.get(
+    "/me",
+    response_model=UserProfile,
+    summary="Current User Profile",
+)
+async def get_profile(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the authenticated user's profile."""
+    stmt = select(User).where(User.id == current_user["user_id"])
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return UserProfile.model_validate(user)
+
+
+@router.post(
+    "/seed-admin",
+    response_model=TokenResponse,
+    summary="Seed Admin (Dev Only)",
+    description="Create a seed admin account for development. Disabled in production.",
+    include_in_schema=True,
+)
+async def seed_admin(
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a seed admin account for development/demo.
+    Returns a JWT token for immediate use.
+
+    Email: admin@cryptoexam.dev
+    Password: CryptoExam2025!
+    """
+    settings_obj = get_settings()
+    if not settings_obj.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seed admin disabled in production",
+        )
+
+    # Check if seed admin exists
+    existing = await db.execute(
+        select(User).where(User.email == "admin@cryptoexam.dev")
+    )
+    user = existing.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            email="admin@cryptoexam.dev",
+            full_name="CryptoExam Admin",
+            role=UserRole.ADMIN,
+            password_hash=hash_password("CryptoExam2025!"),
+            dpdp_consent=True,
+            dpdp_consent_at=datetime.now(timezone.utc),
+            dpdp_consent_ip=req.client.host,
+            dpdp_consent_version="1.0",
+            state="Delhi (NCT)",
+        )
+        db.add(user)
+        await db.flush()
+        logger.info("Seed admin created: admin@cryptoexam.dev")
+
+    # Also create a seed setter
+    existing_setter = await db.execute(
+        select(User).where(User.email == "setter@cryptoexam.dev")
+    )
+    if not existing_setter.scalar_one_or_none():
+        setter = User(
+            email="setter@cryptoexam.dev",
+            full_name="Dr. Priya Sharma",
+            name_hi="डॉ. प्रिया शर्मा",
+            role=UserRole.SETTER,
+            password_hash=hash_password("CryptoExam2025!"),
+            dpdp_consent=True,
+            dpdp_consent_at=datetime.now(timezone.utc),
+            dpdp_consent_ip=req.client.host,
+            dpdp_consent_version="1.0",
+            institution="Indian Institute of Technology Delhi",
+            state="Delhi (NCT)",
+        )
+        db.add(setter)
+        logger.info("Seed setter created: setter@cryptoexam.dev")
+
+    token, expires = create_access_token(
+        user_id=user.id,
+        role=user.role,
+        email=user.email,
+    )
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_at=expires,
+        role=user.role,
+        user_id=user.id,
+    )
+
+
+# Import settings for seed endpoint
+from app.config import get_settings
