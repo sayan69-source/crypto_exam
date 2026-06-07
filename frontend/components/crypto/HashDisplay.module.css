@@ -1,0 +1,67 @@
+/* CryptoExam Core — HashDisplay Styles */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.light .label { color: var(--color-navy-400); }
+.dark .label { color: var(--color-navy-300); }
+
+.hashRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.hash {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+}
+
+.light .hash {
+  background: var(--color-navy-50);
+  color: var(--color-navy-700);
+}
+
+.dark .hash {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-navy-200);
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: all 150ms ease;
+  text-decoration: none;
+}
+
+.light .btn { color: var(--color-navy-500); }
+.light .btn:hover { background: var(--color-navy-50); }
+
+.dark .btn { color: var(--color-navy-300); }
+.dark .btn:hover { background: rgba(255,255,255,0.1); }

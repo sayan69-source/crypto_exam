@@ -135,12 +135,14 @@ async def root():
             "crypto": "/api/v1/crypto",
             "blockchain": "/api/v1/blockchain",
             "admin": "/api/v1/admin",
+            "generation": "/api/v1/generation",
         },
     }
 
 
 # ── API Router Registration ──
 from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets
+from app.api.routes.generation import router as generation_router
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
@@ -149,5 +151,6 @@ app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"]
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(websockets.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(generation_router, prefix="/api/v1/generation", tags=["AI Generation"])
 
 

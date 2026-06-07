@@ -1,0 +1,56 @@
+/* CryptoExam Core — Progress Styles */
+
+.barWrapper { width: 100%; }
+.barLabel { font-size: 12px; color: #6b7280; margin-bottom: 4px; display: block; }
+
+.bar {
+  width: 100%;
+  background: #e5e7eb;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.bar-sm { height: 4px; }
+.bar-md { height: 8px; }
+
+.barFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 300ms ease;
+}
+
+.fill-navy { background: var(--color-navy-500); }
+.fill-saffron { background: linear-gradient(90deg, var(--color-india-saffron), var(--color-saffron-500)); }
+.fill-success { background: var(--color-success); }
+.fill-danger { background: var(--color-danger); }
+
+/* Ring */
+.ringWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring { transform: rotate(0deg); }
+
+.ringBg {
+  fill: none;
+  stroke: #e5e7eb;
+}
+
+.ringFill {
+  fill: none;
+  stroke: var(--color-navy-500);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 500ms ease, stroke 300ms ease;
+}
+
+.ringContent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}

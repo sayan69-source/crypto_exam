@@ -1,0 +1,133 @@
+/* CryptoExam Core — Emergency Panel Styles */
+
+.page { animation: fadeIn 300ms var(--ease-dashboard-in) forwards; }
+
+.header { margin-bottom: var(--space-xl); }
+.title { font-size: 22px; color: #fca5a5; margin: 0 0 4px; }
+.subtitle { font-size: 13px; color: var(--color-navy-400); }
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+
+.actionCard {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-navy-700);
+  border-top: 3px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  transition: all 200ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.actionCard:hover { background: rgba(255,255,255,0.07); transform: translateY(-2px); }
+
+.actionIcon { font-size: 28px; }
+.actionLabel { font-size: 14px; font-weight: 700; color: white; letter-spacing: 0.04em; }
+.actionDesc { font-size: 12px; color: var(--color-navy-300); line-height: 1.5; }
+
+/* Execute Panel */
+.executePanel {
+  max-width: 600px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-navy-700);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  animation: fadeIn 300ms ease forwards;
+}
+
+.executePanelHeader { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-xl); }
+.executePanelHeader h2 { font-size: 18px; color: white; margin: 0; }
+
+.backBtn {
+  padding: 6px 14px; font-size: 12px; font-family: var(--font-sans);
+  background: rgba(255,255,255,0.06); color: var(--color-navy-300);
+  border: 1px solid var(--color-navy-600); border-radius: var(--radius-md);
+  cursor: pointer; transition: all 150ms ease;
+}
+.backBtn:hover { background: rgba(255,255,255,0.1); color: white; }
+
+.formGroup { margin-bottom: var(--space-lg); }
+.formGroup label { display: block; font-size: 13px; font-weight: 500; color: var(--color-navy-200); margin-bottom: 6px; }
+
+.select, .textarea {
+  width: 100%; padding: 10px 14px; font-size: 14px;
+  font-family: var(--font-sans); background: var(--color-navy-800);
+  border: 1.5px solid var(--color-navy-600); border-radius: var(--radius-md);
+  color: white; outline: none; transition: border-color 150ms ease;
+}
+
+.select:focus, .textarea:focus { border-color: var(--color-navy-400); }
+.textarea { resize: vertical; min-height: 80px; }
+.select option { background: var(--color-navy-800); }
+
+.coSignBlock {
+  padding: var(--space-md); background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-lg); margin-bottom: var(--space-lg);
+  border: 1px solid var(--color-navy-700);
+}
+
+.coSignBlock h4 { font-size: 13px; color: var(--color-navy-200); margin-bottom: var(--space-sm); }
+
+.coSignRow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; font-size: 13px; color: var(--color-navy-300);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.coSignApproved { color: var(--color-blockchain-confirmed); font-size: 12px; }
+
+.coSignBtn {
+  padding: 6px 14px; font-size: 12px; font-family: var(--font-sans);
+  background: var(--color-navy-600); color: white;
+  border: none; border-radius: var(--radius-md); cursor: pointer;
+  transition: all 150ms ease;
+}
+.coSignBtn:hover { background: var(--color-navy-500); }
+.coSignBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.executeBtn {
+  width: 100%; padding: 14px; font-size: 15px; font-weight: 700;
+  font-family: var(--font-sans); background: var(--color-navy-600);
+  color: white; border: none; border-radius: var(--radius-md);
+  cursor: pointer; transition: all 150ms ease; position: relative;
+}
+.executeBtn:hover:not(:disabled) { background: var(--color-navy-500); }
+.executeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.executeDanger { background: var(--color-danger); }
+.executeDanger:hover:not(:disabled) { background: #b01c1c; }
+
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+  border-radius: 50%; animation: spin 600ms linear infinite;
+}
+
+/* Complete */
+.completeCard {
+  text-align: center; padding: var(--space-2xl) 0;
+}
+.completeIcon { font-size: 48px; display: block; margin-bottom: var(--space-md); }
+.completeCard h3 { font-size: 18px; color: white; margin-bottom: var(--space-sm); }
+.completeCard p { font-size: 13px; color: var(--color-navy-300); }
+.completeCard code { font-size: 12px; background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: var(--radius-sm); }
+
+.doneBtn {
+  margin-top: var(--space-xl); padding: 10px 28px; font-size: 14px;
+  font-family: var(--font-sans); background: var(--color-navy-600);
+  color: white; border: none; border-radius: var(--radius-md); cursor: pointer;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

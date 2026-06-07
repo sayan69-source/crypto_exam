@@ -1,0 +1,135 @@
+/* CryptoExam Core — Candidate Layout Styles */
+
+.container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-exam);
+}
+
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.headerInner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--color-navy-800);
+}
+
+.logoMark { font-size: 20px; }
+.logoText { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+
+.roleBadge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-navy-50);
+  color: var(--color-navy-600);
+  letter-spacing: 0.02em;
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-lg);
+}
+
+.navLink {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-navy-500);
+  text-decoration: none;
+  padding: 6px 0;
+  transition: color 150ms ease;
+}
+
+.navLink:hover { color: var(--color-navy-800); }
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.userName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-navy-700);
+}
+
+.loginBtn {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 20px;
+  background: var(--color-navy-600);
+  color: white;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: background 150ms ease;
+}
+
+.loginBtn:hover { background: var(--color-navy-700); color: white; }
+
+/* India Tricolour Stripe */
+.tricolour {
+  display: flex;
+  height: 3px;
+}
+
+.saffronStripe { flex: 1; background: var(--color-india-saffron); }
+.whiteStripe { flex: 1; background: white; }
+.greenStripe { flex: 1; background: var(--color-india-green); }
+
+/* Main */
+.main {
+  flex: 1;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: var(--space-xl) var(--space-lg);
+  border-top: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: var(--color-navy-400);
+}
+
+.footerSub {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .nav { display: none; }
+  .headerInner { padding: 0 var(--space-md); }
+  .main { padding: var(--space-md); }
+}

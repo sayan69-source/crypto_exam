@@ -1,138 +1,79 @@
-/**
- * CryptoExam Core — Root Landing Page
- * 
- * Redirects to the appropriate interface based on role,
- * or shows a brief system identity page.
- */
-
 import Link from "next/link";
+import styles from "./page.module.css";
 
-export default function HomePage() {
+export default function LandingPage() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--color-navy-950)",
-        color: "white",
-        fontFamily: "var(--font-sans)",
-        padding: "var(--space-xl)",
-      }}
-    >
-      <h1
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "48px",
-          fontWeight: 400,
-          marginBottom: "var(--space-md)",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        CryptoExam Core
-      </h1>
+    <main className={styles.main}>
+      {/* Hero Section */}
+      <section className={styles.hero}>
+        <div className={styles.tricolour}>
+          <div className={styles.saffronBar} />
+          <div className={styles.whiteBar} />
+          <div className={styles.greenBar} />
+        </div>
 
-      <p
-        style={{
-          fontSize: "18px",
-          color: "var(--color-navy-300)",
-          marginBottom: "var(--space-3xl)",
-          textAlign: "center",
-          maxWidth: "600px",
-          lineHeight: 1.6,
-        }}
-      >
-        Zero-Trust Examination Infrastructure for India.
-        <br />
-        <span style={{ color: "var(--color-india-gold)", fontStyle: "italic" }}>
-          The math cannot be bribed.
-        </span>
-      </p>
+        <div className={styles.heroContent}>
+          <p className={styles.badge}>FAR AWAY 2026 · Examinations Track</p>
+          <h1 className={styles.title}>CryptoExam Core</h1>
+          <p className={styles.subtitle}>
+            Zero-Trust Examination Infrastructure for India
+          </p>
+          <p className={styles.tagline}>
+            The math cannot be bribed. The blockchain cannot forget. The hardware cannot lie.
+          </p>
 
-      {/* India Tricolour stripe */}
-      <div
-        style={{
-          display: "flex",
-          width: "200px",
-          height: "4px",
-          borderRadius: "var(--radius-full)",
-          overflow: "hidden",
-          marginBottom: "var(--space-3xl)",
-        }}
-      >
-        <div style={{ flex: 1, background: "var(--color-india-saffron)" }} />
-        <div style={{ flex: 1, background: "var(--color-india-white)" }} />
-        <div style={{ flex: 1, background: "var(--color-india-green)" }} />
-      </div>
+          <div className={styles.portals}>
+            <Link href="/exam" className={styles.portalCard}>
+              <span className={styles.portalIcon}>📝</span>
+              <span className={styles.portalLabel}>Candidate Portal</span>
+              <span className={styles.portalDesc}>Take your exam securely</span>
+            </Link>
+            <Link href="/setter" className={styles.portalCard}>
+              <span className={styles.portalIcon}>🔬</span>
+              <span className={styles.portalLabel}>Setter Workbench</span>
+              <span className={styles.portalDesc}>Create &amp; manage papers</span>
+            </Link>
+            <Link href="/admin" className={styles.portalCard}>
+              <span className={styles.portalIcon}>🛡️</span>
+              <span className={styles.portalLabel}>Admin Console</span>
+              <span className={styles.portalDesc}>Mission control</span>
+            </Link>
+          </div>
+        </div>
+      </section>
 
-      <nav
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "var(--space-lg)",
-          maxWidth: "720px",
-          width: "100%",
-        }}
-      >
-        {[
-          {
-            href: "/exam/dashboard",
-            title: "Candidate Portal",
-            desc: "Take exams with cryptographic protection",
-            bg: "var(--bg-exam)",
-            color: "var(--color-navy-800)",
-          },
-          {
-            href: "/setter/dashboard",
-            title: "Setter Workbench",
-            desc: "Create AI-powered exam papers",
-            bg: "var(--bg-setter)",
-            color: "var(--color-navy-100)",
-          },
-          {
-            href: "/admin/dashboard",
-            title: "Admin Console",
-            desc: "Mission control for exam day",
-            bg: "var(--bg-admin)",
-            color: "var(--color-navy-100)",
-          },
-        ].map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              padding: "var(--space-xl)",
-              background: item.bg,
-              color: item.color,
-              borderRadius: "var(--radius-xl)",
-              textDecoration: "none",
-              transition: "transform 150ms ease, box-shadow 150ms ease",
-              border: "1px solid var(--color-navy-800)",
-            }}
-          >
-            <span style={{ fontWeight: 600, fontSize: "16px", marginBottom: "var(--space-sm)" }}>
-              {item.title}
-            </span>
-            <span style={{ fontSize: "13px", opacity: 0.7 }}>
-              {item.desc}
-            </span>
-          </Link>
-        ))}
-      </nav>
+      {/* Five Guarantees */}
+      <section className={styles.guarantees}>
+        <h2 className={styles.sectionTitle}>Five Cryptographic Guarantees</h2>
+        <div className={styles.guaranteeGrid}>
+          {[
+            { num: "01", title: "No human sees the paper before T₀", desc: "AES-GCM-256 + HKDF from drand beacon", icon: "🔐" },
+            { num: "02", title: "Offline centers cannot cheat", desc: "RSA time-lock puzzle on TPM 2.0 hardware", icon: "⏱️" },
+            { num: "03", title: "Answer records are immutable", desc: "SHA-256 Merkle root committed to Polygon PoS", icon: "🌳" },
+            { num: "04", title: "Difficulty is machine-verifiable", desc: "ZK-SNARK (Groth16) proof on-chain", icon: "🧮" },
+            { num: "05", title: "Delivery is provable", desc: "TPM 2.0 + GPS signed ProofOfDelivery", icon: "📡" },
+          ].map((g) => (
+            <div key={g.num} className={styles.guaranteeCard}>
+              <span className={styles.guaranteeIcon}>{g.icon}</span>
+              <span className={styles.guaranteeNum}>{g.num}</span>
+              <h3 className={styles.guaranteeTitle}>{g.title}</h3>
+              <p className={styles.guaranteeDesc}>{g.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <footer
-        style={{
-          marginTop: "var(--space-4xl)",
-          color: "var(--color-navy-600)",
-          fontSize: "13px",
-          textAlign: "center",
-        }}
-      >
-        FAR AWAY 2026 · Examinations Track · DPDP Act 2023 Compliant
+      {/* Public Audit Link */}
+      <section className={styles.auditSection}>
+        <Link href="/exam/audit" className={styles.auditLink}>
+          🔍 Public Audit Portal — Verify any exam on Polygonscan (No Login Required)
+        </Link>
+      </section>
+
+      {/* Footer */}
+      <footer className={styles.footer}>
+        <p>CryptoExam Core · FAR AWAY 2026 · Built for India</p>
+        <p className={styles.footerSub}>DPDP Act 2023 Compliant · Polygon PoS · CIRCOM Groth16</p>
       </footer>
     </main>
   );

@@ -1,0 +1,351 @@
+/* CryptoExam Core — Cryptographic Receipt Styles */
+
+.page {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+  animation: fadeIn 400ms var(--ease-crypto-reveal) forwards;
+}
+
+.receipt {
+  max-width: 720px;
+  width: 100%;
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+/* Tricolour */
+.tricolour { display: flex; height: 6px; }
+.saffron { flex: 1; background: var(--color-india-saffron); }
+.white { flex: 1; background: white; }
+.green { flex: 1; background: var(--color-india-green); }
+
+/* Header */
+.header {
+  text-align: center;
+  padding: var(--space-2xl) var(--space-2xl) var(--space-xl);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.checkmark {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--space-md);
+}
+
+.checkSvg { width: 100%; height: 100%; }
+
+.checkCircle {
+  stroke: var(--color-success);
+  stroke-width: 2;
+  stroke-dasharray: 157;
+  stroke-dashoffset: 157;
+  animation: drawCircle 600ms ease forwards;
+}
+
+.checkPath {
+  stroke: var(--color-success);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: drawCheck 400ms 400ms ease forwards;
+}
+
+@keyframes drawCircle {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-navy-800);
+  margin: 0 0 4px;
+}
+
+.titleHi {
+  font-family: var(--font-devanagari);
+  font-size: 16px;
+  color: var(--color-navy-400);
+  margin-bottom: var(--space-lg);
+}
+
+.candidateInfo {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.infoRow { display: flex; gap: var(--space-md); }
+.infoLabel { width: 100px; font-size: 12px; color: #9ca3af; flex-shrink: 0; }
+.infoValue { font-size: 14px; font-weight: 500; color: var(--color-navy-800); }
+.infoValueMono { font-family: var(--font-mono); font-size: 13px; color: var(--color-navy-600); }
+
+/* Crypto Section */
+.cryptoSection {
+  background: var(--color-navy-900);
+  color: white;
+  padding: var(--space-xl) var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.proofRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.proofLabel {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.proofIcon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+
+.proofLabel strong { font-size: 14px; color: white; display: block; margin-bottom: 4px; }
+
+.proofExplain {
+  font-size: 12px;
+  color: var(--color-navy-300);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.proofDetail {
+  font-size: 12px;
+  color: var(--color-navy-300);
+  margin: 0;
+}
+
+.proofDetail code {
+  font-size: 11px;
+  background: rgba(255,255,255,0.08);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.polygonscanBtn {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-left: 28px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.1);
+  color: var(--color-navy-200);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all 150ms ease;
+}
+
+.polygonscanBtn:hover { background: rgba(255,255,255,0.18); color: white; }
+
+.zkBadge {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-left: 28px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: linear-gradient(135deg, rgba(201,168,76,0.2), rgba(201,168,76,0.1));
+  color: var(--color-india-gold);
+  border-radius: var(--radius-full);
+}
+
+.toggleProof {
+  font-size: 12px;
+  color: var(--color-navy-300);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-sans);
+  transition: color 150ms ease;
+}
+
+.toggleProof:hover { color: white; }
+
+/* Merkle path */
+.merklePath {
+  padding: var(--space-md);
+  background: rgba(255,255,255,0.04);
+  border-radius: var(--radius-lg);
+  margin-left: 28px;
+}
+
+.merkleTree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.merkleNode {
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.merkleRoot { background: var(--color-navy-600); color: white; font-weight: 600; }
+.merkleSibling { background: rgba(255,255,255,0.08); color: var(--color-navy-300); }
+.merkleLeaf {
+  background: var(--color-india-gold);
+  color: var(--color-navy-900);
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.merkleLeaf code { font-size: 10px; opacity: 0.7; }
+
+.merkleBranches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Summary */
+.summarySection {
+  padding: var(--space-xl) var(--space-2xl);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-navy-800);
+  margin: 0 0 var(--space-md);
+}
+
+.summaryTable {
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr 80px;
+  gap: var(--space-sm);
+  padding: 8px 0;
+  font-weight: 600;
+  color: var(--color-navy-500);
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+  background: white;
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr 80px;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  border-bottom: 1px solid #f3f4f6;
+  align-items: center;
+}
+
+.qNum { font-family: var(--font-mono); font-weight: 600; color: var(--color-navy-600); }
+
+.ansStatus { font-size: 12px; text-transform: capitalize; }
+.status-answered { color: var(--color-navy-600); }
+.status-flagged_answered { color: #92400e; }
+.status-skipped { color: #9ca3af; }
+
+.timeSpent { font-family: var(--font-mono); font-size: 12px; color: #9ca3af; }
+
+/* Verify */
+.verifySection {
+  padding: var(--space-xl) var(--space-2xl);
+}
+
+.verifySteps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: var(--space-md);
+}
+
+.verifyStep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-navy-600);
+}
+
+.stepNum {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-navy-600);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.shareNote {
+  font-size: 13px;
+  color: var(--color-navy-400);
+  font-style: italic;
+}
+
+/* Download */
+.downloadRow {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-2xl);
+  border-top: 1px solid #e5e7eb;
+  justify-content: center;
+}
+
+.downloadBtn {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: var(--color-navy-50);
+  color: var(--color-navy-600);
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.downloadBtn:hover { background: var(--color-navy-100); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media print {
+  .page { padding: 0; }
+  .receipt { box-shadow: none; border-radius: 0; }
+  .cryptoSection { background: #1a1a2e !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

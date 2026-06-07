@@ -1,0 +1,107 @@
+/* CryptoExam Core — Button Styles */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-navy-500);
+  outline-offset: 2px;
+}
+
+/* ── Sizes ── */
+.sm { padding: 6px 12px; font-size: 13px; border-radius: var(--radius-sm); }
+.md { padding: 10px 20px; font-size: 14px; }
+.lg { padding: 14px 28px; font-size: 16px; border-radius: var(--radius-lg); }
+
+/* ── Variants ── */
+.primary {
+  background: var(--color-navy-600);
+  color: white;
+}
+.primary:hover:not(:disabled) {
+  background: var(--color-navy-700);
+  box-shadow: var(--shadow-md);
+}
+.primary:active:not(:disabled) {
+  background: var(--color-navy-800);
+}
+
+.secondary {
+  background: transparent;
+  color: var(--color-navy-700);
+  border: 1.5px solid var(--color-navy-200);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--color-navy-50);
+  border-color: var(--color-navy-400);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-navy-600);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--color-navy-50);
+}
+
+.danger {
+  background: var(--color-danger);
+  color: white;
+}
+.danger:hover:not(:disabled) {
+  background: #b01c1c;
+  box-shadow: var(--shadow-md);
+}
+
+.saffron {
+  background: linear-gradient(135deg, var(--color-india-saffron), var(--color-india-deep-saffron));
+  color: white;
+  font-weight: 600;
+}
+.saffron:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-saffron-500), var(--color-india-saffron));
+  box-shadow: 0 4px 15px rgba(255, 153, 51, 0.3);
+}
+
+/* ── Full Width ── */
+.full { width: 100%; }
+
+/* ── Loading ── */
+.loading { color: transparent; }
+.spinner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.1em;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

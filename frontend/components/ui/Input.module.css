@@ -1,0 +1,71 @@
+/* CryptoExam Core — Input Styles */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.light .label { color: var(--color-navy-700); }
+.dark .label { color: var(--color-navy-200); }
+
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  border-radius: var(--radius-md);
+  transition: all 150ms ease;
+  outline: none;
+}
+
+.light .input {
+  background: white;
+  border: 1.5px solid #d1d5db;
+  color: var(--color-navy-900);
+}
+
+.light .input:focus {
+  border-color: var(--color-navy-500);
+  box-shadow: 0 0 0 3px rgba(41, 66, 166, 0.12);
+}
+
+.dark .input {
+  background: var(--color-navy-800);
+  border: 1.5px solid var(--color-navy-600);
+  color: white;
+}
+
+.dark .input:focus {
+  border-color: var(--color-navy-400);
+  box-shadow: 0 0 0 3px rgba(61, 92, 190, 0.2);
+}
+
+.dark .input::placeholder { color: var(--color-navy-400); }
+
+.inputError {
+  border-color: var(--color-danger) !important;
+}
+
+.inputError:focus {
+  box-shadow: 0 0 0 3px rgba(200, 32, 32, 0.12) !important;
+}
+
+.error {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0;
+}

@@ -1,0 +1,214 @@
+/* Candidate Exam Portal — Calm Institutionalism */
+
+.container {
+  min-height: 100vh;
+  background: var(--bg-exam);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-xl);
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--color-navy-100);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-navy-900);
+  text-decoration: none;
+}
+
+.headerBadge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-navy-500);
+  background: var(--color-navy-50);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.5px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.auditBtn {
+  font-size: 13px;
+  color: var(--color-navy-600);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  transition: background 150ms ease;
+}
+
+.auditBtn:hover {
+  background: var(--color-navy-50);
+}
+
+.loginBtn {
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: var(--color-navy-800);
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: background 150ms ease;
+}
+
+.loginBtn:hover {
+  background: var(--color-navy-700);
+}
+
+/* ── Main ── */
+.main {
+  flex: 1;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-md);
+  width: 100%;
+}
+
+/* ── Hero ── */
+.hero {
+  text-align: center;
+  margin-bottom: var(--space-3xl);
+}
+
+.title {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--color-navy-900);
+  margin-bottom: var(--space-md);
+}
+
+.subtitle {
+  font-size: 16px;
+  color: var(--color-navy-600);
+  line-height: 1.7;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* ── Steps ── */
+.steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-3xl);
+  flex-wrap: wrap;
+}
+
+.step {
+  text-align: center;
+  max-width: 220px;
+  padding: var(--space-lg);
+  background: #FFFFFF;
+  border: 1px solid var(--color-navy-100);
+  border-radius: var(--radius-lg);
+}
+
+.stepNum {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-navy-800);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-sm);
+}
+
+.stepArrow {
+  font-size: 24px;
+  color: var(--color-navy-300);
+  margin-top: var(--space-xl);
+}
+
+.stepTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-navy-900);
+  margin-bottom: var(--space-xs);
+}
+
+.stepDesc {
+  font-size: 13px;
+  color: var(--color-navy-600);
+  line-height: 1.5;
+}
+
+/* ── Features ── */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+.featureCard {
+  padding: var(--space-lg);
+  background: #FFFFFF;
+  border: 1px solid var(--color-navy-100);
+  border-radius: var(--radius-lg);
+  transition: all 200ms ease;
+}
+
+.featureCard:hover {
+  border-color: var(--color-navy-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.featureIcon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: var(--space-sm);
+}
+
+.featureCard h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-navy-900);
+  margin-bottom: var(--space-xs);
+}
+
+.featureCard p {
+  font-size: 13px;
+  color: var(--color-navy-600);
+  line-height: 1.5;
+}
+
+/* ── Footer ── */
+.footer {
+  text-align: center;
+  padding: var(--space-lg);
+  border-top: 1px solid var(--color-navy-100);
+  font-size: 13px;
+  color: var(--color-navy-500);
+}
+
+@media (max-width: 768px) {
+  .steps { flex-direction: column; align-items: center; }
+  .stepArrow { transform: rotate(90deg); margin: 0; }
+  .features { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,89 @@
+/* CryptoExam Core — BlockchainTxCard Styles */
+
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  transition: all 150ms ease;
+  border-left: 3px solid transparent;
+}
+
+.confirmed { border-left-color: var(--color-blockchain-confirmed); }
+.pending { border-left-color: var(--color-blockchain-pending); }
+.unconfirmed { border-left-color: var(--color-blockchain-unconfirmed); }
+.failed { border-left-color: var(--color-blockchain-failed); }
+
+.card:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.icon { font-size: 16px; }
+
+.type {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  flex: 1;
+}
+
+.status {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.status-confirmed { color: var(--color-blockchain-confirmed); }
+.status-pending { color: var(--color-blockchain-pending); }
+.status-unconfirmed { color: var(--color-blockchain-unconfirmed); }
+.status-failed { color: var(--color-blockchain-failed); }
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.label {
+  color: var(--color-navy-400);
+  width: 40px;
+  flex-shrink: 0;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.value {
+  color: var(--color-navy-200);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.txLink {
+  color: var(--color-navy-300);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 150ms ease;
+}
+
+.txLink:hover { color: white; }
+.txLink code { background: none; padding: 0; }

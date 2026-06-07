@@ -1,0 +1,313 @@
+/* CryptoExam Core — Login Page Styles */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-navy-950);
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-xl);
+}
+
+/* Subtle rangoli background pattern */
+.patternBg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: 
+    radial-gradient(circle at 20% 50%, var(--color-india-saffron) 0.5px, transparent 0.5px),
+    radial-gradient(circle at 80% 50%, var(--color-india-saffron) 0.5px, transparent 0.5px),
+    radial-gradient(circle at 50% 20%, var(--color-india-green) 0.5px, transparent 0.5px),
+    radial-gradient(circle at 50% 80%, var(--color-india-green) 0.5px, transparent 0.5px);
+  background-size: 60px 60px, 60px 60px, 80px 80px, 80px 80px;
+  pointer-events: none;
+}
+
+/* Language Selector */
+.langSelector {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.langBtn {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  border: 1px solid var(--color-navy-700);
+  background: transparent;
+  color: var(--color-navy-300);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.langBtn:hover { background: var(--color-navy-800); color: white; }
+.langActive { background: var(--color-navy-700); color: white; border-color: var(--color-navy-500); }
+
+/* Card */
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: white;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl), 0 0 80px rgba(41, 66, 166, 0.1);
+  padding: var(--space-2xl);
+  animation: fadeIn 500ms var(--ease-crypto-reveal) forwards;
+  position: relative;
+  z-index: 1;
+}
+
+/* Logo */
+.logoArea {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+}
+
+.logoIcon {
+  font-size: 36px;
+  display: block;
+  margin-bottom: var(--space-sm);
+}
+
+.logoTitle {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-navy-800);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.tagline {
+  font-size: 14px;
+  color: var(--color-navy-400);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* Role Tabs */
+.roleTabs {
+  display: flex;
+  gap: 4px;
+  background: var(--color-navy-50);
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.roleTab {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--color-navy-500);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.roleTab:hover { color: var(--color-navy-700); }
+
+.roleActive {
+  background: white;
+  color: var(--color-navy-800);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-navy-700);
+}
+
+.input {
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  border: 1.5px solid #d1d5db;
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: all 150ms ease;
+  color: var(--color-navy-900);
+  background: white;
+}
+
+.input:focus {
+  border-color: var(--color-navy-500);
+  box-shadow: 0 0 0 3px rgba(41, 66, 166, 0.12);
+}
+
+.input::placeholder { color: #9ca3af; }
+
+/* OTP */
+.otpField {
+  animation: slideInOtp 300ms var(--ease-dashboard-in) forwards;
+}
+
+.otpInput {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.resendBtn {
+  align-self: flex-end;
+  font-size: 12px;
+  color: var(--color-navy-400);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.resendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Accordion */
+.accordion {
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.accordionToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--color-navy-600);
+  background: var(--color-navy-50);
+  border: none;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.accordionToggle:hover { background: #e5e7eb; }
+
+.accordionContent {
+  padding: 14px;
+  font-size: 13px;
+  color: var(--color-navy-600);
+  line-height: 1.6;
+  border-top: 1px solid #e5e7eb;
+  animation: fadeIn 200ms ease forwards;
+}
+
+.accordionContent p { margin: 0 0 8px; }
+.accordionContent p:last-of-type { margin-bottom: 12px; }
+
+.consentCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-navy-700);
+  cursor: pointer;
+  padding-top: 4px;
+}
+
+.consentCheck input {
+  margin-top: 2px;
+  accent-color: var(--color-navy-600);
+}
+
+/* Submit */
+.submitBtn {
+  width: 100%;
+  padding: 13px;
+  font-size: 15px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  background: var(--color-navy-600);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+  position: relative;
+  margin-top: var(--space-sm);
+}
+
+.submitBtn:hover:not(:disabled) {
+  background: var(--color-navy-700);
+  box-shadow: var(--shadow-md);
+}
+
+.submitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+}
+
+/* Footer */
+.footer {
+  margin-top: var(--space-lg);
+  text-align: center;
+}
+
+.auditLink {
+  font-size: 12px;
+  color: var(--color-navy-400);
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.auditLink:hover { color: var(--color-navy-600); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInOtp {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 200px; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .card { padding: var(--space-lg); border-radius: var(--radius-xl); }
+  .langSelector { top: var(--space-sm); right: var(--space-sm); }
+}

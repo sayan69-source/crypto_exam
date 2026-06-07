@@ -1,0 +1,47 @@
+/* CryptoExam Core — Card Styles */
+
+.card {
+  border-radius: var(--radius-lg);
+  transition: all 200ms ease;
+}
+
+.pad-sm { padding: var(--space-md); }
+.pad-md { padding: var(--space-lg); }
+.pad-lg { padding: var(--space-xl); }
+
+.default {
+  background: white;
+  border: 1px solid #e5e7eb;
+  box-shadow: var(--shadow-sm);
+}
+
+.dark {
+  background: var(--color-navy-900);
+  border: 1px solid var(--color-navy-700);
+  color: #e5e7eb;
+}
+
+.crypto {
+  background: linear-gradient(135deg, var(--color-navy-900), var(--color-navy-800));
+  border: 1px solid var(--color-navy-600);
+  color: white;
+  box-shadow: var(--shadow-crypto);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+}
+
+.hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
+
+.hover:active {
+  transform: translateY(0);
+}

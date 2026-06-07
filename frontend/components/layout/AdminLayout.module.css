@@ -1,0 +1,195 @@
+/* CryptoExam Core — Admin Layout Styles */
+
+.container {
+  min-height: 100vh;
+  background: var(--bg-admin);
+  color: #d1d5db;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Bar */
+.topBar {
+  height: 52px;
+  background: var(--color-navy-950);
+  border-bottom: 1px solid var(--color-navy-800);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-lg);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.topLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: white;
+  font-size: 16px;
+}
+
+.logoText { font-family: var(--font-display); font-weight: 600; }
+
+.roleBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(200, 32, 32, 0.15);
+  color: #fca5a5;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topCenter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.liveBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4ade80;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.healthBadge {
+  font-size: 12px;
+  color: var(--color-navy-300);
+}
+
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.clock {
+  text-align: right;
+}
+
+.clockTime {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  display: block;
+  line-height: 1;
+}
+
+.clockDate {
+  font-size: 10px;
+  color: var(--color-navy-400);
+}
+
+.alertBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.adminName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-navy-200);
+}
+
+/* Body */
+.body {
+  display: flex;
+  flex: 1;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background: var(--color-navy-950);
+  border-right: 1px solid var(--color-navy-800);
+  padding: var(--space-sm) 0;
+  position: sticky;
+  top: 52px;
+  height: calc(100vh - 52px);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--space-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-navy-300);
+  text-decoration: none;
+  transition: all 150ms ease;
+  border-left: 3px solid transparent;
+}
+
+.navItem:hover {
+  background: rgba(255,255,255,0.04);
+  color: white;
+}
+
+.active {
+  background: rgba(41, 66, 166, 0.12);
+  color: white;
+  border-left-color: var(--color-navy-400);
+  font-weight: 600;
+}
+
+.emergency {
+  color: #fca5a5;
+  margin-top: var(--space-sm);
+  border-top: 1px solid var(--color-navy-800);
+  padding-top: var(--space-md);
+}
+
+.emergency:hover {
+  background: rgba(200, 32, 32, 0.1);
+  color: #fecaca;
+}
+
+.navIcon { font-size: 16px; width: 20px; text-align: center; }
+
+/* Main */
+.main {
+  flex: 1;
+  padding: var(--space-lg);
+  overflow-x: hidden;
+  min-height: calc(100vh - 52px);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { padding: var(--space-md); }
+  .topCenter { display: none; }
+}
