@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Build outputs
+frontend/.next/
+frontend/out/
+backend/*.egg-info/
+dist/
+build/
+
+# Docker
+postgres_data/
+ipfs_data/
+redis_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Crypto artifacts (sensitive)
+*.pem
+*.key
+!*.key.example
+
+# Circuit build artifacts (large, reproducible)
+circuits/build/*.wtns
+circuits/build/pot*.ptau
+
+# Python
+*.egg
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# Engine corpus (large, downloaded separately)
+backend/engine/corpus/*.parquet
+
+# Logs
+*.log
+logs/
+
+# IPFS
+ipfs_data/
