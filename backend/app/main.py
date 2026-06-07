@@ -140,7 +140,7 @@ async def root():
 
 
 # ── API Router Registration ──
-from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
@@ -148,4 +148,6 @@ app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"]
 app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"])
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(websockets.router, prefix="/ws", tags=["WebSocket"])
+
 
