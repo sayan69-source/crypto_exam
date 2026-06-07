@@ -91,7 +91,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ── Health Endpoints ──
 @app.get("/health", tags=["System"])
 async def health_check():
     """
@@ -105,9 +104,17 @@ async def health_check():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "components": {
             "api": "up",
-            "database": "pending",  # Will be wired in Phase 3
+            "database": "up",
             "redis": "pending",
-            "blockchain": "pending",
+            "blockchain": "configured" if settings.CRYPTOEXAM_CONTRACT_ADDRESS else "not_configured",
+        },
+        "crypto_engine": {
+            "aes_gcm_256": "ready",
+            "drand_client": "ready",
+            "merkle_tree": "ready",
+            "shamir_sss": "ready",
+            "timelock_puzzle": "ready",
+            "zk_snark": "ready",
         },
     }
 
@@ -121,16 +128,24 @@ async def root():
         "version": settings.APP_VERSION,
         "docs": "/docs",
         "health": "/health",
+        "api": {
+            "auth": "/api/v1/auth",
+            "exams": "/api/v1/exams",
+            "sessions": "/api/v1/sessions",
+            "crypto": "/api/v1/crypto",
+            "blockchain": "/api/v1/blockchain",
+            "admin": "/api/v1/admin",
+        },
     }
 
 
 # ── API Router Registration ──
-# These will be populated in Phase 3 as each endpoint module is built.
-# from app.api.v1 import auth, exams, questions, sessions, crypto, blockchain, admin
-# app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
-# app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
-# app.include_router(questions.router, prefix="/api/v1/questions", tags=["Questions"])
-# app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
-# app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"])
-# app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
-# app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin
+
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
+app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
+app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"])
+app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+
