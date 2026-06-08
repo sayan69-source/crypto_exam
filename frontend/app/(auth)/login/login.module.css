@@ -91,38 +91,17 @@
   line-height: 1.5;
 }
 
-/* Role Tabs */
-.roleTabs {
-  display: flex;
-  gap: 4px;
+/* Role Badge (single-role login) */
+.roleBadge {
+  text-align: center;
+  padding: 10px 16px;
   background: var(--color-navy-50);
-  padding: 4px;
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-lg);
-}
-
-.roleTab {
-  flex: 1;
-  padding: 8px 4px;
-  font-size: 13px;
-  font-family: var(--font-sans);
-  font-weight: 500;
-  border: none;
-  background: transparent;
-  color: var(--color-navy-500);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 150ms ease;
-  white-space: nowrap;
-}
-
-.roleTab:hover { color: var(--color-navy-700); }
-
-.roleActive {
-  background: white;
-  color: var(--color-navy-800);
-  box-shadow: var(--shadow-sm);
+  font-size: 14px;
   font-weight: 600;
+  color: var(--color-navy-700);
+  letter-spacing: 0.01em;
 }
 
 /* Form */
@@ -279,6 +258,16 @@
 }
 
 /* Footer */
+.errorMessage {
+  font-size: 13px;
+  color: #ef4444;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+}
+
 .footer {
   margin-top: var(--space-lg);
   text-align: center;

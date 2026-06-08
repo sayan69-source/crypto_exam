@@ -1,0 +1,139 @@
+/* CryptoExam Core — System Check Styles */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-navy-950);
+  padding: var(--space-xl);
+  font-family: var(--font-sans);
+}
+
+.card {
+  width: 100%;
+  max-width: 600px;
+  background: white;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl), 0 0 80px rgba(41, 66, 166, 0.1);
+  padding: var(--space-2xl);
+  animation: fadeIn 500ms var(--ease-crypto-reveal) forwards;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-navy-900);
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--color-navy-500);
+  line-height: 1.5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-2xl);
+}
+
+.checkItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-navy-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-navy-100);
+}
+
+.checkIcon {
+  font-size: 18px;
+  margin-top: 2px;
+}
+
+.checkDetails {
+  flex: 1;
+}
+
+.checkName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-navy-800);
+  margin-bottom: 2px;
+}
+
+.checkDesc {
+  font-size: 11px;
+  color: var(--color-navy-500);
+}
+
+.statusSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-navy-200);
+  border-top-color: var(--color-navy-600);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-top: 4px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.enterBtn {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--color-navy-600);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.enterBtn:hover:not(:disabled) {
+  background: var(--color-navy-700);
+}
+
+.enterBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.warningBox {
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: #ef4444;
+  font-size: 13px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .grid { grid-template-columns: 1fr; }
+}

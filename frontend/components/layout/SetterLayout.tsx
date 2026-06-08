@@ -12,6 +12,7 @@ import styles from './SetterLayout.module.css';
 const NAV_ITEMS = [
   { href: '/setter/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/setter/create', label: 'New Exam', icon: '➕' },
+  { href: '/setter/paper-modes', label: 'Paper Modes', icon: '📄' },
   { href: '/setter/questions', label: 'Question Bank', icon: '📚' },
   { href: '/setter/generate', label: 'AI Generate', icon: '🤖' },
   { href: '/setter/irt', label: 'IRT Analytics', icon: '📈' },

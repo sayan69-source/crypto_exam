@@ -33,6 +33,11 @@ export default function LandingPage() {
               <span className={styles.portalLabel}>Setter Workbench</span>
               <span className={styles.portalDesc}>Create &amp; manage papers</span>
             </Link>
+            <Link href="/invigilator/login" className={styles.portalCard}>
+              <span className={styles.portalIcon}>🪪</span>
+              <span className={styles.portalLabel}>Invigilator Gateway</span>
+              <span className={styles.portalDesc}>Biometric centre verification</span>
+            </Link>
             <Link href="/admin" className={styles.portalCard}>
               <span className={styles.portalIcon}>🛡️</span>
               <span className={styles.portalLabel}>Admin Console</span>

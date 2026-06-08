@@ -16,6 +16,7 @@ class UserRoleEnum(str, Enum):
     CANDIDATE = "CANDIDATE"
     SETTER = "SETTER"
     ADMIN = "ADMIN"
+    INVIGILATOR = "INVIGILATOR"
 
 
 class ExamStatusEnum(str, Enum):
@@ -138,6 +139,97 @@ class ExamListResponse(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+# ── § 29 Invigilator Gateway Schemas ──
+
+class GeofenceRequest(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: float | None = None
+    center_id: str | None = None
+
+
+class GeofenceResponse(BaseModel):
+    within_center_bounds: bool
+    distance_m: float
+    radius_m: float
+    reason: str = ""
+
+
+class FaceVerifyRequest(BaseModel):
+    """Invigilator self-auth OR fallback candidate face capture."""
+    image: str = Field(..., description="data URL or base64 JPEG")
+    staff_id: str | None = None
+    candidate_id: str | None = None
+
+
+class FaceVerifyResponse(BaseModel):
+    verified: bool
+    confidence: float
+    reason: str = ""
+
+
+class TOTPVerifyRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=8)
+    staff_id: str | None = None
+
+
+class FIDO2ChallengeResponse(BaseModel):
+    challenge: str
+    rp_id: str = "cryptoexamcore.in"
+    credential_id: str | None = None
+
+
+class FIDO2VerifyRequest(BaseModel):
+    assertion: dict
+    challenge: str
+    staff_id: str | None = None
+
+
+class CandidateVerifyRequest(BaseModel):
+    """§ 29.3 — dual biometric verification of one candidate."""
+    hall_ticket: str
+    exam_id: str | None = None
+    center_id: str | None = None
+    face_image: str | None = Field(None, description="live face capture (data URL/base64)")
+    fp_template_hash: str | None = None
+    fp_match_score: int | None = None
+    fido2_assertion: dict | None = None
+    fido2_challenge: str | None = None
+
+
+class CandidateVerifyResponse(BaseModel):
+    candidate_id: str | None
+    candidate_name: str | None
+    hall_ticket: str
+    face_match: bool
+    face_confidence: float
+    fp_match: bool
+    fp_confidence: float
+    overall_result: str
+    timestamp: datetime
+    verification_id: str
+
+
+class RosterEntry(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    roll_number: str | None
+    hall_ticket: str | None
+    status: str            # PENDING | VERIFIED | MISMATCH | FLAGGED
+    photo_thumbnail: str | None = None
+    verified_at: datetime | None = None
+
+
+class InvigilatorAlert(BaseModel):
+    id: str
+    type: str              # MISMATCH | LATE_ARRIVAL | INCIDENT
+    severity: str          # INFO | WARN | CRITICAL
+    candidate_name: str | None
+    message: str
+    created_at: datetime
+    resolved: bool = False
 
 
 # ── Health / System Schemas ──

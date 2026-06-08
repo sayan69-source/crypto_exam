@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # ── Database ──
-    DATABASE_URL: str = "postgresql+asyncpg://ce:dev_secret@localhost:5432/cryptoexam"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./cryptoexam.db"
 
     # ── Redis ──
     REDIS_URL: str = "redis://localhost:6379"
@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:80",
+        "http://localhost:3001",
     ]
 
     model_config = {

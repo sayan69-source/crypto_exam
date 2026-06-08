@@ -7,6 +7,7 @@ import type {
   User, Exam, Question, Center, HardwareNode, Session,
   Anomaly, BlockchainEvent, CryptoReceipt, DashboardMetrics,
   LiveExamSummary, IntegrityReport, AnswerSummaryItem,
+  TrustedInstitution, SetterMetadata, PYQUpload, SyllabusConfig,
 } from './types';
 
 // ── Users ──
@@ -79,7 +80,9 @@ export const mockExams: Exam[] = [
     status: 'LIVE',
     setter_id: mockUsers.setter.id,
     sets_count: 4,
-    negative_marking: 0.25,
+    positive_marks: 4,
+    negative_marking: 1,
+    total_marks: 720,
     irt_config: { target_mean_b: 0.0, target_std_b: 1.0, min_a: 0.5, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 10, '2': 25, '3': 30, '4': 20, '5': 10, '6': 5 } },
     question_hash: '0xa3f8c2e1d4b5a6978c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2',
@@ -111,7 +114,9 @@ export const mockExams: Exam[] = [
     status: 'LOCKED',
     setter_id: mockUsers.setter.id,
     sets_count: 4,
-    negative_marking: 0.25,
+    positive_marks: 4,
+    negative_marking: 1,
+    total_marks: 300,
     irt_config: { target_mean_b: 0.2, target_std_b: 1.1, min_a: 0.5, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 10, '2': 20, '3': 30, '4': 25, '5': 10, '6': 5 } },
     question_hash: '0xb4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4',
@@ -140,7 +145,9 @@ export const mockExams: Exam[] = [
     status: 'COMPLETED',
     setter_id: mockUsers.setter.id,
     sets_count: 4,
-    negative_marking: 0.50,
+    positive_marks: 2,
+    negative_marking: 0.5,
+    total_marks: 200,
     irt_config: { target_mean_b: -0.2, target_std_b: 0.9, min_a: 0.4, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 15, '2': 30, '3': 30, '4': 15, '5': 7, '6': 3 } },
     answer_merkle_root: '0xe2d3c4b5a6978879605a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3',
@@ -345,3 +352,78 @@ export const mockIntegrityReport: IntegrityReport = {
     { label: 'No emergency events (pause/abort) recorded', passed: true },
   ],
 };
+
+// ── Trusted Institutions (Paper Mode 1) ──
+
+export const mockTrustedInstitutions: TrustedInstitution[] = [
+  { id: 'iit-bom', name: 'Indian Institute of Technology Bombay', short_name: 'IIT Bombay', tier: 'PREMIER_VERIFIED', location: 'Mumbai, Maharashtra', established_year: 1958, exams_conducted: 342, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-del', name: 'Indian Institute of Technology Delhi', short_name: 'IIT Delhi', tier: 'PREMIER_VERIFIED', location: 'New Delhi, Delhi', established_year: 1961, exams_conducted: 318, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-mad', name: 'Indian Institute of Technology Madras', short_name: 'IIT Madras', tier: 'PREMIER_VERIFIED', location: 'Chennai, Tamil Nadu', established_year: 1959, exams_conducted: 356, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-kan', name: 'Indian Institute of Technology Kanpur', short_name: 'IIT Kanpur', tier: 'PREMIER_VERIFIED', location: 'Kanpur, Uttar Pradesh', established_year: 1959, exams_conducted: 289, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-kgp', name: 'Indian Institute of Technology Kharagpur', short_name: 'IIT Kharagpur', tier: 'PREMIER_VERIFIED', location: 'Kharagpur, West Bengal', established_year: 1951, exams_conducted: 412, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-rke', name: 'Indian Institute of Technology Roorkee', short_name: 'IIT Roorkee', tier: 'PREMIER_VERIFIED', location: 'Roorkee, Uttarakhand', established_year: 1847, exams_conducted: 502, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-ghy', name: 'Indian Institute of Technology Guwahati', short_name: 'IIT Guwahati', tier: 'PREMIER_VERIFIED', location: 'Guwahati, Assam', established_year: 1994, exams_conducted: 178, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iisc-blr', name: 'Indian Institute of Science', short_name: 'IISc Bangalore', tier: 'PREMIER_VERIFIED', location: 'Bangalore, Karnataka', established_year: 1909, exams_conducted: 267, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🔬' },
+  { id: 'isi-kol', name: 'Indian Statistical Institute', short_name: 'ISI Kolkata', tier: 'PREMIER_VERIFIED', location: 'Kolkata, West Bengal', established_year: 1931, exams_conducted: 198, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '📊' },
+  { id: 'cmi-che', name: 'Chennai Mathematical Institute', short_name: 'CMI Chennai', tier: 'PREMIER_VERIFIED', location: 'Chennai, Tamil Nadu', established_year: 1989, exams_conducted: 124, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🧮' },
+  { id: 'tifr-mum', name: 'Tata Institute of Fundamental Research', short_name: 'TIFR', tier: 'PREMIER_VERIFIED', location: 'Mumbai, Maharashtra', established_year: 1945, exams_conducted: 156, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🔭' },
+  { id: 'iiser-pun', name: 'Indian Institute of Science Education & Research Pune', short_name: 'IISER Pune', tier: 'PREMIER_VERIFIED', location: 'Pune, Maharashtra', established_year: 2006, exams_conducted: 89, leak_incidents: 0, verified: true, verification_date: '2025-11-20T10:00:00+05:30', logo_emoji: '🧪' },
+  { id: 'iit-hyd', name: 'Indian Institute of Technology Hyderabad', short_name: 'IIT Hyderabad', tier: 'PREMIER_VERIFIED', location: 'Hyderabad, Telangana', established_year: 2008, exams_conducted: 98, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'iit-bhu', name: 'Indian Institute of Technology (BHU) Varanasi', short_name: 'IIT BHU', tier: 'PREMIER_VERIFIED', location: 'Varanasi, Uttar Pradesh', established_year: 1919, exams_conducted: 375, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏛️' },
+  { id: 'aiims-del', name: 'All India Institute of Medical Sciences', short_name: 'AIIMS Delhi', tier: 'PREMIER_VERIFIED', location: 'New Delhi, Delhi', established_year: 1956, exams_conducted: 445, leak_incidents: 0, verified: true, verification_date: '2025-11-15T10:00:00+05:30', logo_emoji: '🏥' },
+];
+
+// ── Setter Metadata (Paper Mode 1 — Transparency) ──
+
+export const mockSetterMetadata: SetterMetadata = {
+  setter_name: 'Prof. Arvind Krishnamurthy',
+  setter_designation: 'Professor & Head of Department',
+  setter_department: 'Department of Computer Science & Engineering',
+  setter_institution: 'Indian Institute of Technology Bombay',
+  setter_institution_id: 'iit-bom',
+  setter_email_masked: 'a****y@iitb.ac.in',
+  setter_id_proof_type: 'Aadhaar (Masked)',
+  setter_id_proof_ref_masked: 'XXXX-XXXX-7834',
+  paper_created_at: '2026-05-20T14:30:00+05:30',
+  paper_locked_at: '2026-06-04T09:00:00+05:30',
+  paper_lock_tx: '0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b',
+  institution_trust_score: 100,
+  institution_track_record_years: 68,
+  institution_leak_incidents: 0,
+};
+
+// ── PYQ Uploads (Paper Mode 3) ──
+
+export const mockPYQs: PYQUpload[] = [
+  { id: 'pyq-001', filename: 'JEE_Advanced_2025_Paper1.pdf', exam_name: 'JEE Advanced 2025', year: 2025, subject: 'Physics', question_count: 18, uploaded_at: '2026-06-01T10:00:00+05:30' },
+  { id: 'pyq-002', filename: 'JEE_Advanced_2025_Paper2.pdf', exam_name: 'JEE Advanced 2025', year: 2025, subject: 'Chemistry', question_count: 18, uploaded_at: '2026-06-01T10:05:00+05:30' },
+  { id: 'pyq-003', filename: 'JEE_Advanced_2024_Paper1.pdf', exam_name: 'JEE Advanced 2024', year: 2024, subject: 'Mathematics', question_count: 18, uploaded_at: '2026-06-01T10:10:00+05:30' },
+  { id: 'pyq-004', filename: 'NEET_2025_Physics.pdf', exam_name: 'NEET UG 2025', year: 2025, subject: 'Physics', question_count: 45, uploaded_at: '2026-06-01T10:15:00+05:30' },
+  { id: 'pyq-005', filename: 'NEET_2024_Biology.pdf', exam_name: 'NEET UG 2024', year: 2024, subject: 'Biology', question_count: 90, uploaded_at: '2026-06-01T10:20:00+05:30' },
+  { id: 'pyq-006', filename: 'ISI_Entrance_2025.pdf', exam_name: 'ISI Entrance 2025', year: 2025, subject: 'Mathematics', question_count: 30, uploaded_at: '2026-06-02T09:00:00+05:30' },
+];
+
+// ── Syllabus Configs (Paper Mode 3) ──
+
+export const mockSyllabusConfigs: SyllabusConfig[] = [
+  {
+    id: 'syl-jee', name: 'JEE Advanced Syllabus', exam_type: 'JEE_ADVANCED',
+    topics: [
+      { name: 'Mechanics', subtopics: ['Kinematics', 'Laws of Motion', 'Work-Energy', 'Rotational Dynamics', 'Gravitation'], weight_percentage: 20, selected: true },
+      { name: 'Electromagnetism', subtopics: ['Electrostatics', 'Current Electricity', 'Magnetism', 'EMI', 'AC Circuits'], weight_percentage: 22, selected: true },
+      { name: 'Optics & Waves', subtopics: ['Ray Optics', 'Wave Optics', 'SHM', 'Sound Waves'], weight_percentage: 15, selected: true },
+      { name: 'Thermodynamics', subtopics: ['Heat Transfer', 'KTG', 'Laws of Thermodynamics'], weight_percentage: 12, selected: true },
+      { name: 'Modern Physics', subtopics: ['Photoelectric Effect', 'Atomic Models', 'Nuclear Physics', 'Semiconductors'], weight_percentage: 16, selected: true },
+      { name: 'Organic Chemistry', subtopics: ['Hydrocarbons', 'Functional Groups', 'Reaction Mechanisms', 'Biomolecules'], weight_percentage: 15, selected: false },
+    ],
+  },
+  {
+    id: 'syl-neet', name: 'NEET UG Syllabus', exam_type: 'NEET',
+    topics: [
+      { name: 'Physics', subtopics: ['Mechanics', 'Optics', 'Electrodynamics', 'Thermodynamics', 'Modern Physics'], weight_percentage: 25, selected: true },
+      { name: 'Chemistry', subtopics: ['Organic', 'Inorganic', 'Physical Chemistry'], weight_percentage: 25, selected: true },
+      { name: 'Botany', subtopics: ['Plant Physiology', 'Morphology', 'Cell Biology', 'Ecology'], weight_percentage: 25, selected: true },
+      { name: 'Zoology', subtopics: ['Human Physiology', 'Genetics', 'Evolution', 'Animal Kingdom'], weight_percentage: 25, selected: true },
+    ],
+  },
+];

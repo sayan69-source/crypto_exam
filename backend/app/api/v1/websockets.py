@@ -17,10 +17,37 @@ from uuid import UUID
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.websocket_manager import ws_manager
+from app.services.broadcast_service import broadcast_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.websocket("/broadcast/{exam_id}")
+async def ws_exam_broadcast(websocket: WebSocket, exam_id: str, token: str = Query(None)):
+    """
+    § 27 — Candidate T₀ broadcast channel.
+
+    400,000 clients connect here before T₀ and wait. At T₀ the backend publishes a
+    single EXAM_UNLOCK event (Redis pub/sub → all instances → all clients), and each
+    client decrypts its pre-positioned paper locally. Clients report SESSION_START
+    back for the on-chain Proof-of-Delivery tally.
+    """
+    await broadcast_service.connect(websocket, exam_id)
+    try:
+        while True:
+            msg = json.loads(await websocket.receive_text())
+            if msg.get("event") == "SESSION_START":
+                count = await broadcast_service.record_session_start(
+                    exam_id, msg.get("candidateId", "unknown"), msg.get("centerNodeId"),
+                )
+                await websocket.send_json({"event": "SESSION_START_ACK", "deliveredCount": count})
+            elif msg.get("action") == "ping":
+                await websocket.send_json({"event": "pong", "examId": exam_id})
+    except WebSocketDisconnect:
+        broadcast_service.disconnect(websocket, exam_id)
+        logger.info(f"Broadcast WS disconnected: exam={exam_id[:8]}...")
 
 
 @router.websocket("/dashboard")

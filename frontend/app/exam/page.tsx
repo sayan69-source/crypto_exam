@@ -70,6 +70,11 @@ export default function ExamPortal() {
             <h3>DPDP Compliant</h3>
             <p>Biometric data never stored. Only hash of facial embedding. Consent tracked.</p>
           </div>
+          <Link href="/exam/paper-info/e1a2b3c4-5678-90ab-cdef-1234567890ab" className={styles.featureCard} style={{ textDecoration: 'none' }}>
+            <span className={styles.featureIcon}>👤</span>
+            <h3>Paper Transparency</h3>
+            <p>Know who set your paper — setter details, institution trust score, and blockchain proof.</p>
+          </Link>
         </section>
       </main>
 

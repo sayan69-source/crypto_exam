@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { mockExams } from '@/lib/api/mock-data';
+import DualControlPanel from '@/components/admin/DualControlPanel';
 import styles from './emergency.module.css';
 
 type EmergencyAction = 'pause' | 'extend' | 'abort' | 'suspend' | 'broadcast';
@@ -47,6 +48,9 @@ export default function EmergencyPage() {
         <h1 className={styles.title}>🚨 Emergency Control Panel</h1>
         <p className={styles.subtitle}>All actions are logged on-chain and cannot be reversed.</p>
       </div>
+
+      {/* V3 §10 — 2-of-3 admin dual-control. Sits above the legacy simulator. */}
+      <DualControlPanel />
 
       {!selectedAction ? (
         <div className={styles.actionGrid}>

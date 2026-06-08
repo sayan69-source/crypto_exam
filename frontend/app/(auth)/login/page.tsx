@@ -1,23 +1,22 @@
 /**
- * CryptoExam Core — Unified Login Page
- * Navy-950 background with rangoli SVG pattern, white centered card
- * Role tabs: Candidate / Setter / Admin
+ * CryptoExam Core — Candidate Login Portal
+ * This is STRICTLY for candidates. Setters and Admins have separate portals.
  */
 'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth/AuthContext';
 import styles from './login.module.css';
 
-type AuthRole = 'candidate' | 'setter' | 'admin';
-
-export default function LoginPage() {
-  const [role, setRole] = useState<AuthRole>('candidate');
+export default function CandidateLoginPage() {
+  const { login } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [consentExpanded, setConsentExpanded] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [whatIsExpanded, setWhatIsExpanded] = useState(false);
@@ -32,37 +31,53 @@ export default function LoginPage() {
     mr: 'तुमची उत्तरे. गणितीयदृष्ट्या संरक्षित.',
   };
 
+  const validateForm = () => {
+    setError(null);
+    if (!/^([A-Z]{3,4}-\d{4}-[A-Z]{2,3}-\d{5,9})$/.test(identifier)) {
+      setError('Invalid roll number format. Example: NEET-2026-BIH-0847291');
+      return false;
+    }
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(password)) {
+      setError('Invalid DOB format. Use DD/MM/YYYY');
+      return false;
+    }
+    return true;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consentAccepted) return;
+    if (!consentAccepted) {
+      setError('You must accept the DPDP Act 2023 consent to proceed.');
+      return;
+    }
+    if (!validateForm()) return;
+
     setLoading(true);
-    // Simulate login
     await new Promise(r => setTimeout(r, 1200));
+
     if (!showOtp) {
       setShowOtp(true);
       setLoading(false);
       return;
     }
-    // Redirect based on role
-    const paths = { candidate: '/exam/dashboard', setter: '/setter/dashboard', admin: '/admin/dashboard' };
-    window.location.href = paths[role];
-  };
 
-  const identifierLabels: Record<AuthRole, { label: string; placeholder: string }> = {
-    candidate: { label: 'Exam Roll Number', placeholder: 'e.g., NEET-2026-BIH-0847291' },
-    setter: { label: 'Official Email', placeholder: 'e.g., dr.iyer@nta.gov.in' },
-    admin: { label: 'Admin ID', placeholder: 'e.g., admin@cryptoexam.in' },
-  };
+    if (otp.length < 6) {
+      setError('Please enter a valid 6-digit OTP.');
+      setLoading(false);
+      return;
+    }
 
-  const passwordLabels: Record<AuthRole, string> = {
-    candidate: 'Date of Birth (DD/MM/YYYY)',
-    setter: 'Password',
-    admin: 'Password',
+    try {
+      await login('candidate', identifier);
+      window.location.href = '/exam/system-check';
+    } catch {
+      setError('Login failed. Please check your credentials.');
+      setLoading(false);
+    }
   };
 
   return (
     <div className={styles.page}>
-      {/* Subtle rangoli SVG background pattern */}
       <div className={styles.patternBg} />
 
       {/* Language selector */}
@@ -93,48 +108,40 @@ export default function LoginPage() {
           <p className={styles.tagline}>{taglines[language] || taglines.en}</p>
         </div>
 
-        {/* Role tabs */}
-        <div className={styles.roleTabs}>
-          {(['candidate', 'setter', 'admin'] as AuthRole[]).map(r => (
-            <button
-              key={r}
-              className={`${styles.roleTab} ${role === r ? styles.roleActive : ''}`}
-              onClick={() => { setRole(r); setShowOtp(false); }}
-            >
-              {r === 'candidate' ? '📝 Candidate' : r === 'setter' ? '🔬 Setter' : '🛡️ Admin'}
-            </button>
-          ))}
+        {/* Role Badge */}
+        <div className={styles.roleBadge}>
+          📝 Candidate Examination Portal
         </div>
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className={styles.form}>
           <div className={styles.field}>
             <label htmlFor="identifier" className={styles.label}>
-              {identifierLabels[role].label}
+              Exam Roll Number
             </label>
             <input
               id="identifier"
               type="text"
               className={styles.input}
-              placeholder={identifierLabels[role].placeholder}
+              placeholder="e.g., NEET-2026-BIH-0847291"
               value={identifier}
-              onChange={e => setIdentifier(e.target.value)}
+              onChange={e => setIdentifier(e.target.value.toUpperCase())}
               required
               autoComplete="username"
             />
           </div>
 
           <div className={styles.field}>
-            <label htmlFor="password" className={styles.label}>{passwordLabels[role]}</label>
+            <label htmlFor="password" className={styles.label}>Date of Birth (DD/MM/YYYY)</label>
             <input
               id="password"
-              type={role === 'candidate' ? 'text' : 'password'}
+              type="text"
               className={styles.input}
-              placeholder={role === 'candidate' ? 'DD/MM/YYYY' : '••••••••'}
+              placeholder="DD/MM/YYYY"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              autoComplete={role === 'candidate' ? 'bday' : 'current-password'}
+              autoComplete="bday"
             />
           </div>
 
@@ -156,6 +163,12 @@ export default function LoginPage() {
               <button type="button" className={styles.resendBtn} disabled>
                 Resend OTP (60s)
               </button>
+            </div>
+          )}
+
+          {error && (
+            <div className={styles.errorMessage}>
+              ⚠️ {error}
             </div>
           )}
 

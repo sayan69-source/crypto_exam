@@ -33,6 +33,78 @@ export type BlockchainTxStatus = 'confirmed' | 'pending' | 'unconfirmed' | 'fail
 
 export type BloomsLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
+export type PaperCreationMode = 'DIRECT_UPLOAD' | 'AI_EDITED' | 'AI_GENERATED';
+
+export type DifficultyLevel = 'EASY' | 'MEDIUM' | 'HARD';
+
+export type InstitutionTier = 'PREMIER_VERIFIED' | 'GOVERNMENT' | 'STANDARD';
+
+// ── Paper Modes Entities ──
+
+export interface TrustedInstitution {
+  id: string;
+  name: string;
+  short_name: string;
+  tier: InstitutionTier;
+  location: string;
+  established_year: number;
+  exams_conducted: number;
+  leak_incidents: number;
+  verified: boolean;
+  verification_date: string;
+  logo_emoji: string;
+}
+
+export interface SetterMetadata {
+  setter_name: string;
+  setter_designation: string;
+  setter_department: string;
+  setter_institution: string;
+  setter_institution_id: string;
+  setter_email_masked: string;
+  setter_id_proof_type: string;
+  setter_id_proof_ref_masked: string;
+  paper_created_at: string;
+  paper_locked_at: string;
+  paper_lock_tx: string;
+  institution_trust_score: number;
+  institution_track_record_years: number;
+  institution_leak_incidents: number;
+}
+
+export interface AIEditConfig {
+  difficulty: DifficultyLevel;
+  edit_percentage: number; // 20, 50, or 80
+  preserve_topics: boolean;
+  preserve_marks: boolean;
+  rephrase_options: boolean;
+  add_new_questions: boolean;
+}
+
+export interface PYQUpload {
+  id: string;
+  filename: string;
+  exam_name: string;
+  year: number;
+  subject: string;
+  question_count: number;
+  uploaded_at: string;
+}
+
+export interface SyllabusConfig {
+  id: string;
+  name: string;
+  exam_type: string;
+  topics: SyllabusTopic[];
+}
+
+export interface SyllabusTopic {
+  name: string;
+  subtopics: string[];
+  weight_percentage: number;
+  selected: boolean;
+}
+
 // ── Core Entities ──
 
 export interface User {
@@ -63,7 +135,10 @@ export interface Exam {
   status: ExamStatus;
   setter_id: string;
   sets_count: number;
+  positive_marks: number;
   negative_marking: number;
+  total_marks: number;
+  instructions_text?: string;
   irt_config: IRTConfig;
   blooms_config: BloomsConfig;
   question_hash?: string;

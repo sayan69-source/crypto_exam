@@ -1,0 +1,179 @@
+.container {
+  min-height: 100vh;
+  background-color: var(--examBg, #F8F9FC);
+  color: var(--navy-900, #0D1526);
+  font-family: var(--font-sans, 'Sora', sans-serif);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: white;
+  border-bottom: 1px solid var(--navy-100, #D8DEF4);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo {
+  font-family: var(--font-display, 'Instrument Serif', serif);
+  font-size: 1.5rem;
+  color: var(--navy-800, #132040);
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.headerBadge {
+  background-color: var(--navy-50, #EFF1FA);
+  color: var(--navy-600, #213573);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.main {
+  max-width: 800px;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+.reportCard {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  border-top: 6px solid var(--navy-800, #132040);
+}
+
+.reportHeader {
+  padding: 2rem;
+  text-align: center;
+  border-bottom: 1px solid var(--navy-50, #EFF1FA);
+}
+
+.title {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--navy-900, #0D1526);
+}
+
+.examId {
+  font-family: var(--font-mono, monospace);
+  color: var(--navy-400, #3D5CBE);
+  font-size: 0.875rem;
+}
+
+.verdictBox {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  background-color: var(--success-light, #D1FAE5);
+  margin: 2rem;
+  border-radius: 8px;
+  border: 1px solid var(--success, #1A7A4C);
+}
+
+.verdictIcon {
+  font-size: 3rem;
+}
+
+.verdictText h2 {
+  color: var(--success-text, #065F46);
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+}
+
+.verdictText p {
+  color: var(--success-text, #065F46);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.checklist {
+  padding: 0 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.checkItem {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.checkIcon {
+  font-size: 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.checkContent h3 {
+  font-size: 1.1rem;
+  color: var(--navy-800, #132040);
+  margin-bottom: 0.25rem;
+}
+
+.checkContent p {
+  color: var(--navy-500, #2942A6);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.candidateAudit {
+  padding: 2rem;
+  background-color: var(--navy-50, #EFF1FA);
+  border-top: 1px solid var(--navy-100, #D8DEF4);
+}
+
+.candidateAudit h3 {
+  margin-bottom: 0.5rem;
+  color: var(--navy-900, #0D1526);
+}
+
+.candidateAudit p {
+  color: var(--navy-600, #213573);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.candidateForm {
+  display: flex;
+  gap: 1rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--navy-200, #A8B9EA);
+  border-radius: 6px;
+  font-family: var(--font-mono, monospace);
+}
+
+.verifyBtn {
+  background-color: var(--navy-800, #132040);
+  color: white;
+  border: none;
+  padding: 0 1.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.verifyBtn:hover {
+  background-color: var(--navy-700, #1A2D5A);
+}
+
+.footer {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--navy-400, #3D5CBE);
+  font-size: 0.875rem;
+}

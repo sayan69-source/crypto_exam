@@ -45,9 +45,33 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables ensured")
 
+    # § 27 — start the exam broadcast service (Redis pub/sub or local fan-out)
+    try:
+        from app.services.broadcast_service import broadcast_service
+        await broadcast_service.startup()
+    except Exception as e:
+        logger.warning(f"Broadcast service startup skipped: {e}")
+
+    # Auto-seed in debug mode
+    if settings.DEBUG:
+        try:
+            from app.services.seeder import seed_database
+            from app.database import async_session
+            async with async_session() as session:
+                result = await seed_database(session)
+                await session.commit()
+                logger.info(f"Auto-seed result: {result}")
+        except Exception as e:
+            logger.warning(f"Auto-seed skipped: {e}")
+
     yield
 
     # Shutdown
+    try:
+        from app.services.broadcast_service import broadcast_service
+        await broadcast_service.shutdown()
+    except Exception:
+        pass
     await engine.dispose()
     logger.info("CryptoExam Core — Shutdown complete")
 
@@ -136,13 +160,36 @@ async def root():
             "blockchain": "/api/v1/blockchain",
             "admin": "/api/v1/admin",
             "generation": "/api/v1/generation",
+            "invigilator": "/api/v1/invigilator",
         },
     }
 
 
+@app.post("/api/v1/seed", tags=["System"])
+async def seed_data():
+    """
+    Trigger database seeding with demo data.
+    Only available in DEBUG mode.
+    """
+    if not settings.DEBUG:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "Seeding disabled in production"})
+
+    try:
+        from app.services.seeder import seed_database
+        from app.database import async_session
+        async with async_session() as session:
+            result = await seed_database(session)
+            await session.commit()
+            return {"status": "success", "data": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 # ── API Router Registration ──
-from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency
 from app.api.routes.generation import router as generation_router
+from app.api.routes.lifecycle import router as lifecycle_router
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
@@ -151,6 +198,12 @@ app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"]
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(websockets.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(invigilator.router, prefix="/api/v1/invigilator", tags=["Invigilator"])
+app.include_router(question_modes.router, prefix="/api/v1/question-modes", tags=["Question Modes"])
+app.include_router(broadcast.router, prefix="/api/v1/broadcast", tags=["Mass Delivery (§27)"])
+app.include_router(complaint.router, prefix="/api/v1/complaint", tags=["Complaint Resolution (V3 §9)"])
+app.include_router(emergency.router, prefix="/api/v1/emergency", tags=["Emergency Dual-Control (V3 §10)"])
 app.include_router(generation_router, prefix="/api/v1/generation", tags=["AI Generation"])
+app.include_router(lifecycle_router, prefix="/api/v1/lifecycle", tags=["Exam Lifecycle"])
 
 

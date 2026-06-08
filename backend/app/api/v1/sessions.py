@@ -45,6 +45,21 @@ class FinalSubmission(BaseModel):
     session_id: str
 
 
+class SyncedAnswer(BaseModel):
+    questionId: str
+    answer: object
+    timestamp: int | None = None
+    localHash: str | None = None
+
+
+class AnswerSyncBatch(BaseModel):
+    """§ 27.6 — resilient batch answer sync from the client's local IndexedDB."""
+    examId: str
+    candidateId: str
+    answers: list[SyncedAnswer]
+    clientTime: int | None = None
+
+
 @router.post(
     "/start",
     summary="Start Exam Session",
@@ -302,3 +317,50 @@ async def get_receipt(
     }
 
     return receipt
+
+
+@router.post(
+    "/answers/sync",
+    summary="Resilient Answer Sync (§27.6)",
+    description="Batch-sync answers buffered in the client's local IndexedDB. "
+                "Local-first: the client retries this on the next interval if it fails.",
+)
+async def sync_answers(
+    batch: AnswerSyncBatch,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.CANDIDATE)),
+):
+    """
+    Merge a batch of locally-buffered answers into the candidate's active session.
+    Answers are kept as an in-session JSON map (encrypted at final commit).
+    """
+    enrollment = (await db.execute(
+        select(Enrollment).where(
+            Enrollment.exam_id == batch.examId,
+            Enrollment.candidate_id == str(current_user["user_id"]),
+        )
+    )).scalar_one_or_none()
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found for this exam")
+
+    session = (await db.execute(
+        select(Session).where(Session.enrollment_id == enrollment.id)
+    )).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Active session not found")
+
+    current = dict(session.answers_encrypted or {})
+    for a in batch.answers:
+        current[a.questionId] = {"answer": a.answer, "ts": a.timestamp, "hash": a.localHash}
+    session.answers_encrypted = current
+
+    logger.info(
+        f"Answer sync: exam={batch.examId[:8]}..., candidate={str(current_user['user_id'])[:8]}..., "
+        f"+{len(batch.answers)} answers (total {len(current)})"
+    )
+    return {
+        "status": "ok",
+        "synced": len(batch.answers),
+        "total_recorded": len(current),
+        "server_time": datetime.now(timezone.utc).isoformat(),
+    }

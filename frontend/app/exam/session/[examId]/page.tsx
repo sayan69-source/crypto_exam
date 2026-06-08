@@ -1,387 +1,424 @@
 /**
- * CryptoExam Core — Live Exam Session Page
- * THE MOST IMPORTANT PAGE — 3-column CSS Grid
- * Left: Navigator | Center: Question | Right: Timer + Crypto Status
+ * CryptoExam Core — Live Exam Session Page (NTA JEE Main Style)
+ * 
+ * Layout: Top Header Bar + Left Question Area + Right Navigator Panel
+ * Status Palette: Not Visited | Not Answered (Red) | Answered (Green) | 
+ *                 Marked for Review (Purple) | Answered & Marked (Purple+Green)
+ * Action Buttons: Save & Next | Clear Response | Mark for Review & Next
  */
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './session.module.css';
 import { mockQuestions, mockExams } from '@/lib/api/mock-data';
+import { ExamLockdown } from '@/lib/anti-cheat/ExamLockdown';
+import PanicButton from '@/components/exam/PanicButton';
+import { parseExamConfig } from '@/lib/api/ExamConfigParser';
+import { useAuth } from '@/lib/auth/AuthContext';
 
-type AnswerState = 'unanswered' | 'answered' | 'flagged' | 'flagged_answered';
+/**
+ * Question states follow the NTA standard:
+ * - not_visited:      Grey — never navigated to
+ * - not_answered:     Red — visited but no answer saved
+ * - answered:         Green — answer saved
+ * - marked_review:    Purple — marked for review, no answer
+ * - answered_review:  Purple+Green — answer saved AND marked for review
+ */
+type QStatus = 'not_visited' | 'not_answered' | 'answered' | 'marked_review' | 'answered_review';
 
 interface QuestionState {
-  answer: string | null;
-  flagged: boolean;
+  selectedOption: string | null;  // currently selected, not yet saved
+  savedAnswer: string | null;     // saved answer
+  markedForReview: boolean;
+  visited: boolean;
   timeSpent: number;
 }
 
 export default function ExamSessionPage() {
+  const router = useRouter();
+  const { session } = useAuth();
   const exam = mockExams[0];
   const questions = mockQuestions;
-  const sections = [...new Set(questions.map(q => q.subject))];
+
+  // Dynamic config
+  const config = useMemo(() => parseExamConfig(exam, questions), [exam, questions]);
+  const sections = config.sections;
 
   const [currentQ, setCurrentQ] = useState(0);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [states, setStates] = useState<Record<number, QuestionState>>(
-    Object.fromEntries(questions.map((_, i) => [i, { answer: null, flagged: false, timeSpent: 0 }]))
-  );
+  const [activeSection, setActiveSection] = useState(sections[0]?.id || '');
+  const [states, setStates] = useState<Record<number, QuestionState>>(() => {
+    const init: Record<number, QuestionState> = {};
+    questions.forEach((_, i) => {
+      init[i] = { selectedOption: null, savedAnswer: null, markedForReview: false, visited: false, timeSpent: 0 };
+    });
+    // Mark first question as visited
+    if (init[0]) init[0].visited = true;
+    return init;
+  });
   const [timeLeft, setTimeLeft] = useState(exam.duration_minutes * 60);
   const [antiCheatWarning, setAntiCheatWarning] = useState<string | null>(null);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
-  const [showHelp, setShowHelp] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'hi'>('en');
 
   // Timer
   useEffect(() => {
+    if (isSubmitted) return;
     const timer = setInterval(() => {
-      setTimeLeft(prev => Math.max(0, prev - 1));
+      setTimeLeft(prev => {
+        if (prev <= 1) { clearInterval(timer); handleSubmit(); return 0; }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
-
-  // Anti-cheat: Page visibility
-  useEffect(() => {
-    const handler = () => {
-      if (document.hidden) {
-        setTabSwitchCount(prev => {
-          const next = prev + 1;
-          if (next >= 5) {
-            setAntiCheatWarning('⚠️ Multiple tab switches detected. Your activity has been flagged.');
-          } else if (next >= 3) {
-            setAntiCheatWarning('⚠️ Tab switch detected. Please stay on the exam page.');
-          }
-          return next;
-        });
-      }
-    };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, []);
+  }, [isSubmitted]);
 
   // Anti-cheat: Right-click prevention
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      e.preventDefault();
-      setAntiCheatWarning('Right-click is disabled during the exam.');
-      setTimeout(() => setAntiCheatWarning(null), 3000);
-    };
+    const handler = (e: MouseEvent) => { e.preventDefault(); };
     document.addEventListener('contextmenu', handler);
     return () => document.removeEventListener('contextmenu', handler);
   }, []);
 
   // Anti-cheat: Copy/paste prevention
   useEffect(() => {
-    const handler = (e: ClipboardEvent) => {
-      e.preventDefault();
-      setAntiCheatWarning('Copy/paste is disabled during the exam.');
-      setTimeout(() => setAntiCheatWarning(null), 3000);
-    };
+    const handler = (e: ClipboardEvent) => { e.preventDefault(); };
     document.addEventListener('copy', handler);
     document.addEventListener('cut', handler);
-    return () => {
-      document.removeEventListener('copy', handler);
-      document.removeEventListener('cut', handler);
-    };
+    return () => { document.removeEventListener('copy', handler); document.removeEventListener('cut', handler); };
   }, []);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') navigateQ(-1);
-      else if (e.key === 'ArrowRight') navigateQ(1);
-      else if (['1', '2', '3', '4'].includes(e.key)) {
-        selectAnswer(['A', 'B', 'C', 'D'][parseInt(e.key) - 1]);
-      } else if (['a', 'b', 'c', 'd'].includes(e.key.toLowerCase())) {
-        selectAnswer(e.key.toUpperCase());
-      } else if (e.key.toLowerCase() === 'f') toggleFlag();
-      else if (e.key === '?') setShowHelp(prev => !prev);
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [currentQ, states]);
+  const handleViolation = useCallback((type: string, details: string) => {
+    if (type === 'WINDOW_BLUR' || type === 'FULLSCREEN_EXIT') {
+      setTabSwitchCount(prev => {
+        const next = prev + 1;
+        if (next >= 5) setAntiCheatWarning('🔴 CRITICAL: Multiple violations detected. Session flagged.');
+        else if (next >= 3) setAntiCheatWarning('🟠 WARNING: Repeated focus loss. Stay on the exam page.');
+        else setAntiCheatWarning('⚠️ Focus loss detected. Remain in fullscreen.');
+        return next;
+      });
+    } else {
+      setAntiCheatWarning(`⚠️ ${details}`);
+      setTimeout(() => setAntiCheatWarning(null), 3000);
+    }
+  }, []);
 
-  const navigateQ = useCallback((delta: number) => {
-    setCurrentQ(prev => {
-      const next = prev + delta;
-      if (next < 0 || next >= questions.length) return prev;
-      return next;
+  // ── Navigation ──
+  const navigateTo = useCallback((idx: number) => {
+    if (idx < 0 || idx >= questions.length) return;
+    setStates(prev => ({
+      ...prev,
+      [idx]: { ...prev[idx], visited: true },
+    }));
+    setCurrentQ(idx);
+    // Update active section
+    const q = questions[idx];
+    const sec = sections.find(s => s.questionIndices.includes(idx));
+    if (sec) setActiveSection(sec.id);
+  }, [questions, sections]);
+
+  // ── Option Selection (local, not saved yet) ──
+  const selectOption = useCallback((option: string) => {
+    setStates(prev => ({
+      ...prev,
+      [currentQ]: { ...prev[currentQ], selectedOption: option },
+    }));
+  }, [currentQ]);
+
+  // ── Save & Next ──
+  const saveAndNext = useCallback(() => {
+    setStates(prev => {
+      const cur = prev[currentQ];
+      return {
+        ...prev,
+        [currentQ]: { ...cur, savedAnswer: cur.selectedOption, visited: true },
+      };
     });
-  }, [questions.length]);
+    navigateTo(currentQ + 1);
+  }, [currentQ, navigateTo]);
 
-  const selectAnswer = useCallback((option: string) => {
+  // ── Clear Response ──
+  const clearResponse = useCallback(() => {
     setStates(prev => ({
       ...prev,
-      [currentQ]: { ...prev[currentQ], answer: option },
+      [currentQ]: { ...prev[currentQ], selectedOption: null, savedAnswer: null },
     }));
   }, [currentQ]);
 
-  const clearAnswer = useCallback(() => {
-    setStates(prev => ({
-      ...prev,
-      [currentQ]: { ...prev[currentQ], answer: null },
-    }));
-  }, [currentQ]);
+  // ── Mark for Review & Next ──
+  const markForReviewAndNext = useCallback(() => {
+    setStates(prev => {
+      const cur = prev[currentQ];
+      return {
+        ...prev,
+        [currentQ]: { ...cur, markedForReview: true, savedAnswer: cur.selectedOption, visited: true },
+      };
+    });
+    navigateTo(currentQ + 1);
+  }, [currentQ, navigateTo]);
 
-  const toggleFlag = useCallback(() => {
-    setStates(prev => ({
-      ...prev,
-      [currentQ]: { ...prev[currentQ], flagged: !prev[currentQ].flagged },
-    }));
-  }, [currentQ]);
-
-  const getQState = (i: number): AnswerState => {
+  // ── Get question status for palette ──
+  const getQStatus = (i: number): QStatus => {
     const s = states[i];
-    if (s.flagged && s.answer) return 'flagged_answered';
-    if (s.flagged) return 'flagged';
-    if (s.answer) return 'answered';
-    return 'unanswered';
+    if (!s.visited) return 'not_visited';
+    if (s.markedForReview && s.savedAnswer) return 'answered_review';
+    if (s.markedForReview) return 'marked_review';
+    if (s.savedAnswer) return 'answered';
+    return 'not_answered';
   };
 
-  const answeredCount = Object.values(states).filter(s => s.answer !== null).length;
+  // ── Submit ──
+  const handleSubmit = useCallback(() => {
+    setIsSubmitted(true);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    router.replace(`/exam/receipt/${exam.id}`);
+  }, [exam.id, router]);
+
+  // ── Computed ──
   const q = questions[currentQ];
   const qState = states[currentQ];
+  const answeredCount = Object.values(states).filter(s => s.savedAnswer !== null).length;
+  const notVisitedCount = Object.values(states).filter(s => !s.visited).length;
+  const reviewCount = Object.values(states).filter(s => s.markedForReview).length;
+  const notAnsweredCount = Object.values(states).filter(s => s.visited && !s.savedAnswer && !s.markedForReview).length;
 
-  // Timer formatting
+  // Timer
   const hours = Math.floor(timeLeft / 3600);
   const minutes = Math.floor((timeLeft % 3600) / 60);
   const seconds = timeLeft % 60;
   const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const timerUrgent = timeLeft <= 300;
 
-  // Timer color
-  const timerColor = timeLeft > 1800 ? 'var(--color-navy-500)' : timeLeft > 600 ? '#d97706' : timeLeft > 300 ? '#ea580c' : 'var(--color-danger)';
-  const timerProgress = (timeLeft / (exam.duration_minutes * 60)) * 100;
-
-  // SVG ring for timer
-  const ringSize = 140;
-  const ringStroke = 6;
-  const ringRadius = (ringSize - ringStroke) / 2;
-  const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringOffset = ringCircumference - (timerProgress / 100) * ringCircumference;
-
-  // Filter questions by section
-  const filteredIndices = activeSection
-    ? questions.map((q, i) => ({ q, i })).filter(x => x.q.subject === activeSection).map(x => x.i)
-    : questions.map((_, i) => i);
+  // Current section questions
+  const currentSectionObj = sections.find(s => s.id === activeSection);
+  const sectionQIndices = currentSectionObj?.questionIndices || questions.map((_, i) => i);
 
   return (
-    <div className={styles.session} style={{ userSelect: 'none' }}>
-      {/* Anti-cheat warning overlay */}
-      {antiCheatWarning && (
-        <div className={styles.antiCheatOverlay} onClick={() => setAntiCheatWarning(null)}>
-          <div className={styles.antiCheatCard}>
-            <p>{antiCheatWarning}</p>
-            <button onClick={() => setAntiCheatWarning(null)}>Understood</button>
-          </div>
-        </div>
-      )}
-
-      {/* Keyboard help modal */}
-      {showHelp && (
-        <div className={styles.helpOverlay} onClick={() => setShowHelp(false)}>
-          <div className={styles.helpCard} onClick={e => e.stopPropagation()}>
-            <h3>⌨️ Keyboard Shortcuts</h3>
-            <div className={styles.helpGrid}>
-              <kbd>←</kbd><span>Previous question</span>
-              <kbd>→</kbd><span>Next question</span>
-              <kbd>1-4</kbd><span>Select option A-D</span>
-              <kbd>A-D</kbd><span>Select option A-D</span>
-              <kbd>F</kbd><span>Toggle flag</span>
-              <kbd>?</kbd><span>Toggle this help</span>
-            </div>
-            <button className={styles.helpClose} onClick={() => setShowHelp(false)}>Close</button>
-          </div>
-        </div>
-      )}
-
-      {/* LEFT COLUMN — Navigator */}
-      <aside className={styles.left}>
-        <div className={styles.candidateInfo}>
-          <span className={styles.candidateName}>Priya Sharma</span>
-          <span className={styles.rollNumber}>NEET-2026-BIH-0847291</span>
-        </div>
-
-        <div className={styles.examInfo}>
-          <span className={styles.examName}>{exam.name}</span>
-          <span className={styles.setLabel}>Set B</span>
-        </div>
-
-        {/* Section tabs */}
-        <div className={styles.sectionTabs}>
-          <button
-            className={`${styles.sectionTab} ${!activeSection ? styles.sectionActive : ''}`}
-            onClick={() => setActiveSection(null)}
-          >
-            All
-          </button>
-          {sections.map(s => (
-            <button
-              key={s}
-              className={`${styles.sectionTab} ${activeSection === s ? styles.sectionActive : ''}`}
-              onClick={() => setActiveSection(s)}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        {/* Question grid */}
-        <div className={styles.qGrid}>
-          {filteredIndices.map(i => (
-            <button
-              key={i}
-              className={`${styles.qCell} ${styles[`q-${getQState(i)}`]} ${i === currentQ ? styles.qCurrent : ''}`}
-              onClick={() => setCurrentQ(i)}
-              aria-label={`Question ${i + 1}, ${getQState(i)}`}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.answerCount}>
-          {answeredCount} / {questions.length} answered
-        </div>
-
-        <button className={styles.submitExamBtn} disabled={answeredCount < questions.length}>
-          Submit Exam
-        </button>
-      </aside>
-
-      {/* CENTER COLUMN — Question */}
-      <main className={styles.center}>
-        <div className={styles.qHeader}>
-          <span className={styles.qNumber}>Question {currentQ + 1} of {questions.length}</span>
-          <span className={styles.qSubjectBadge}>{q.subject}</span>
-          <span className={styles.qBloomsBadge}>Bloom&apos;s L{q.blooms_level}</span>
-          <button
-            className={`${styles.flagBtn} ${qState.flagged ? styles.flagActive : ''}`}
-            onClick={toggleFlag}
-            aria-label={qState.flagged ? 'Remove flag' : 'Flag for review'}
-          >
-            {qState.flagged ? '🚩 Flagged' : '⚑ Flag for review'}
-          </button>
-        </div>
-
-        <div className={styles.qText}>
-          <p>{q.text}</p>
-          {q.text_hi && <p className={styles.qTextHi}>{q.text_hi}</p>}
-        </div>
-
-        <div className={styles.options} role="radiogroup" aria-label="Answer options">
-          {(['A', 'B', 'C', 'D'] as const).map(opt => (
-            <button
-              key={opt}
-              className={`${styles.option} ${qState.answer === opt ? styles.optionSelected : ''}`}
-              onClick={() => selectAnswer(opt)}
-              role="radio"
-              aria-checked={qState.answer === opt}
-            >
-              <span className={styles.optionLabel}>{opt}</span>
-              <span className={styles.optionText}>{q.options[opt]}</span>
-            </button>
-          ))}
-        </div>
-
-        {qState.answer && (
-          <button className={styles.clearBtn} onClick={clearAnswer}>
-            ✕ Clear answer
-          </button>
-        )}
-
-        <div className={styles.navButtons}>
-          <button
-            className={styles.navBtn}
-            onClick={() => navigateQ(-1)}
-            disabled={currentQ === 0}
-          >
-            ← Previous
-          </button>
-          <button className={styles.helpToggle} onClick={() => setShowHelp(true)}>
-            ⌨️ Shortcuts (?)
-          </button>
-          <button
-            className={styles.navBtn}
-            onClick={() => navigateQ(1)}
-            disabled={currentQ === questions.length - 1}
-          >
-            Next →
-          </button>
-        </div>
-      </main>
-
-      {/* RIGHT COLUMN — Timer + Crypto */}
-      <aside className={styles.right}>
-        {/* Timer */}
-        <div className={styles.timerSection}>
-          <div className={styles.timerRing} style={{ width: ringSize, height: ringSize }}>
-            <svg width={ringSize} height={ringSize}>
-              <circle
-                cx={ringSize / 2} cy={ringSize / 2} r={ringRadius}
-                fill="none" stroke="#e5e7eb" strokeWidth={ringStroke}
-              />
-              <circle
-                cx={ringSize / 2} cy={ringSize / 2} r={ringRadius}
-                fill="none" stroke={timerColor} strokeWidth={ringStroke}
-                strokeLinecap="round"
-                strokeDasharray={ringCircumference}
-                strokeDashoffset={ringOffset}
-                transform={`rotate(-90 ${ringSize / 2} ${ringSize / 2})`}
-                style={{ transition: 'stroke-dashoffset 1s linear, stroke 300ms ease' }}
-              />
-            </svg>
-            <div className={styles.timerText}>
-              <span className={styles.timerValue} style={{ color: timerColor }}>{timeStr}</span>
-              <span className={styles.timerLabel}>remaining</span>
+    <>
+      {/* V3 §7.3 — Silent distress panic button. Mounted outside lockdown so it is
+          reachable before fullscreen entry and persists across re-renders. */}
+      <PanicButton examId={config.examName} candidateId="self" seatNumber="A-127" centerId="ctr-001" />
+      <ExamLockdown onViolation={handleViolation} isSubmitted={isSubmitted}>
+      <div className={styles.examRoot}>
+        {/* ═══ TOP HEADER BAR ═══ */}
+        <header className={styles.header}>
+          <div className={styles.headerLeft}>
+            <span className={styles.examLogo}>🔐</span>
+            <div className={styles.headerExamInfo}>
+              <span className={styles.headerExamName}>{config.examName}</span>
+              <span className={styles.headerExamBody}>{config.examBody} • Set {config.setLabel}</span>
             </div>
           </div>
-        </div>
-
-        {/* Crypto status */}
-        <div className={styles.cryptoStatus}>
-          <div className={styles.cryptoBadge}>
-            <span>🔒</span> Answers encrypted as you answer
+          <div className={styles.headerCenter}>
+            <div className={styles.markingScheme}>
+              <span className={styles.markPlus}>+{config.positiveMarks}</span>
+              <span className={styles.markSlash}>/</span>
+              <span className={styles.markMinus}>-{config.negativeMarks}</span>
+            </div>
+            <div className={styles.langToggle}>
+              <button className={language === 'en' ? styles.langActive : ''} onClick={() => setLanguage('en')}>English</button>
+              <button className={language === 'hi' ? styles.langActive : ''} onClick={() => setLanguage('hi')}>हिंदी</button>
+            </div>
           </div>
-          <div className={styles.cryptoBadge}>
-            <span>⛓️</span> Will commit to blockchain on submit
-          </div>
-          <div className={styles.cryptoHash}>
-            <span className={styles.cryptoLabel}>Question Hash</span>
-            <code>{exam.question_hash?.slice(0, 12)}...</code>
-          </div>
-        </div>
-
-        {/* Section time advisor */}
-        <div className={styles.sectionAdvisor}>
-          <h4>Section Progress</h4>
-          {sections.map(s => {
-            const sectionQs = questions.filter(q => q.subject === s);
-            const sectionAnswered = sectionQs.filter((_, i) => {
-              const idx = questions.findIndex(q2 => q2.id === sectionQs[i]?.id);
-              return states[idx]?.answer !== null;
-            }).length;
-            return (
-              <div key={s} className={styles.sectionProgress}>
-                <span className={styles.sectionName}>{s}</span>
-                <div className={styles.sectionBar}>
-                  <div
-                    className={styles.sectionFill}
-                    style={{ width: `${(sectionAnswered / sectionQs.length) * 100}%` }}
-                  />
-                </div>
-                <span className={styles.sectionCount}>{sectionAnswered}/{sectionQs.length}</span>
+          <div className={styles.headerRight}>
+            <div className={styles.candidateProfile}>
+              <div className={styles.profilePic}>
+                {(session?.name || 'P')[0]}
               </div>
-            );
-          })}
+              <div className={styles.profileInfo}>
+                <span className={styles.profileName}>{session?.name || 'Priya Sharma'}</span>
+                <span className={styles.profileRoll}>{session?.identifier || 'NEET-2026-BIH-0847291'}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ═══ SECTION TABS ═══ */}
+        <div className={styles.sectionBar}>
+          {sections.map(sec => (
+            <button
+              key={sec.id}
+              className={`${styles.sectionTab} ${activeSection === sec.id ? styles.sectionActive : ''}`}
+              onClick={() => {
+                setActiveSection(sec.id);
+                navigateTo(sec.questionIndices[0]);
+              }}
+            >
+              {sec.name}
+              <span className={styles.sectionQCount}>({sec.questionCount})</span>
+            </button>
+          ))}
         </div>
 
-        {/* Invigilator contact */}
-        <div className={styles.invigilator}>
-          <span className={styles.invLabel}>Invigilator</span>
-          <span className={styles.invName}>Dr. Anita Desai</span>
-          <span className={styles.invPhone}>📞 +91 12345 67890</span>
+        {/* ═══ MAIN BODY ═══ */}
+        <div className={styles.body}>
+          {/* ── LEFT: Question Area ── */}
+          <main className={styles.questionArea}>
+            {/* Anti-cheat warning overlay */}
+            {antiCheatWarning && (
+              <div className={styles.warningOverlay} onClick={() => setAntiCheatWarning(null)}>
+                <div className={styles.warningCard}>
+                  <p>{antiCheatWarning}</p>
+                  <button onClick={() => setAntiCheatWarning(null)}>Understood</button>
+                </div>
+              </div>
+            )}
+
+            {/* Question header */}
+            <div className={styles.qHeader}>
+              <span className={styles.qNum}>Question No. {currentQ + 1}</span>
+              <div className={styles.qMeta}>
+                <span className={styles.qSection}>{q.subject}</span>
+                <span className={styles.qMarks}>
+                  Marks: <span className={styles.markPosTag}>+{config.positiveMarks}</span>{' '}
+                  <span className={styles.markNegTag}>-{config.negativeMarks}</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Question text */}
+            <div className={styles.qBody}>
+              <p className={styles.qText}>{q.text}</p>
+              {language === 'hi' && q.text_hi && (
+                <p className={styles.qTextHi}>{q.text_hi}</p>
+              )}
+            </div>
+
+            {/* Options */}
+            <div className={styles.optionsGrid}>
+              {(['A', 'B', 'C', 'D'] as const).map(opt => (
+                <label
+                  key={opt}
+                  className={`${styles.optionRow} ${qState.selectedOption === opt ? styles.optionSelected : ''}`}
+                  onClick={() => selectOption(opt)}
+                >
+                  <span className={styles.optionRadio}>
+                    <span className={`${styles.radioCircle} ${qState.selectedOption === opt ? styles.radioChecked : ''}`} />
+                  </span>
+                  <span className={styles.optionLetter}>{opt})</span>
+                  <span className={styles.optionContent}>{q.options[opt]}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className={styles.actionBar}>
+              <div className={styles.actionLeft}>
+                <button className={styles.btnReview} onClick={markForReviewAndNext}>
+                  Mark for Review &amp; Next
+                </button>
+                <button className={styles.btnClear} onClick={clearResponse}>
+                  Clear Response
+                </button>
+              </div>
+              <div className={styles.actionRight}>
+                <button
+                  className={styles.btnPrev}
+                  onClick={() => navigateTo(currentQ - 1)}
+                  disabled={currentQ === 0}
+                >
+                  ← Previous
+                </button>
+                <button className={styles.btnSaveNext} onClick={saveAndNext}>
+                  Save &amp; Next →
+                </button>
+              </div>
+            </div>
+          </main>
+
+          {/* ── RIGHT: Navigator Panel ── */}
+          <aside className={styles.navigator}>
+            {/* Timer */}
+            <div className={`${styles.timerBox} ${timerUrgent ? styles.timerUrgent : ''}`}>
+              <span className={styles.timerLabel}>Time Left</span>
+              <span className={styles.timerValue}>{timeStr}</span>
+            </div>
+
+            {/* Candidate Card */}
+            <div className={styles.navProfile}>
+              <div className={styles.navProfilePic}>{(session?.name || 'P')[0]}</div>
+              <div className={styles.navProfileDetails}>
+                <span>{session?.name || 'Priya Sharma'}</span>
+              </div>
+            </div>
+
+            {/* Question Palette */}
+            <div className={styles.palette}>
+              <div className={styles.paletteHeader}>Question Palette</div>
+              <div className={styles.paletteGrid}>
+                {sectionQIndices.map(i => {
+                  const status = getQStatus(i);
+                  return (
+                    <button
+                      key={i}
+                      className={`${styles.paletteCell} ${styles[`pal-${status}`]} ${i === currentQ ? styles.palCurrent : ''}`}
+                      onClick={() => navigateTo(i)}
+                      title={`Q${i + 1} — ${status.replace(/_/g, ' ')}`}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div className={styles.legend}>
+              <div className={styles.legendRow}>
+                <span className={`${styles.legendDot} ${styles.legNotVisited}`}>{notVisitedCount}</span>
+                <span>Not Visited</span>
+              </div>
+              <div className={styles.legendRow}>
+                <span className={`${styles.legendDot} ${styles.legNotAnswered}`}>{notAnsweredCount}</span>
+                <span>Not Answered</span>
+              </div>
+              <div className={styles.legendRow}>
+                <span className={`${styles.legendDot} ${styles.legAnswered}`}>{answeredCount}</span>
+                <span>Answered</span>
+              </div>
+              <div className={styles.legendRow}>
+                <span className={`${styles.legendDot} ${styles.legReview}`}>{reviewCount}</span>
+                <span>Marked for Review</span>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button
+              className={styles.submitBtn}
+              onClick={() => setShowSubmitConfirm(true)}
+            >
+              Submit Exam
+            </button>
+          </aside>
         </div>
-      </aside>
-    </div>
+
+        {/* ═══ SUBMIT CONFIRMATION MODAL ═══ */}
+        {showSubmitConfirm && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalCard}>
+              <h3>Submit Examination?</h3>
+              <div className={styles.submitSummary}>
+                <div className={styles.summaryRow}><span>Answered:</span><strong className={styles.sumGreen}>{answeredCount}</strong></div>
+                <div className={styles.summaryRow}><span>Not Answered:</span><strong className={styles.sumRed}>{notAnsweredCount}</strong></div>
+                <div className={styles.summaryRow}><span>Not Visited:</span><strong className={styles.sumGrey}>{notVisitedCount}</strong></div>
+                <div className={styles.summaryRow}><span>Marked for Review:</span><strong className={styles.sumPurple}>{reviewCount}</strong></div>
+              </div>
+              <p className={styles.submitWarning}>
+                Once submitted, you cannot return to the exam. Are you sure you want to submit?
+              </p>
+              <div className={styles.modalActions}>
+                <button className={styles.btnCancelSubmit} onClick={() => setShowSubmitConfirm(false)}>Go Back</button>
+                <button className={styles.btnConfirmSubmit} onClick={handleSubmit}>Yes, Submit</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </ExamLockdown>
+    </>
   );
 }
