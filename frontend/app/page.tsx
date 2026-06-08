@@ -73,6 +73,11 @@ export default function LandingPage() {
         <Link href="/exam/audit" className={styles.auditLink}>
           🔍 Public Audit Portal — Verify any exam on Polygonscan (No Login Required)
         </Link>
+        <div style={{ marginTop: 12, display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="/ceremony" className={styles.auditLink}>🔐 Key Ceremony (CC-SSS)</Link>
+          <Link href="/exam/complaint" className={styles.auditLink}>⚖️ Complaint Resolution</Link>
+          <Link href="/exam/t0-broadcast" className={styles.auditLink}>📡 T₀ Broadcast Demo</Link>
+        </div>
       </section>
 
       {/* Footer */}

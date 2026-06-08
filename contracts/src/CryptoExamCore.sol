@@ -358,4 +358,81 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     ) external onlyRole(ADMIN_ROLE) {
         deliveryProofs[examId][nodeId].verified = true;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CC-SSS Module (§§ 49–62) — Shamir SSS + Nitro Enclave Attestation
+    // All additions are non-destructive: new events, new mappings, new functions.
+    // Existing storage layout, roles and lockExam/answer flow are unchanged.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice One official's SSS share was submitted to the enclave.
+    event CeremonyShareSubmitted(
+        bytes32 indexed examId,
+        bytes32 officialId,        // sha256(official identity)
+        uint8   shareIndex,        // 1..5
+        uint8   totalSharesReceived,
+        uint256 timestamp
+    );
+
+    /// @notice The k-of-n threshold was reached and the ceremony completed.
+    event CeremonyCompleted(
+        bytes32 indexed examId,
+        uint8   sharesReceived,
+        uint8   threshold,
+        bytes32 enclaveAttestation, // sha256(PCR0) — the code identity that ran
+        uint256 timestamp
+    );
+
+    /// @notice The enclave attestation document was verified against the published PCR0.
+    event EnclaveAttestationVerified(
+        bytes32 indexed examId,
+        bytes32 pcr0Hash,           // sha-256 of the SHA-384 PCR0 value
+        bytes32 enclavePublicKeyHash,
+        uint256 timestamp
+    );
+
+    mapping(bytes32 => bool)  public ceremonyCompleted;
+    mapping(bytes32 => uint8) public ceremonyShareCount;
+
+    /**
+     * @notice Record an SSS share submission. Authorised role only.
+     * @dev Increments the per-exam share counter and emits an event for indexers.
+     */
+    function recordCeremonyShare(
+        bytes32 examId,
+        bytes32 officialId,
+        uint8 shareIndex
+    ) external onlyRole(ADMIN_ROLE) {
+        ceremonyShareCount[examId] += 1;
+        emit CeremonyShareSubmitted(
+            examId, officialId, shareIndex, ceremonyShareCount[examId], block.timestamp
+        );
+    }
+
+    /**
+     * @notice Mark the ceremony as completed after threshold is reached.
+     * @dev Idempotent guard prevents re-completing.
+     */
+    function completeCeremony(
+        bytes32 examId,
+        uint8 sharesReceived,
+        uint8 threshold,
+        bytes32 pcr0Hash
+    ) external onlyRole(ADMIN_ROLE) {
+        require(!ceremonyCompleted[examId], "ceremony already completed");
+        require(sharesReceived >= threshold, "insufficient shares");
+        ceremonyCompleted[examId] = true;
+        emit CeremonyCompleted(examId, sharesReceived, threshold, pcr0Hash, block.timestamp);
+    }
+
+    /**
+     * @notice Record that an enclave attestation document was verified off-chain.
+     */
+    function recordEnclaveAttestation(
+        bytes32 examId,
+        bytes32 pcr0Hash,
+        bytes32 enclavePublicKeyHash
+    ) external onlyRole(ADMIN_ROLE) {
+        emit EnclaveAttestationVerified(examId, pcr0Hash, enclavePublicKeyHash, block.timestamp);
+    }
 }

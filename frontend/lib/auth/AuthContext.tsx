@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const publicRoutes = ['/login', '/setter/login', '/admin/login', '/invigilator/login', '/', '/exam/audit', '/exam/t0-broadcast', '/exam/complaint'];
+    const publicRoutes = ['/login', '/setter/login', '/admin/login', '/invigilator/login', '/', '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony'];
     const isPublicRoute = publicRoutes.some(r => pathname === r) || pathname.startsWith('/exam/paper-info');
 
     if (!session && !isPublicRoute) {

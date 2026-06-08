@@ -187,7 +187,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 
@@ -203,6 +203,7 @@ app.include_router(question_modes.router, prefix="/api/v1/question-modes", tags=
 app.include_router(broadcast.router, prefix="/api/v1/broadcast", tags=["Mass Delivery (§27)"])
 app.include_router(complaint.router, prefix="/api/v1/complaint", tags=["Complaint Resolution (V3 §9)"])
 app.include_router(emergency.router, prefix="/api/v1/emergency", tags=["Emergency Dual-Control (V3 §10)"])
+app.include_router(ceremony.router, prefix="/api/v1/ceremony", tags=["Key Ceremony (CC-SSS §§54-55)"])
 app.include_router(generation_router, prefix="/api/v1/generation", tags=["AI Generation"])
 app.include_router(lifecycle_router, prefix="/api/v1/lifecycle", tags=["Exam Lifecycle"])
 
