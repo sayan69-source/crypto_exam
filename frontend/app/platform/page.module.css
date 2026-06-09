@@ -1,0 +1,104 @@
+/* Platform page styles */
+
+.pageHero {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-soft);
+  padding-block: clamp(70px, 9vw, 110px) clamp(40px, 6vw, 64px);
+}
+.pageHero h1 {
+  font-size: var(--fs-h1); margin-top: var(--space-md);
+  max-width: 760px; line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+}
+.pageHeroLead {
+  margin-top: var(--space-lg); font-size: var(--fs-lead);
+  color: var(--text-muted); max-width: 680px; line-height: var(--lh-relaxed);
+}
+
+/* Role sections */
+.role { padding-block: var(--space-4xl); border-bottom: 1px solid var(--border-soft); }
+.roleGrid {
+  display: grid; grid-template-columns: 0.7fr 1.3fr;
+  gap: var(--space-3xl); align-items: start;
+}
+.roleLabel {
+  font-family: var(--font-mono); font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--text-faint);
+}
+.roleGrid h2 {
+  font-size: var(--fs-h2); margin-top: 12px;
+  letter-spacing: var(--tracking-tight);
+}
+.roleTag {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: var(--space-md);
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--accent-strong);
+}
+.roleTagChipSmall { width: 28px; height: 28px; }
+.roleTagChipSmall svg { width: 14px; height: 14px; }
+.roleGrid p { font-size: var(--fs-body); color: var(--text-body); line-height: var(--lh-relaxed); }
+.roleGridPSpace { margin-top: var(--space-md); }
+
+.featureList { margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); list-style: none; padding: 0; }
+.featureItem {
+  display: flex; gap: var(--space-md); padding: 14px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.featureItem:first-child { border-top: 0; padding-top: 0; }
+.featureIcon { width: 18px; height: 18px; color: var(--color-navy-500); flex-shrink: 0; margin-top: 3px; }
+.featureT { font-weight: var(--fw-semi); color: var(--text-strong); font-size: var(--fs-body); }
+.featureD { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-normal); margin-top: 2px; }
+
+/* Themed variants */
+.calm { background: var(--bg-page); }
+
+.dark { background: var(--bg-darkest); color: #fff; border-bottom-color: rgba(255,255,255,0.06); }
+.dark h2 { color: #fff; }
+.dark p { color: var(--color-navy-200); }
+.dark .roleLabel { color: var(--color-navy-400); }
+.dark .featureItem { border-color: rgba(255,255,255,0.07); }
+.dark .featureIcon { color: var(--color-saffron-300); }
+.dark .featureT { color: #fff; }
+.dark .featureD { color: var(--color-navy-300); }
+.darkChip { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: var(--color-saffron-300); }
+
+.cream { background: #FDF8F2; }
+.cream .roleLabel { color: var(--accent-strong); }
+.creamChip { background: var(--color-saffron-100); border-color: var(--color-saffron-200); color: var(--accent-strong); }
+
+.deep { background: var(--bg-dark); color: #fff; border-bottom-color: rgba(255,255,255,0.06); }
+.deep h2 { color: #fff; }
+.deep p { color: var(--color-navy-200); }
+.deep .roleLabel { color: var(--color-navy-400); }
+.deep .featureItem { border-color: rgba(255,255,255,0.07); }
+.deep .featureIcon { color: #6fe0a6; }
+.deep .featureT { color: #fff; }
+.deep .featureD { color: var(--color-navy-300); }
+.deepChip { background: rgba(26,122,76,0.18); border-color: rgba(26,122,76,0.35); color: #6fe0a6; }
+
+/* Architecture */
+.archSection { padding-block: var(--space-4xl); }
+.archGrid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg); margin-top: var(--space-2xl);
+}
+.archTile {
+  padding: var(--space-xl); background: var(--bg-surface);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-lg);
+}
+.archTile h4 { font-size: var(--fs-h4); }
+.archTile p {
+  font-size: var(--fs-sm); color: var(--text-muted);
+  line-height: var(--lh-normal); margin-top: 8px;
+}
+.archMono {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--color-navy-500); margin-top: var(--space-md);
+  display: block;
+}
+
+@media (max-width: 880px) {
+  .roleGrid, .archGrid { grid-template-columns: 1fr; gap: var(--space-xl); }
+}

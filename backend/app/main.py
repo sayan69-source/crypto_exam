@@ -82,8 +82,7 @@ app = FastAPI(
     description=(
         "Zero-Trust Examination Infrastructure for India. "
         "AES-GCM-256 encryption, ZK-SNARK difficulty proofs (Groth16), "
-        "Merkle answer commitments on Polygon PoS, "
-        "RSA time-lock puzzles for offline hardware nodes."
+        "Merkle answer commitments on Polygon PoS."
     ),
     version=settings.APP_VERSION,
     lifespan=lifespan,
@@ -137,7 +136,6 @@ async def health_check():
             "drand_client": "ready",
             "merkle_tree": "ready",
             "shamir_sss": "ready",
-            "timelock_puzzle": "ready",
             "zk_snark": "ready",
         },
     }
@@ -152,7 +150,10 @@ async def root():
         "version": settings.APP_VERSION,
         "docs": "/docs",
         "health": "/health",
+        "about": "/api/v1/about",
+        "transparency": "/api/v1/about/transparency",
         "api": {
+            "about": "/api/v1/about",
             "auth": "/api/v1/auth",
             "exams": "/api/v1/exams",
             "sessions": "/api/v1/sessions",
@@ -187,10 +188,11 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 
+app.include_router(about.router, prefix="/api/v1/about", tags=["About / Transparency (public)"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])

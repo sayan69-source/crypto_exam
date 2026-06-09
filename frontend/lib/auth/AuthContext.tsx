@@ -52,7 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const publicRoutes = ['/login', '/setter/login', '/admin/login', '/invigilator/login', '/invigilator/register', '/', '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony'];
+    // Public marketing/informational pages — open to everyone, no login required.
+    // /exam stays public because /exam/page.tsx is the existing public candidate portal
+    // (under CandidateLayout). /setter and /admin are NOT public landings any more — the
+    // public role explainers live at /for-setters and /for-administrators so they don't
+    // collide with the authenticated SetterLayout/AdminLayout chrome.
+    const publicRoutes = [
+      '/', '/about', '/platform', '/contact', '/privacy', '/terms',
+      '/for-setters', '/for-administrators',
+      '/exam',
+      '/login', '/setter/login', '/admin/login', '/invigilator/login', '/invigilator/register',
+      '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony',
+    ];
     const isPublicRoute = publicRoutes.some(r => pathname === r) || pathname.startsWith('/exam/paper-info');
 
     if (!session && !isPublicRoute) {

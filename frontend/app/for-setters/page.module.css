@@ -1,0 +1,75 @@
+/* Setter role landing — public */
+
+.hero {
+  background: linear-gradient(180deg, #FDF8F2 0%, #FBF4EA 100%);
+  border-bottom: 1px solid var(--color-saffron-200);
+  padding-block: clamp(72px, 10vw, 120px) clamp(48px, 7vw, 88px);
+  position: relative; overflow: hidden;
+}
+.hero::after {
+  content: ""; position: absolute; right: -100px; top: -100px;
+  width: 320px; height: 320px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(224,112,32,0.10), transparent 70%);
+}
+.h1 {
+  font-size: var(--fs-h1); max-width: 780px;
+  margin-top: var(--space-md); line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+}
+.h1 em {
+  font-family: var(--font-display); font-style: italic;
+  color: var(--accent-strong); font-weight: var(--fw-regular);
+}
+.lead {
+  margin-top: var(--space-lg); font-size: var(--fs-lead);
+  color: var(--text-body); max-width: 660px; line-height: var(--lh-relaxed);
+}
+.cta {
+  margin-top: var(--space-xl);
+  display: flex; gap: var(--space-md); flex-wrap: wrap;
+}
+
+.grid {
+  margin-top: var(--space-2xl);
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+}
+.card { padding: var(--space-xl); }
+.card h3 { font-size: var(--fs-h4); margin-top: var(--space-md); letter-spacing: -0.01em; }
+.card p { margin-top: 10px; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-normal); }
+
+.bandDark {
+  background: var(--bg-darkest); color: #fff;
+  padding-block: var(--space-4xl); position: relative; overflow: hidden;
+}
+.bandH2 {
+  color: #fff; font-size: var(--fs-h2);
+  margin-top: var(--space-md); max-width: 720px;
+  line-height: var(--lh-tight); letter-spacing: var(--tracking-tight);
+}
+.steps {
+  margin-top: var(--space-2xl); list-style: none; padding: 0;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-xl);
+}
+.steps li { display: flex; gap: var(--space-md); color: var(--color-navy-200); }
+.steps h4 { color: #fff; font-size: var(--fs-h4); }
+.steps p { margin-top: 6px; font-size: var(--fs-sm); line-height: var(--lh-normal); }
+.stepN {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--color-saffron-400); letter-spacing: 0.12em; padding-top: 4px;
+}
+
+.finalCta { text-align: center; }
+.finalCta h2 {
+  font-size: var(--fs-h2); max-width: 640px;
+  margin-inline: auto; letter-spacing: var(--tracking-tight);
+}
+.finalCta p {
+  font-size: var(--fs-lead); color: var(--text-muted);
+  margin-top: var(--space-md); max-width: 560px; margin-inline: auto;
+}
+.finalCta .cta { justify-content: center; }
+
+@media (max-width: 880px) {
+  .grid, .steps { grid-template-columns: 1fr; gap: var(--space-lg); }
+}
