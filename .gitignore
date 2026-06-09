@@ -42,6 +42,9 @@ Thumbs.db
 # TypeScript incremental cache
 *.tsbuildinfo
 
+# Internal planning doc (kept local, never tracked)
+zuup_os_implementation_plan.md
+
 # Crypto artifacts (sensitive)
 *.pem
 *.key
