@@ -7,7 +7,7 @@
 
 export type UserRole = 'CANDIDATE' | 'SETTER' | 'ADMIN';
 
-export type ExamType = 'ONLINE_CBT' | 'OFFLINE_HARDWARE' | 'HYBRID';
+export type ExamType = 'ONLINE_CBT';
 
 export type ExamBody = 'NTA' | 'UPSC' | 'SSC' | 'IBPS' | 'STATE_PSC' | 'CBSE' | 'CUSTOM';
 
@@ -27,7 +27,7 @@ export type AnomalyType =
 
 export type EnrollmentStatus = 'ENROLLED' | 'PRESENT' | 'ABSENT' | 'DISQUALIFIED';
 
-export type ConnectivityTier = 'TIER_1_METRO' | 'TIER_2_4G' | 'TIER_3_BSNL' | 'TIER_4_OFFLINE';
+export type ConnectivityTier = 'TIER_1_METRO' | 'TIER_2_4G' | 'TIER_3_BSNL';
 
 export type BlockchainTxStatus = 'confirmed' | 'pending' | 'unconfirmed' | 'failed';
 
@@ -230,8 +230,6 @@ export interface HardwareNode {
   firmware_version: string;
   last_heartbeat: string;
   battery_percent: number;
-  timelock_status?: string;
-  timelock_remaining?: number;
 }
 
 export interface Session {

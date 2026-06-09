@@ -14,12 +14,15 @@ from app.config import get_settings
 
 settings = get_settings()
 
+_engine_kwargs = {
+    "echo": settings.DEBUG,
+}
+if "sqlite" not in settings.DATABASE_URL:
+    _engine_kwargs.update(pool_size=20, max_overflow=10, pool_pre_ping=True)
+
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,
+    **_engine_kwargs,
 )
 
 async_session = async_sessionmaker(

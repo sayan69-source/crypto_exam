@@ -49,8 +49,6 @@ class BiometricMethod(str, enum.Enum):
 
 class ExamType(str, enum.Enum):
     ONLINE_CBT = "ONLINE_CBT"
-    OFFLINE_HARDWARE = "OFFLINE_HARDWARE"
-    HYBRID = "HYBRID"
 
 
 class ExamBody(str, enum.Enum):
@@ -115,7 +113,6 @@ class ConnectivityTier(str, enum.Enum):
     TIER_1_METRO = "TIER_1_METRO"
     TIER_2_4G = "TIER_2_4G"
     TIER_3_BSNL = "TIER_3_BSNL"
-    TIER_4_OFFLINE = "TIER_4_OFFLINE"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -183,7 +180,6 @@ class Exam(Base):
     zk_proof_ipfs = Column(String(100), nullable=True)
     constraint_spec_ipfs = Column(String(100), nullable=True)
     drand_round = Column(Integer, nullable=True)
-    timelock_commit = Column(LargeBinary, nullable=True)
     polygon_exam_tx = Column(String(66), nullable=True)
     polygon_zkproof_tx = Column(String(66), nullable=True)
     answer_merkle_root = Column(LargeBinary, nullable=True)
@@ -276,7 +272,6 @@ class HardwareNode(Base):
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
     last_heartbeat_sig = Column(LargeBinary, nullable=True)
     status = Column(Enum(NodeStatus, name="node_status", create_type=True), default=NodeStatus.OFFLINE)
-    timelock_puzzle = Column(JSON, nullable=True)
     delivery_proof_sig = Column(LargeBinary, nullable=True)
     delivery_proof_tx = Column(String(66), nullable=True)
     tamper_breach_at = Column(DateTime(timezone=True), nullable=True)

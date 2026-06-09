@@ -48,7 +48,7 @@ export interface ComplaintResult {
 // ── Pure-JS Merkle (Web Crypto SHA-256) — matches backend exactly ───────
 
 async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
-  const h = await crypto.subtle.digest('SHA-256', bytes);
+  const h = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
   return new Uint8Array(h);
 }
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {

@@ -1,51 +1,65 @@
-/* CryptoExam Core — Admin Layout Styles */
+/* CryptoExam Core — Admin Layout
+   Premium minimalistic · light professional dashboard */
 
 .container {
   min-height: 100vh;
-  background: var(--bg-admin);
-  color: #d1d5db;
+  background: var(--bg-page, #F8F9FC);
+  color: var(--text-body, #313A52);
   display: flex;
   flex-direction: column;
 }
 
-/* Top Bar */
+/* ── Top Bar ── */
 .topBar {
-  height: 52px;
-  background: var(--color-navy-950);
-  border-bottom: 1px solid var(--color-navy-800);
+  height: 56px;
+  background: #fff;
+  border-bottom: 1px solid var(--border-soft, #E3E7F2);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-lg);
+  padding: 0 24px;
   position: sticky;
   top: 0;
-  z-index: var(--z-sticky);
+  z-index: 1100;
 }
 
 .topLeft {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: 14px;
 }
 
 .logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
   text-decoration: none;
-  color: white;
-  font-size: 16px;
+  color: var(--color-navy-900, #0D1526);
 }
 
-.logoText { font-family: var(--font-display); font-weight: 600; }
+.logoMark {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  background: var(--color-navy-900, #0D1526);
+  color: #fff;
+}
+
+.logoText {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.logoText b { font-weight: 700; }
 
 .roleBadge {
+  font-family: var(--font-mono, monospace);
   font-size: 10px;
   font-weight: 600;
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  background: rgba(200, 32, 32, 0.15);
-  color: #fca5a5;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #FEF2F2;
+  color: #B91C1C;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -53,25 +67,40 @@
 .topCenter {
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  gap: 20px;
 }
 
 .liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono, monospace);
   font-size: 12px;
   font-weight: 600;
-  color: #4ade80;
+  color: var(--color-success, #1A7A4C);
+}
+
+.liveDot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--color-success, #1A7A4C);
   animation: pulse 2s ease-in-out infinite;
 }
 
 .healthBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
-  color: var(--color-navy-300);
+  font-weight: 500;
+  color: var(--color-navy-500, #5B6478);
 }
+.healthBadge svg { color: var(--color-success, #1A7A4C); }
 
 .topRight {
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  gap: 18px;
 }
 
 .clock {
@@ -79,54 +108,68 @@
 }
 
 .clockTime {
-  font-family: var(--font-mono);
-  font-size: 16px;
+  font-family: var(--font-mono, monospace);
+  font-size: 15px;
   font-weight: 600;
-  color: white;
+  color: var(--color-navy-800, #132040);
   display: block;
   line-height: 1;
 }
 
 .clockDate {
   font-size: 10px;
-  color: var(--color-navy-400);
+  color: var(--color-navy-400, #5B6478);
 }
 
 .alertBadge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 24px; height: 24px;
   border-radius: 50%;
-  background: var(--color-danger);
-  color: white;
+  background: #FEE2E2;
+  color: #B91C1C;
   font-size: 11px;
   font-weight: 700;
-  animation: pulse 2s ease-in-out infinite;
+}
+
+.adminUser {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adminAvatar {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--color-navy-100, #D7DCF0);
+  color: var(--color-navy-700, #1A2D5A);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
 }
 
 .adminName {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-navy-200);
+  color: var(--color-navy-700, #1A2D5A);
 }
 
-/* Body */
+/* ── Body ── */
 .body {
   display: flex;
   flex: 1;
 }
 
-/* Sidebar */
+/* ── Sidebar ── */
 .sidebar {
   width: 220px;
-  background: var(--color-navy-950);
-  border-right: 1px solid var(--color-navy-800);
-  padding: var(--space-sm) 0;
+  background: #fff;
+  border-right: 1px solid var(--border-soft, #E3E7F2);
+  padding: 8px 10px;
   position: sticky;
-  top: 52px;
-  height: calc(100vh - 52px);
+  top: 56px;
+  height: calc(100vh - 56px);
   overflow-y: auto;
   flex-shrink: 0;
 }
@@ -134,62 +177,63 @@
 .nav {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .navItem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px var(--space-md);
+  gap: 9px;
+  padding: 10px 14px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-navy-300);
+  color: var(--color-navy-500, #5B6478);
   text-decoration: none;
   transition: all 150ms ease;
-  border-left: 3px solid transparent;
+  border-radius: 8px;
 }
+.navItem svg { flex-shrink: 0; color: var(--color-navy-400, #8A92A6); }
 
 .navItem:hover {
-  background: rgba(255,255,255,0.04);
-  color: white;
+  background: var(--color-navy-50, #EFF1FA);
+  color: var(--color-navy-800, #132040);
 }
+.navItem:hover svg { color: var(--color-navy-600, #213573); }
 
 .active {
-  background: rgba(41, 66, 166, 0.12);
-  color: white;
-  border-left-color: var(--color-navy-400);
+  background: var(--color-navy-50, #EFF1FA);
+  color: var(--color-navy-800, #132040);
   font-weight: 600;
 }
+.active svg { color: var(--color-navy-700, #1A2D5A); }
 
 .emergency {
-  color: #fca5a5;
-  margin-top: var(--space-sm);
-  border-top: 1px solid var(--color-navy-800);
-  padding-top: var(--space-md);
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft, #E3E7F2);
+  color: #B91C1C;
 }
-
+.emergency svg { color: #DC2626; }
 .emergency:hover {
-  background: rgba(200, 32, 32, 0.1);
-  color: #fecaca;
+  background: #FEF2F2;
+  color: #991B1B;
 }
 
-.navIcon { font-size: 16px; width: 20px; text-align: center; }
-
-/* Main */
+/* ── Main ── */
 .main {
   flex: 1;
-  padding: var(--space-lg);
+  padding: 28px 32px;
   overflow-x: hidden;
-  min-height: calc(100vh - 52px);
+  min-height: calc(100vh - 56px);
 }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 
 @media (max-width: 768px) {
   .sidebar { display: none; }
-  .main { padding: var(--space-md); }
+  .main { padding: 16px; }
   .topCenter { display: none; }
 }

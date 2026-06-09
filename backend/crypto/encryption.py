@@ -38,8 +38,8 @@ class QuestionEncryptor:
     ensuring each exam produces a unique key even from the same master.
 
     At T₀, the key is re-derived from the drand beacon randomness
-    (online path) or RSA time-lock puzzle solution (offline path).
-    Neither path stores the key — it exists only transiently in RAM.
+    (or reconstructed from Shamir shards). The key is never stored —
+    it exists only transiently in RAM.
     """
 
     @staticmethod
@@ -65,7 +65,7 @@ class QuestionEncryptor:
 
         Args:
             master: Master key material (32+ bytes).
-                    From drand beacon (online) or time-lock solution (offline).
+                    From the drand beacon at T₀ or Shamir reconstruction.
             exam_id: UUID string — binds the key to a specific exam.
             salt: Random salt (16+ bytes) — generated at exam creation,
                   stored in exam record.
@@ -129,8 +129,8 @@ class QuestionEncryptor:
         """
         Decrypt a question paper from AES-GCM-256 ciphertext.
 
-        Called ONLY at T₀. Key is derived fresh from drand beacon
-        or time-lock solution — never stored.
+        Called ONLY at T₀. Key is derived fresh from the drand beacon
+        (or Shamir reconstruction) — never stored.
 
         Args:
             ciphertext: Encrypted paper bytes.

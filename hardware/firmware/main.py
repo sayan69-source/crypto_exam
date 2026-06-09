@@ -5,11 +5,10 @@ Runs on Raspberry Pi CM4 with Infineon TPM 2.0, u-blox GPS, ATECC608A.
 This is the main firmware that:
 1. Boots and performs TPM attestation
 2. Receives encrypted exam shards via IPFS
-3. Runs RSA time-lock puzzle (calibrated to T0)
-4. Decrypts paper at T0 using time-lock solution or drand beacon
-5. Serves paper over local HTTPS to candidates
-6. Generates and submits Proof of Delivery to blockchain
-7. Sends heartbeat to backend for monitoring
+3. Decrypts paper at T0 using the drand beacon randomness
+4. Serves paper over local HTTPS to candidates
+5. Generates and submits Proof of Delivery to blockchain
+6. Sends heartbeat to backend for monitoring
 
 For demo: Runs in emulated mode on any Linux/macOS/Windows machine.
 For production: Runs on real CM4 hardware with TPM 2.0 SPI bus.
@@ -54,7 +53,6 @@ class NodeState(str, Enum):
     ATTESTING = "attesting"
     IDLE = "idle"
     DOWNLOADING = "downloading"
-    PUZZLE_RUNNING = "puzzle_running"
     READY = "ready"
     DELIVERING = "delivering"
     EXAM_LIVE = "exam_live"
@@ -265,11 +263,10 @@ class HardwareSecurityNode:
     Lifecycle:
     1. Boot → TPM attestation → GPS fix → idle
     2. Download encrypted exam shards from IPFS
-    3. Start RSA time-lock puzzle (calibrated to T0)
-    4. At T0: puzzle completes → AES key derived → paper decrypted
-    5. Serve paper locally via HTTPS
-    6. Submit Proof of Delivery to blockchain
-    7. Heartbeat to backend throughout
+    3. At T0: drand beacon published → AES key derived → paper decrypted
+    4. Serve paper locally via HTTPS
+    5. Submit Proof of Delivery to blockchain
+    6. Heartbeat to backend throughout
     """
 
     def __init__(self):
@@ -491,8 +488,8 @@ async def main():
     shard_result = node.receive_exam_shard(exam_id, shard)
     logger.info(f"Shard sealed: {shard_result['shard_hash'][:16]}...")
 
-    # 2. Simulate time-lock puzzle completion (instant in demo)
-    logger.info("Time-lock puzzle: COMPLETED (emulated)")
+    # 2. Simulate paper decryption at T0 via drand beacon
+    logger.info("Paper decrypted at T0 via drand beacon (emulated)")
     node.state = NodeState.EXAM_LIVE
 
     # 3. Generate Proof of Delivery

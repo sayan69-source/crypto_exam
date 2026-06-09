@@ -128,7 +128,7 @@ export const examCatalog: Exam[] = [
         { name: 'Zoology', name_hi: 'प्राणी विज्ञान', topics: ['Human Physiology', 'Animal Kingdom', 'Evolution', 'Reproduction'], question_count: 45 },
       ],
     },
-    exam_type: 'HYBRID', // Offline OMR historically, CryptoExam digitizes it
+    exam_type: 'ONLINE_CBT',
     duration_minutes: 200, // 3 hours 20 minutes
     scheduled_at: new Date(now.getTime() + 1 * 60 * 60 * 1000).toISOString(),
     status: 'LIVE',
@@ -137,7 +137,7 @@ export const examCatalog: Exam[] = [
     positive_marks: 4,
     negative_marking: 1,
     total_marks: 720, // 180 Qs × 4 marks
-    instructions_text: '180 compulsory MCQs. All questions mandatory. +4 for correct, -1 for incorrect, 0 for unanswered. Offline OMR-based.',
+    instructions_text: '180 compulsory MCQs. All questions mandatory. +4 for correct, -1 for incorrect, 0 for unanswered.',
     irt_config: { target_mean_b: 0.0, target_std_b: 1.0, min_a: 0.5, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 10, '2': 25, '3': 30, '4': 20, '5': 10, '6': 5 } },
     question_hash: '0xnt01a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef12345678',
@@ -161,7 +161,7 @@ export const examCatalog: Exam[] = [
         { name: 'Chemistry', topics: ['Physical Chemistry', 'Organic Chemistry', 'Inorganic Chemistry'], question_count: 40 },
       ],
     },
-    exam_type: 'HYBRID', // Offline OMR
+    exam_type: 'ONLINE_CBT',
     duration_minutes: 240, // 4 hours (2h Paper 1 + 2h Paper 2)
     scheduled_at: new Date(now.getTime() + 96 * 60 * 60 * 1000).toISOString(),
     status: 'LOCKED',
@@ -363,7 +363,7 @@ export const examCatalog: Exam[] = [
         },
       ],
     },
-    exam_type: 'HYBRID', // Pen-and-paper
+    exam_type: 'ONLINE_CBT',
     duration_minutes: 240, // 4 hours (2h per section)
     scheduled_at: new Date(now.getTime() + 144 * 60 * 60 * 1000).toISOString(),
     status: 'LOCKED',
@@ -402,7 +402,7 @@ export const examCatalog: Exam[] = [
         },
       ],
     },
-    exam_type: 'HYBRID', // Pen-and-paper
+    exam_type: 'ONLINE_CBT',
     duration_minutes: 210, // 3.5 hours
     scheduled_at: new Date(now.getTime() + 192 * 60 * 60 * 1000).toISOString(),
     status: 'LOCKED',

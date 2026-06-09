@@ -1,25 +1,33 @@
-/* CryptoExam Core — Candidate Layout Styles */
+/* CryptoExam Core — Candidate Layout
+   Premium minimalistic · calm professional */
 
 .container {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-exam);
+  background: var(--bg-page, #F8F9FC);
 }
 
-/* Header */
+/* ── Tricolour ── */
+.tricolour { display: flex; height: 4px; }
+.tricolour span:nth-child(1) { flex: 1; background: var(--color-india-saffron); }
+.tricolour span:nth-child(2) { flex: 1; background: #fff; }
+.tricolour span:nth-child(3) { flex: 1; background: var(--color-india-green); }
+
+/* ── Header ── */
 .header {
   position: sticky;
   top: 0;
-  z-index: var(--z-sticky);
-  background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  z-index: 1100;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-soft, #E3E7F2);
 }
 
 .headerInner {
-  max-width: 1280px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 0 var(--space-lg);
+  padding: 0 clamp(20px, 5vw, 48px);
   height: 60px;
   display: flex;
   align-items: center;
@@ -29,107 +37,140 @@
 .left {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: 14px;
 }
 
 .logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   text-decoration: none;
-  color: var(--color-navy-800);
+  color: var(--color-navy-900, #0D1526);
 }
 
-.logoMark { font-size: 20px; }
-.logoText { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.logoMark {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  background: var(--color-navy-900, #0D1526);
+  color: #fff;
+}
+
+.logoText {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.logoText b { font-weight: 700; }
 
 .roleBadge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  background: var(--color-navy-50);
-  color: var(--color-navy-600);
-  letter-spacing: 0.02em;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-navy-50, #EFF1FA);
+  color: var(--color-navy-600, #213573);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
+/* ── Nav ── */
 .nav {
   display: flex;
-  gap: var(--space-lg);
+  gap: 6px;
 }
 
 .navLink {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--color-navy-500);
+  color: var(--color-navy-500, #5B6478);
   text-decoration: none;
-  padding: 6px 0;
-  transition: color 150ms ease;
+  padding: 7px 14px;
+  border-radius: 8px;
+  transition: all 150ms ease;
+}
+.navLink svg { flex-shrink: 0; }
+.navLink:hover {
+  background: var(--color-navy-50, #EFF1FA);
+  color: var(--color-navy-800, #132040);
+}
+.navActive {
+  background: var(--color-navy-50, #EFF1FA);
+  color: var(--color-navy-800, #132040);
+  font-weight: 600;
 }
 
-.navLink:hover { color: var(--color-navy-800); }
-
+/* ── Right ── */
 .right {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: 14px;
 }
 
 .userName {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--color-navy-700);
+  color: var(--color-navy-700, #1A2D5A);
 }
 
 .loginBtn {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   padding: 8px 20px;
-  background: var(--color-navy-600);
+  background: var(--color-navy-800, #132040);
   color: white;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   text-decoration: none;
   transition: background 150ms ease;
 }
+.loginBtn:hover { background: var(--color-navy-700, #1A2D5A); color: white; }
 
-.loginBtn:hover { background: var(--color-navy-700); color: white; }
-
-/* India Tricolour Stripe */
-.tricolour {
-  display: flex;
-  height: 3px;
-}
-
-.saffronStripe { flex: 1; background: var(--color-india-saffron); }
-.whiteStripe { flex: 1; background: white; }
-.greenStripe { flex: 1; background: var(--color-india-green); }
-
-/* Main */
+/* ── Main ── */
 .main {
   flex: 1;
-  max-width: 1280px;
+  max-width: 1180px;
   width: 100%;
   margin: 0 auto;
-  padding: var(--space-xl) var(--space-lg);
+  padding: 32px clamp(20px, 5vw, 48px);
 }
 
-/* Footer */
+/* ── Footer ── */
 .footer {
+  border-top: 1px solid var(--border-soft, #E3E7F2);
+  background: var(--bg-surface, #fff);
+}
+
+.footerInner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px clamp(20px, 5vw, 48px);
   text-align: center;
-  padding: var(--space-xl) var(--space-lg);
-  border-top: 1px solid #e5e7eb;
   font-size: 13px;
-  color: var(--color-navy-400);
+  color: var(--color-navy-400, #5B6478);
 }
 
 .footerSub {
+  font-family: var(--font-mono, monospace);
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--color-navy-300, #8A92A6);
   margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footerDot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-success, #1A7A4C);
 }
 
 @media (max-width: 768px) {
   .nav { display: none; }
-  .headerInner { padding: 0 var(--space-md); }
-  .main { padding: var(--space-md); }
+  .headerInner { padding: 0 16px; }
+  .main { padding: 16px; }
 }

@@ -12,7 +12,7 @@ const STEPS = ['Exam Identity', 'Configuration', 'IRT & Bloom\'s Targets', 'Revi
 export default function SetterCreatePage() {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
-    name: '', examBody: 'NTA', examType: 'ONLINE_CBT', duration: 180,
+    name: '', examBody: 'NTA', duration: 180,
     subjects: [{ name: 'Physics', questionCount: 30 }],
     negativeMark: 0.25, setsCount: 4,
     targetMeanB: 0.0, targetStdB: 1.0, minA: 0.5, maxC: 0.25,
@@ -40,19 +40,11 @@ export default function SetterCreatePage() {
               <label>Exam Name</label>
               <input type="text" placeholder="e.g., NEET UG 2026 — Phase I" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} className={styles.input} />
             </div>
-            <div className={styles.row}>
-              <div className={styles.field}>
-                <label>Exam Body</label>
-                <select className={styles.input} value={formData.examBody} onChange={e => setFormData(prev => ({ ...prev, examBody: e.target.value }))}>
-                  <option>NTA</option><option>UPSC</option><option>SSC</option><option>IBPS</option><option>CBSE</option>
-                </select>
-              </div>
-              <div className={styles.field}>
-                <label>Exam Type</label>
-                <select className={styles.input} value={formData.examType} onChange={e => setFormData(prev => ({ ...prev, examType: e.target.value }))}>
-                  <option value="ONLINE_CBT">Online CBT</option><option value="OFFLINE_HARDWARE">Offline Hardware</option><option value="HYBRID">Hybrid</option>
-                </select>
-              </div>
+            <div className={styles.field}>
+              <label>Exam Body</label>
+              <select className={styles.input} value={formData.examBody} onChange={e => setFormData(prev => ({ ...prev, examBody: e.target.value }))}>
+                <option>NTA</option><option>UPSC</option><option>SSC</option><option>IBPS</option><option>CBSE</option>
+              </select>
             </div>
           </div>
         )}
@@ -108,7 +100,6 @@ export default function SetterCreatePage() {
             <div className={styles.reviewGrid}>
               <span className={styles.reviewLabel}>Name</span><span className={styles.reviewValue}>{formData.name || 'Untitled Exam'}</span>
               <span className={styles.reviewLabel}>Body</span><span className={styles.reviewValue}>{formData.examBody}</span>
-              <span className={styles.reviewLabel}>Type</span><span className={styles.reviewValue}>{formData.examType}</span>
               <span className={styles.reviewLabel}>Duration</span><span className={styles.reviewValue}>{formData.duration} minutes</span>
               <span className={styles.reviewLabel}>Sets</span><span className={styles.reviewValue}>{formData.setsCount}</span>
               <span className={styles.reviewLabel}>Subjects</span><span className={styles.reviewValue}>{formData.subjects.map(s => `${s.name} (${s.questionCount}Q)`).join(', ')}</span>

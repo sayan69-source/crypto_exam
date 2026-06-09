@@ -1,25 +1,26 @@
 /**
  * CryptoExam Core — Admin Layout
- * Top bar + sidebar + main + notification drawer
- * "Mission Control" — darkest, real-time everything
+ * Light top bar + light sidebar + main content.
+ * "Professional Mission Control" — clean SaaS dashboard.
  */
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import Icon from '@/components/marketing/LucideIcon';
 import styles from './AdminLayout.module.css';
 
 const NAV_ITEMS = [
-  { href: '/admin/dashboard', label: 'Mission Control', icon: '🖥️' },
-  { href: '/admin/exams', label: 'Exams', icon: '📝' },
-  { href: '/admin/centers', label: 'Centers Map', icon: '🗺️' },
-  { href: '/admin/nodes', label: 'Hardware Nodes', icon: '🔧' },
-  { href: '/admin/blockchain', label: 'Blockchain', icon: '⛓️' },
-  { href: '/admin/candidates', label: 'Candidates', icon: '👥' },
-  { href: '/admin/emergency', label: '🚨 Emergency', icon: '' },
-  { href: '/admin/roles', label: 'Roles', icon: '🔑' },
-  { href: '/admin/reports', label: 'Reports', icon: '📊' },
+  { href: '/admin/dashboard', label: 'Mission Control', icon: 'radar' },
+  { href: '/admin/exams', label: 'Exams', icon: 'clipboard-list' },
+  { href: '/admin/centers', label: 'Centers Map', icon: 'map' },
+  { href: '/admin/nodes', label: 'Hardware Nodes', icon: 'cpu' },
+  { href: '/admin/blockchain', label: 'Blockchain', icon: 'link' },
+  { href: '/admin/candidates', label: 'Candidates', icon: 'users-round' },
+  { href: '/admin/emergency', label: 'Emergency', icon: 'siren', emergency: true },
+  { href: '/admin/roles', label: 'Roles', icon: 'key-round' },
+  { href: '/admin/reports', label: 'Reports', icon: 'file-check' },
 ];
 
 interface AdminLayoutProps {
@@ -48,19 +49,27 @@ export default function AdminLayout({ children, userName = 'Vikram S. Rathore', 
   });
 
   return (
-    <div className={`${styles.container} dark-scrollbar`}>
+    <div className={styles.container}>
       {/* Top Bar */}
       <header className={styles.topBar}>
         <div className={styles.topLeft}>
           <Link href="/" className={styles.logo}>
-            <span>🔐</span>
-            <span className={styles.logoText}>CryptoExam</span>
+            <span className={styles.logoMark}>
+              <Icon name="shield-check" size={16} strokeWidth={1.8} />
+            </span>
+            <span className={styles.logoText}>CryptoExam<b>Core</b></span>
           </Link>
           <span className={styles.roleBadge}>Admin Console</span>
         </div>
         <div className={styles.topCenter}>
-          <span className={styles.liveBadge}>● 1 LIVE</span>
-          <span className={styles.healthBadge}>System: Healthy</span>
+          <span className={styles.liveBadge}>
+            <span className={styles.liveDot} />
+            1 LIVE
+          </span>
+          <span className={styles.healthBadge}>
+            <Icon name="check-circle-2" size={14} strokeWidth={1.7} />
+            System Healthy
+          </span>
         </div>
         <div className={styles.topRight}>
           <div className={styles.clock}>
@@ -70,7 +79,10 @@ export default function AdminLayout({ children, userName = 'Vikram S. Rathore', 
           {alertCount > 0 && (
             <span className={styles.alertBadge}>{alertCount}</span>
           )}
-          <span className={styles.adminName}>{userName}</span>
+          <div className={styles.adminUser}>
+            <div className={styles.adminAvatar}>{userName.charAt(0)}</div>
+            <span className={styles.adminName}>{userName}</span>
+          </div>
         </div>
       </header>
 
@@ -80,14 +92,13 @@ export default function AdminLayout({ children, userName = 'Vikram S. Rathore', 
           <nav className={styles.nav}>
             {NAV_ITEMS.map(item => {
               const active = pathname?.startsWith(item.href);
-              const isEmergency = item.href.includes('emergency');
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`${styles.navItem} ${active ? styles.active : ''} ${isEmergency ? styles.emergency : ''}`}
+                  className={`${styles.navItem} ${active ? styles.active : ''} ${item.emergency ? styles.emergency : ''}`}
                 >
-                  {item.icon && <span className={styles.navIcon}>{item.icon}</span>}
+                  <Icon name={item.icon} size={17} strokeWidth={1.7} />
                   <span>{item.label}</span>
                 </Link>
               );

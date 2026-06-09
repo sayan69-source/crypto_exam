@@ -122,7 +122,7 @@ class DrandClient:
         error_detail = "; ".join(errors)
         raise RuntimeError(
             f"All drand endpoints unreachable for round {round_number}. "
-            f"Activate hardware node offline path. Errors: {error_detail}"
+            f"Fall back to Shamir key reconstruction. Errors: {error_detail}"
         )
 
     async def get_latest(self) -> dict:

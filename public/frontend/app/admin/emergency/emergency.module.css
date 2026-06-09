@@ -1,108 +1,105 @@
-/* CryptoExam Core — Emergency Panel Styles */
+/* CryptoExam Core — Emergency Panel
+   Premium minimalistic · light professional */
 
-.page { animation: fadeIn 300ms var(--ease-dashboard-in) forwards; }
+.page { animation: fadeIn 300ms ease forwards; }
 
-.header { margin-bottom: var(--space-xl); }
-.title { font-size: 22px; color: #fca5a5; margin: 0 0 4px; }
-.subtitle { font-size: 13px; color: var(--color-navy-400); }
+.header { margin-bottom: 28px; }
+.title { font-size: 22px; font-weight: 700; color: #B91C1C; margin: 0 0 4px; letter-spacing: -0.02em; }
+.subtitle { font-size: 13px; color: var(--color-navy-500, #5B6478); }
 
 .actionGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-md);
+  gap: 16px;
 }
 
 .actionCard {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--color-navy-700);
+  background: #fff;
+  border: 1px solid var(--border-soft, #E3E7F2);
   border-top: 3px solid transparent;
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border-radius: 12px;
+  padding: 20px;
   cursor: pointer;
   text-align: left;
-  font-family: var(--font-sans);
+  font-family: var(--font-sans, system-ui);
   transition: all 200ms ease;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
+  display: flex; flex-direction: column; gap: 8px;
 }
 
-.actionCard:hover { background: rgba(255,255,255,0.07); transform: translateY(-2px); }
+.actionCard:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); transform: translateY(-2px); border-color: var(--color-navy-200, #A8B3D8); }
 
-.actionIcon { font-size: 28px; }
-.actionLabel { font-size: 14px; font-weight: 700; color: white; letter-spacing: 0.04em; }
-.actionDesc { font-size: 12px; color: var(--color-navy-300); line-height: 1.5; }
+.actionIcon { font-size: 24px; }
+.actionLabel { font-size: 14px; font-weight: 700; color: var(--color-navy-800, #132040); letter-spacing: 0.02em; }
+.actionDesc { font-size: 12px; color: var(--color-navy-500, #5B6478); line-height: 1.5; }
 
 /* Execute Panel */
 .executePanel {
   max-width: 600px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--color-navy-700);
-  border-radius: var(--radius-xl);
-  padding: var(--space-xl);
+  background: #fff;
+  border: 1px solid var(--border-soft, #E3E7F2);
+  border-radius: 16px;
+  padding: 32px;
   animation: fadeIn 300ms ease forwards;
 }
 
-.executePanelHeader { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-xl); }
-.executePanelHeader h2 { font-size: 18px; color: white; margin: 0; }
+.executePanelHeader { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+.executePanelHeader h2 { font-size: 18px; font-weight: 700; color: var(--color-navy-800, #132040); margin: 0; }
 
 .backBtn {
-  padding: 6px 14px; font-size: 12px; font-family: var(--font-sans);
-  background: rgba(255,255,255,0.06); color: var(--color-navy-300);
-  border: 1px solid var(--color-navy-600); border-radius: var(--radius-md);
+  padding: 7px 14px; font-size: 12px; font-family: var(--font-sans, system-ui);
+  background: #fff; color: var(--color-navy-600, #213573);
+  border: 1px solid var(--border-soft, #E3E7F2); border-radius: 8px;
   cursor: pointer; transition: all 150ms ease;
 }
-.backBtn:hover { background: rgba(255,255,255,0.1); color: white; }
+.backBtn:hover { background: var(--color-navy-50, #EFF1FA); border-color: var(--color-navy-200, #A8B3D8); }
 
-.formGroup { margin-bottom: var(--space-lg); }
-.formGroup label { display: block; font-size: 13px; font-weight: 500; color: var(--color-navy-200); margin-bottom: 6px; }
+.formGroup { margin-bottom: 20px; }
+.formGroup label { display: block; font-size: 12px; font-weight: 600; color: var(--color-navy-600, #213573); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
 
 .select, .textarea {
-  width: 100%; padding: 10px 14px; font-size: 14px;
-  font-family: var(--font-sans); background: var(--color-navy-800);
-  border: 1.5px solid var(--color-navy-600); border-radius: var(--radius-md);
-  color: white; outline: none; transition: border-color 150ms ease;
+  width: 100%; padding: 12px 14px; font-size: 14px;
+  font-family: var(--font-sans, system-ui); background: var(--bg-page, #F8F9FC);
+  border: 1px solid var(--border-soft, #E3E7F2); border-radius: 10px;
+  color: var(--color-navy-900, #0D1526); outline: none;
+  transition: border-color 150ms ease, background 150ms ease;
 }
-
-.select:focus, .textarea:focus { border-color: var(--color-navy-400); }
+.select:focus, .textarea:focus { border-color: var(--color-navy-400, #5B6478); background: #fff; }
 .textarea { resize: vertical; min-height: 80px; }
-.select option { background: var(--color-navy-800); }
 
 .coSignBlock {
-  padding: var(--space-md); background: rgba(255,255,255,0.03);
-  border-radius: var(--radius-lg); margin-bottom: var(--space-lg);
-  border: 1px solid var(--color-navy-700);
+  padding: 16px; background: var(--bg-page, #F8F9FC);
+  border-radius: 12px; margin-bottom: 20px;
+  border: 1px solid var(--border-soft, #E3E7F2);
 }
-
-.coSignBlock h4 { font-size: 13px; color: var(--color-navy-200); margin-bottom: var(--space-sm); }
+.coSignBlock h4 { font-size: 13px; font-weight: 600; color: var(--color-navy-700, #1A2D5A); margin-bottom: 10px; }
 
 .coSignRow {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 0; font-size: 13px; color: var(--color-navy-300);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 10px 0; font-size: 13px; color: var(--color-navy-600, #213573);
+  border-bottom: 1px solid var(--border-soft, #E3E7F2);
 }
 
-.coSignApproved { color: var(--color-blockchain-confirmed); font-size: 12px; }
+.coSignApproved { color: var(--color-success, #1A7A4C); font-size: 12px; font-weight: 600; }
 
 .coSignBtn {
-  padding: 6px 14px; font-size: 12px; font-family: var(--font-sans);
-  background: var(--color-navy-600); color: white;
-  border: none; border-radius: var(--radius-md); cursor: pointer;
-  transition: all 150ms ease;
+  padding: 7px 14px; font-size: 12px; font-family: var(--font-sans, system-ui);
+  background: var(--color-navy-800, #132040); color: white;
+  border: none; border-radius: 8px; cursor: pointer;
+  transition: background 150ms ease;
 }
-.coSignBtn:hover { background: var(--color-navy-500); }
+.coSignBtn:hover { background: var(--color-navy-700, #1A2D5A); }
 .coSignBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .executeBtn {
-  width: 100%; padding: 14px; font-size: 15px; font-weight: 700;
-  font-family: var(--font-sans); background: var(--color-navy-600);
-  color: white; border: none; border-radius: var(--radius-md);
-  cursor: pointer; transition: all 150ms ease; position: relative;
+  width: 100%; padding: 14px; font-size: 15px; font-weight: 600;
+  font-family: var(--font-sans, system-ui); background: var(--color-navy-800, #132040);
+  color: white; border: none; border-radius: 10px;
+  cursor: pointer; transition: all 150ms ease;
 }
-.executeBtn:hover:not(:disabled) { background: var(--color-navy-500); }
+.executeBtn:hover:not(:disabled) { background: var(--color-navy-700, #1A2D5A); }
 .executeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-.executeDanger { background: var(--color-danger); }
-.executeDanger:hover:not(:disabled) { background: #b01c1c; }
+.executeDanger { background: #DC2626; }
+.executeDanger:hover:not(:disabled) { background: #B91C1C; }
 
 .spinner {
   display: inline-block; width: 18px; height: 18px;
@@ -111,23 +108,17 @@
 }
 
 /* Complete */
-.completeCard {
-  text-align: center; padding: var(--space-2xl) 0;
-}
-.completeIcon { font-size: 48px; display: block; margin-bottom: var(--space-md); }
-.completeCard h3 { font-size: 18px; color: white; margin-bottom: var(--space-sm); }
-.completeCard p { font-size: 13px; color: var(--color-navy-300); }
-.completeCard code { font-size: 12px; background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: var(--radius-sm); }
+.completeCard { text-align: center; padding: 48px 0; }
+.completeIcon { font-size: 48px; display: block; margin-bottom: 16px; }
+.completeCard h3 { font-size: 18px; font-weight: 700; color: var(--color-navy-800, #132040); margin-bottom: 8px; }
+.completeCard p { font-size: 13px; color: var(--color-navy-500, #5B6478); }
+.completeCard code { font-family: var(--font-mono, monospace); font-size: 12px; background: var(--color-navy-50, #EFF1FA); padding: 3px 8px; border-radius: 6px; }
 
 .doneBtn {
-  margin-top: var(--space-xl); padding: 10px 28px; font-size: 14px;
-  font-family: var(--font-sans); background: var(--color-navy-600);
-  color: white; border: none; border-radius: var(--radius-md); cursor: pointer;
+  margin-top: 28px; padding: 10px 28px; font-size: 14px; font-weight: 600;
+  font-family: var(--font-sans, system-ui); background: var(--color-navy-800, #132040);
+  color: white; border: none; border-radius: 10px; cursor: pointer;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }

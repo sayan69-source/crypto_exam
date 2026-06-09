@@ -175,7 +175,6 @@ async def ws_node_telemetry(websocket: WebSocket, token: str = Query(None)):
 
     Nodes push:
       - Heartbeat with GPS coordinates
-      - Time-lock puzzle progress (%)
       - TPM attestation status
       - Paper decryption events
 

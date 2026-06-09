@@ -233,7 +233,7 @@ async def _seed_centers(db: AsyncSession) -> list[Center]:
     """Create exam centers across India."""
     centers = []
     tiers = [ConnectivityTier.TIER_1_METRO, ConnectivityTier.TIER_2_4G,
-             ConnectivityTier.TIER_3_BSNL, ConnectivityTier.TIER_4_OFFLINE]
+             ConnectivityTier.TIER_3_BSNL]
 
     for i, (state, city, lat, lng) in enumerate(INDIA_STATES):
         center = Center(
@@ -296,7 +296,7 @@ async def _seed_exams(db: AsyncSession, users: list[User]) -> list[Exam]:
             "name": "NEET UG 2026 — Mock Examination",
             "name_hi": "नीट यूजी 2026 — मॉक परीक्षा",
             "body": ExamBody.NTA,
-            "type": ExamType.HYBRID,
+            "type": ExamType.ONLINE_CBT,
             "duration": 200,
             "scheduled": now + timedelta(hours=2),
             "status": ExamStatus.LIVE,
@@ -335,7 +335,7 @@ async def _seed_exams(db: AsyncSession, users: list[User]) -> list[Exam]:
             "name": "UPSC Civil Services 2026 — Prelims GS Paper I",
             "name_hi": "यूपीएससी सिविल सेवा 2026 — प्रारंभिक जीएस पेपर I",
             "body": ExamBody.UPSC,
-            "type": ExamType.OFFLINE_HARDWARE,
+            "type": ExamType.ONLINE_CBT,
             "duration": 120,
             "scheduled": now + timedelta(days=14),
             "status": ExamStatus.DRAFT,

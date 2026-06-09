@@ -55,7 +55,6 @@ export default function InvigilatorRegisterPage() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360, facingMode: 'user' } });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play().catch(() => {}); }
         setCamReady(true);
       } catch {
         setCamReady(false);
@@ -67,6 +66,16 @@ export default function InvigilatorRegisterPage() {
       streamRef.current = null;
     };
   }, [step]);
+
+  // Attach the live stream once the <video> is actually mounted (camReady renders it in).
+  // Setting srcObject in the effect above failed because the element isn't in the DOM yet.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (camReady && v && streamRef.current && v.srcObject !== streamRef.current) {
+      v.srcObject = streamRef.current;
+      v.play().catch(() => {});
+    }
+  }, [camReady]);
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -203,7 +212,7 @@ export default function InvigilatorRegisterPage() {
             </p>
             <div className={styles.camera} style={{ maxWidth: 400 }}>
               {camReady
-                ? <video ref={videoRef} muted playsInline />
+                ? <video ref={videoRef} autoPlay muted playsInline />
                 : <div className={styles.cameraPlaceholder}>Waiting for camera… allow access in your browser.</div>}
               <div className={styles.scanRing} />
             </div>

@@ -55,7 +55,6 @@ export default function InvigilatorLoginPage() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360, facingMode: 'user' } });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play().catch(() => {}); }
         setCamReady(true);
       } catch {
         setCamReady(false);
@@ -67,6 +66,16 @@ export default function InvigilatorLoginPage() {
       streamRef.current = null;
     };
   }, [step]);
+
+  // Attach the live stream once the <video> is actually mounted (camReady renders it in).
+  // Setting srcObject in the effect above failed because the element isn't in the DOM yet.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (camReady && v && streamRef.current && v.srcObject !== streamRef.current) {
+      v.srcObject = streamRef.current;
+      v.play().catch(() => {});
+    }
+  }, [camReady]);
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -230,7 +239,7 @@ export default function InvigilatorLoginPage() {
             <h3 className={styles.stepHeading}>🙂 Face Verification</h3>
             <p className={styles.stepHint}>Look at the camera. We compare you to your enrolled face.<br /><span className={styles.stepHintHi}>कैमरे की ओर देखें।</span></p>
             <div className={styles.camera} style={{ maxWidth: 400 }}>
-              {camReady ? <video ref={videoRef} muted playsInline /> : <div className={styles.cameraPlaceholder}>Waiting for camera… allow access.</div>}
+              {camReady ? <video ref={videoRef} autoPlay muted playsInline /> : <div className={styles.cameraPlaceholder}>Waiting for camera… allow access.</div>}
               <div className={styles.scanRing} />
             </div>
             <p style={{ fontSize: 12, color: modelStatus === 'ready' ? 'var(--color-success)' : modelStatus === 'error' ? 'var(--color-danger)' : 'var(--color-navy-500)', margin: '6px 0' }}>

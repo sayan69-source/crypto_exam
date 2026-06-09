@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Icon from "@/components/marketing/LucideIcon";
 import styles from "./exam.module.css";
 
 export const metadata = {
@@ -9,19 +10,11 @@ export const metadata = {
 export default function ExamPortal() {
   return (
     <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <Link href="/" className={styles.logo}>CryptoExam</Link>
-          <span className={styles.headerBadge}>Candidate Portal</span>
-        </div>
-        <div className={styles.headerRight}>
-          <Link href="/exam/audit" className={styles.auditBtn}>🔍 Public Audit</Link>
-          <Link href="/(auth)/login" className={styles.loginBtn}>Login</Link>
-        </div>
-      </header>
-
       <main className={styles.main}>
         <section className={styles.hero}>
+          <div className={styles.heroIcon}>
+            <Icon name="shield-check" size={40} strokeWidth={1.5} />
+          </div>
           <h1 className={styles.title}>Secure Examination Portal</h1>
           <p className={styles.subtitle}>
             Your answers are SHA-256 hashed, included in a Merkle tree, and
@@ -35,13 +28,17 @@ export default function ExamPortal() {
             <h3 className={styles.stepTitle}>Authenticate</h3>
             <p className={styles.stepDesc}>Login with your roll number and date of birth. DPDP consent required.</p>
           </div>
-          <div className={styles.stepArrow}>→</div>
+          <div className={styles.stepArrow}>
+            <Icon name="arrow-right" size={20} strokeWidth={1.5} />
+          </div>
           <div className={styles.step}>
             <div className={styles.stepNum}>2</div>
             <h3 className={styles.stepTitle}>Take Exam</h3>
             <p className={styles.stepDesc}>Questions decrypt at T₀ from drand beacon. Anti-cheat monitoring active.</p>
           </div>
-          <div className={styles.stepArrow}>→</div>
+          <div className={styles.stepArrow}>
+            <Icon name="arrow-right" size={20} strokeWidth={1.5} />
+          </div>
           <div className={styles.step}>
             <div className={styles.stepNum}>3</div>
             <h3 className={styles.stepTitle}>Get Receipt</h3>

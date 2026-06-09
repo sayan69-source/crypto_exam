@@ -12,7 +12,7 @@
 -- ── Custom ENUM Types ──
 
 CREATE TYPE user_role         AS ENUM ('CANDIDATE', 'SETTER', 'ADMIN');
-CREATE TYPE exam_type         AS ENUM ('ONLINE_CBT', 'OFFLINE_HARDWARE', 'HYBRID');
+CREATE TYPE exam_type         AS ENUM ('ONLINE_CBT');
 CREATE TYPE exam_body         AS ENUM ('NTA', 'UPSC', 'SSC', 'IBPS', 'STATE_PSC', 'CBSE', 'CUSTOM');
 CREATE TYPE exam_status       AS ENUM (
     'DRAFT', 'GENERATING', 'PROOF_PENDING', 'LOCKED',
@@ -26,7 +26,7 @@ CREATE TYPE anomaly_type      AS ENUM (
     'VM_DETECTED', 'BLUETOOTH_DETECTED', 'SCREEN_RECORD_ATTEMPT'
 );
 CREATE TYPE enrollment_status AS ENUM ('ENROLLED', 'PRESENT', 'ABSENT', 'DISQUALIFIED');
-CREATE TYPE connectivity_tier AS ENUM ('TIER_1_METRO', 'TIER_2_4G', 'TIER_3_BSNL', 'TIER_4_OFFLINE');
+CREATE TYPE connectivity_tier AS ENUM ('TIER_1_METRO', 'TIER_2_4G', 'TIER_3_BSNL');
 
 
 -- ═══════════════════════════════════════════════════════════════
@@ -89,7 +89,6 @@ CREATE TABLE exams (
     zk_proof_ipfs         VARCHAR(100),
     constraint_spec_ipfs  VARCHAR(100),
     drand_round           BIGINT,
-    timelock_commit       BYTEA,
     polygon_exam_tx       VARCHAR(66),
     polygon_zkproof_tx    VARCHAR(66),
     answer_merkle_root    BYTEA,
@@ -177,7 +176,6 @@ CREATE TABLE hardware_nodes (
     last_heartbeat       TIMESTAMPTZ,
     last_heartbeat_sig   BYTEA,            -- TPM 2.0 signed heartbeat
     status               node_status DEFAULT 'OFFLINE',
-    timelock_puzzle      JSONB,
     delivery_proof_sig   BYTEA,
     delivery_proof_tx    VARCHAR(66),
     tamper_breach_at     TIMESTAMPTZ,
@@ -357,5 +355,4 @@ INSERT INTO centers (name, state, district, city, latitude, longitude, capacity,
     ('IIT Delhi Exam Hall',           'Delhi (NCT)',    'South Delhi',     'New Delhi',   28.5450, 77.1926, 500, 'TIER_1_METRO', 'Jio Fiber'),
     ('NIT Patna Convention Centre',   'Bihar',          'Patna',           'Patna',       25.6209, 85.1723, 300, 'TIER_2_4G',    'Airtel'),
     ('Kendriya Vidyalaya Guwahati',   'Assam',          'Kamrup Metro',    'Guwahati',    26.1445, 91.7362, 200, 'TIER_2_4G',    'BSNL'),
-    ('Government School Leh',         'Ladakh',         'Leh',             'Leh',         34.1526, 77.5771, 80,  'TIER_4_OFFLINE','BSNL'),
     ('Anna University Exam Centre',   'Tamil Nadu',     'Chennai',         'Chennai',     13.0108, 80.2354, 450, 'TIER_1_METRO', 'ACT Fibernet');

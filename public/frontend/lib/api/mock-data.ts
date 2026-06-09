@@ -74,7 +74,7 @@ export const mockExams: Exam[] = [
         { name: 'Biology', name_hi: 'जीव विज्ञान', topics: ['Botany', 'Zoology', 'Human Physiology', 'Genetics', 'Ecology'], question_count: 90 },
       ],
     },
-    exam_type: 'HYBRID',
+    exam_type: 'ONLINE_CBT',
     duration_minutes: 200,
     scheduled_at: examTime.toISOString(),
     status: 'LIVE',
@@ -232,7 +232,6 @@ export const mockCenters: Center[] = [
   { id: 'ctr-002', name: 'IIT Bombay Convocation Hall', state: 'Maharashtra', district: 'Mumbai', city: 'Mumbai', address: 'Powai, Mumbai', pincode: '400076', latitude: 19.1334, longitude: 72.9133, capacity: 800, invigilator_name: 'Prof. Suresh Nair', invigilator_phone: '+919876543210', connectivity: 'TIER_1_METRO', isp: 'Airtel Fiber', status: 'healthy', candidates_present: 792, candidates_total: 800 },
   { id: 'ctr-003', name: 'Patna Science College', state: 'Bihar', district: 'Patna', city: 'Patna', address: 'Ashok Rajpath, Patna', pincode: '800005', latitude: 25.6189, longitude: 85.1376, capacity: 300, invigilator_name: 'Shri Rajesh Kumar', invigilator_phone: '+919123456789', connectivity: 'TIER_2_4G', isp: 'Airtel 4G', status: 'degraded', candidates_present: 294, candidates_total: 300 },
   { id: 'ctr-004', name: 'Kendriya Vidyalaya Tezpur', state: 'Assam', district: 'Sonitpur', city: 'Tezpur', address: 'Dekargaon, Tezpur', pincode: '784028', latitude: 26.6338, longitude: 92.8006, capacity: 150, invigilator_name: 'Smt. Lakshmi Bora', invigilator_phone: '+919988776655', connectivity: 'TIER_3_BSNL', isp: 'BSNL', status: 'healthy', candidates_present: 148, candidates_total: 150 },
-  { id: 'ctr-005', name: 'Govt. Higher Sec. School, Leh', state: 'Ladakh', district: 'Leh', city: 'Leh', address: 'Main Bazaar, Leh', pincode: '194101', latitude: 34.1526, longitude: 77.5771, capacity: 60, invigilator_name: 'Tsering Namgyal', invigilator_phone: '+919011223344', connectivity: 'TIER_4_OFFLINE', isp: 'None (Offline Node)', status: 'healthy', candidates_present: 58, candidates_total: 60 },
   { id: 'ctr-006', name: 'SRM University Chennai', state: 'Tamil Nadu', district: 'Kancheepuram', city: 'Chennai', address: 'Kattankulathur', pincode: '603203', latitude: 12.8231, longitude: 80.0444, capacity: 600, invigilator_name: 'Dr. K. Ramasamy', invigilator_phone: '+919445566778', connectivity: 'TIER_1_METRO', isp: 'Jio Fiber', status: 'healthy', candidates_present: 589, candidates_total: 600 },
   { id: 'ctr-007', name: 'IIIT Hyderabad', state: 'Telangana', district: 'Hyderabad', city: 'Hyderabad', address: 'Gachibowli', pincode: '500032', latitude: 17.4459, longitude: 78.3497, capacity: 400, invigilator_name: 'Dr. Priya Reddy', invigilator_phone: '+919556677889', connectivity: 'TIER_1_METRO', isp: 'ACT Fibernet', status: 'healthy', candidates_present: 398, candidates_total: 400 },
   { id: 'ctr-008', name: 'Jadavpur University', state: 'West Bengal', district: 'Kolkata', city: 'Kolkata', address: 'Raja S.C. Mullick Road', pincode: '700032', latitude: 22.4966, longitude: 88.3713, capacity: 350, invigilator_name: 'Prof. Arijit Banerjee', invigilator_phone: '+919667788990', connectivity: 'TIER_1_METRO', isp: 'Airtel Fiber', status: 'incident', candidates_present: 201, candidates_total: 350 },
@@ -245,16 +244,14 @@ export const mockNodes: HardwareNode[] = mockCenters.map((c, i) => ({
   center_id: c.id,
   center_name: c.name,
   serial_number: `CEX-2026-${String(1000 + i)}`,
-  status: c.status === 'incident' ? 'ERROR' as const : c.connectivity === 'TIER_4_OFFLINE' ? 'ARMED' as const : 'COMPLETE' as const,
+  status: c.status === 'incident' ? 'ERROR' as const : 'COMPLETE' as const,
   tpm_ok: true,
   gps_ok: true,
   atecc_ok: true,
   tamper_mesh_ok: c.status !== 'incident',
   firmware_version: 'v2.1.3',
   last_heartbeat: new Date(now.getTime() - Math.random() * 60000).toISOString(),
-  battery_percent: c.connectivity === 'TIER_4_OFFLINE' ? 78 : 100,
-  timelock_status: c.connectivity === 'TIER_4_OFFLINE' ? 'ARMED' : 'COMPLETE',
-  timelock_remaining: c.connectivity === 'TIER_4_OFFLINE' ? 2730 : 0,
+  battery_percent: 100,
 }));
 
 // ── Anomalies ──
@@ -274,15 +271,15 @@ export const mockBlockchainEvents: BlockchainEvent[] = [
   { type: 'ZKProofSubmitted', tx_hash: '0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3', block_number: 58234950, timestamp: '2026-06-05T14:30:00+05:30', exam_id: mockExams[0].id, status: 'confirmed', decoded_data: { proofHash: mockExams[0].zk_proof_hash, questionHash: mockExams[0].question_hash } },
   { type: 'PaperLocked', tx_hash: '0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4', block_number: 58234985, timestamp: '2026-06-05T15:00:00+05:30', exam_id: mockExams[0].id, status: 'confirmed' },
   { type: 'ExamStarted', tx_hash: '0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5', block_number: 58240100, timestamp: examTime.toISOString(), exam_id: mockExams[0].id, status: 'confirmed' },
-  { type: 'ProofOfDelivery', tx_hash: '0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6', block_number: 58240102, timestamp: new Date(examTime.getTime() + 30000).toISOString(), exam_id: mockExams[0].id, status: 'confirmed', decoded_data: { nodeCount: 8, candidateCount: 2967 } },
+  { type: 'ProofOfDelivery', tx_hash: '0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6', block_number: 58240102, timestamp: new Date(examTime.getTime() + 30000).toISOString(), exam_id: mockExams[0].id, status: 'confirmed', decoded_data: { nodeCount: 7, candidateCount: 2967 } },
 ];
 
 // ── Dashboard Metrics ──
 
 export const mockDashboard: DashboardMetrics = {
   candidates_online: 2967,
-  centers_healthy: 7,
-  centers_total: 8,
+  centers_healthy: 6,
+  centers_total: 7,
   blockchain_tps: 12,
   active_anomalies: 4,
   live_exams: [
@@ -292,8 +289,8 @@ export const mockDashboard: DashboardMetrics = {
       time_remaining_seconds: 7200,
       candidates_online: 2967,
       candidates_total: 3210,
-      centers_healthy: 7,
-      centers_total: 8,
+      centers_healthy: 6,
+      centers_total: 7,
       anomaly_count: 4,
       status: 'LIVE',
       health: 'degraded',

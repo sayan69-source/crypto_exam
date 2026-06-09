@@ -237,7 +237,7 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     /**
      * @notice Submit hardware node delivery proof.
      * @dev Called by the hardware node after successfully decrypting
-     *      the paper at T₀ using the time-lock puzzle solution.
+     *      the paper at T₀ using the drand beacon randomness.
      *      The TPM 2.0 signature proves the decryption occurred on
      *      authentic hardware at the correct GPS location and time.
      *

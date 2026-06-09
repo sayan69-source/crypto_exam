@@ -34,7 +34,7 @@ function b64urlToBuf(s: string): ArrayBuffer {
   return buf.buffer;
 }
 
-function randomChallenge(): Uint8Array {
+function randomChallenge(): Uint8Array<ArrayBuffer> {
   const c = new Uint8Array(32);
   crypto.getRandomValues(c);
   return c;

@@ -65,7 +65,6 @@ export const CONNECTIVITY_TIERS = {
   TIER_1_METRO: { label: 'Tier 1 — Metro Fibre', color: '#1A7A4C' },
   TIER_2_4G:    { label: 'Tier 2 — 4G', color: '#C47A1E' },
   TIER_3_BSNL:  { label: 'Tier 3 — BSNL', color: '#E07020' },
-  TIER_4_OFFLINE:{ label: 'Tier 4 — Offline Node', color: '#C82020' },
 } as const;
 
 /**

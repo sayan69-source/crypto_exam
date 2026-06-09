@@ -44,8 +44,6 @@ class ExamBodyEnum(str, Enum):
 
 class ExamTypeEnum(str, Enum):
     ONLINE_CBT = "ONLINE_CBT"
-    OFFLINE_HARDWARE = "OFFLINE_HARDWARE"
-    HYBRID = "HYBRID"
 
 
 # ── Auth Schemas ──

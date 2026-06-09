@@ -24,7 +24,7 @@ export interface DecryptedPaper {
   [k: string]: unknown;
 }
 
-function hexToBuffer(hex: string): Uint8Array {
+function hexToBuffer(hex: string): Uint8Array<ArrayBuffer> {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);

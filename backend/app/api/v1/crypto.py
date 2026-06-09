@@ -6,7 +6,6 @@ POST /api/v1/crypto/encrypt/{exam_id}     — Encrypt exam paper (SETTER)
 POST /api/v1/crypto/shards/{exam_id}      — Submit Shamir shard (ADMIN)
 POST /api/v1/crypto/merkle/{exam_id}      — Build answer Merkle tree (ADMIN)
 GET  /api/v1/crypto/merkle/{exam_id}/proof/{candidate_id} — Get inclusion proof
-POST /api/v1/crypto/timelock/{exam_id}    — Generate time-lock puzzle (ADMIN)
 """
 
 import logging
@@ -39,11 +38,6 @@ class EncryptRequest(BaseModel):
 class ShardSubmitRequest(BaseModel):
     shard_index: int
     shard_value: str
-
-
-class TimelockRequest(BaseModel):
-    seconds: int
-    squarings_per_second: int = 2_200_000
 
 
 # ── Endpoints ──
@@ -269,57 +263,4 @@ async def build_merkle_tree(
         "merkle_root": tree_result["root_hex"],
         "leaf_count": tree_result["leaf_count"],
         "status": "ready_for_blockchain_commit",
-    }
-
-
-@router.post(
-    "/timelock/{exam_id}",
-    summary="Generate Time-Lock Puzzle",
-    description="Generate RSA time-lock puzzle for offline hardware nodes.",
-)
-async def generate_timelock(
-    exam_id: UUID,
-    request: TimelockRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
-):
-    """
-    Generate a time-lock puzzle calibrated to T₀ for offline centers.
-
-    The puzzle encodes the AES key behind T sequential squarings.
-    Only solvable by sequential computation — no parallelization possible.
-    """
-    from engine.crypto_engine import CryptoEngine
-
-    engine = CryptoEngine()
-    # For demo, use a random 32-byte secret
-    import os
-    secret = os.urandom(32)
-
-    puzzle = engine.generate_timelock(
-        secret=secret,
-        seconds=request.seconds,
-        sps=request.squarings_per_second,
-    )
-
-    # Store puzzle data on exam (encrypted)
-    exam = (await db.execute(select(Exam).where(Exam.id == exam_id))).scalar_one_or_none()
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    exam.timelock_commit = bytes.fromhex(puzzle["masked"])
-    exam.updated_at = datetime.now(timezone.utc)
-
-    logger.info(
-        f"Time-lock generated: exam={str(exam_id)[:8]}..., "
-        f"T={puzzle['T']:,}, seconds={puzzle['seconds']}"
-    )
-
-    return {
-        "exam_id": str(exam_id),
-        "T": puzzle["T"],
-        "seconds": puzzle["seconds"],
-        "sps": puzzle["sps"],
-        "puzzle_N_length": len(puzzle["N"]),
-        "note": "Puzzle parameters sent to hardware node via secure channel",
     }

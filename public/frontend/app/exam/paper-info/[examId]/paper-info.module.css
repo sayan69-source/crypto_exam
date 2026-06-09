@@ -1,239 +1,116 @@
-/* CryptoExam Core — Paper Info / Student Transparency View */
+/* CryptoExam Core — Paper Info / Transparency View
+   Premium minimalistic */
 
-.container {
-  min-height: 100vh;
-  background: var(--bg-exam);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Header */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-md) var(--space-xl);
-  background: #FFFFFF;
-  border-bottom: 1px solid var(--color-navy-100);
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-}
-
-.headerLeft { display: flex; align-items: center; gap: var(--space-md); }
-
-.logo {
-  font-size: 20px; font-weight: 700;
-  color: var(--color-navy-900);
-  text-decoration: none;
-}
-
-.headerBadge {
-  font-size: 11px; font-weight: 500;
-  color: var(--color-navy-500);
-  background: var(--color-navy-50);
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  letter-spacing: 0.5px;
-}
+.container { min-height: 100%; display: flex; flex-direction: column; }
 
 /* Main */
-.main {
-  flex: 1;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: var(--space-2xl) var(--space-md);
-  width: 100%;
-}
+.main { flex: 1; max-width: 800px; margin: 0 auto; padding: 16px 0 48px; width: 100%; }
 
-.pageTitle {
-  font-size: 28px; font-weight: 700;
-  color: var(--color-navy-900);
-  margin-bottom: 6px;
-}
-
-.pageSubtitle {
-  font-size: 15px; color: var(--color-navy-600);
-  line-height: 1.6; margin-bottom: var(--space-2xl);
-}
+.pageTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #0D1526); margin-bottom: 6px; letter-spacing: -0.02em; }
+.pageSubtitle { font-size: 15px; color: var(--color-navy-500, #5B6478); line-height: 1.6; margin-bottom: 32px; }
 
 /* Setter Card */
 .setterCard {
-  background: white;
-  border: 1px solid var(--color-navy-100);
-  border-radius: var(--radius-xl);
-  padding: var(--space-xl);
-  margin-bottom: var(--space-lg);
-  box-shadow: var(--shadow-sm);
+  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
+  border-radius: 12px; padding: 28px; margin-bottom: 20px;
+  transition: box-shadow 200ms ease;
 }
+.setterCard:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
 
 .setterHeader {
-  display: flex; align-items: center; gap: var(--space-lg);
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--color-navy-100);
-  margin-bottom: var(--space-lg);
+  display: flex; align-items: center; gap: 20px;
+  padding-bottom: 20px; border-bottom: 1px solid var(--border-soft, #E3E7F2); margin-bottom: 20px;
 }
 
 .setterAvatar {
-  width: 64px; height: 64px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-navy-800), var(--color-navy-600));
-  color: white; font-size: 24px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  width: 56px; height: 56px; border-radius: 12px;
+  background: var(--color-navy-800, #132040);
+  color: white; font-size: 22px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 
 .setterInfo { flex: 1; }
-.setterName { font-size: 20px; font-weight: 700; color: var(--color-navy-900); display: block; }
-.setterDesignation { font-size: 14px; color: var(--color-navy-600); display: block; margin-top: 2px; }
-.setterDept { font-size: 13px; color: var(--color-navy-500); display: block; margin-top: 2px; }
+.setterName { font-size: 18px; font-weight: 700; color: var(--color-navy-900, #0D1526); display: block; }
+.setterDesignation { font-size: 14px; color: var(--color-navy-600, #213573); display: block; margin-top: 2px; }
+.setterDept { font-size: 13px; color: var(--color-navy-500, #5B6478); display: block; margin-top: 2px; }
 
 .verifiedBadge {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: var(--radius-full);
-  background: rgba(22,163,74,0.08);
-  border: 1px solid rgba(22,163,74,0.2);
-  color: #16a34a; font-size: 13px; font-weight: 700;
-  flex-shrink: 0;
+  padding: 6px 14px; border-radius: 999px;
+  background: #ECFDF5; border: 1px solid #A7F3D0;
+  color: #065F46; font-size: 12px; font-weight: 600; flex-shrink: 0;
 }
 
 /* Detail Grid */
-.detailGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-}
-
+.detailGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .detailItem { display: flex; flex-direction: column; gap: 4px; }
-
 .detailLabel {
-  font-size: 11px; font-weight: 600;
-  color: var(--color-navy-500);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px; font-weight: 600; color: var(--color-navy-400, #5B6478);
+  text-transform: uppercase; letter-spacing: 0.06em;
 }
-
-.detailValue {
-  font-size: 15px; font-weight: 500;
-  color: var(--color-navy-900);
-}
-
+.detailValue { font-size: 15px; font-weight: 500; color: var(--color-navy-800, #132040); }
 .detailValueMono {
-  font-size: 12px; font-weight: 500;
-  color: var(--color-navy-600);
-  font-family: var(--font-mono);
-  word-break: break-all;
+  font-size: 12px; font-weight: 500; color: var(--color-navy-600, #213573);
+  font-family: var(--font-mono, monospace); word-break: break-all;
 }
 
 /* Trust Section */
 .trustCard {
-  background: white;
-  border: 1px solid var(--color-navy-100);
-  border-radius: var(--radius-xl);
-  padding: var(--space-xl);
-  margin-bottom: var(--space-lg);
-  box-shadow: var(--shadow-sm);
+  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
+  border-radius: 12px; padding: 28px; margin-bottom: 20px;
 }
 
 .trustTitle {
-  font-size: 16px; font-weight: 700;
-  color: var(--color-navy-900);
-  margin-bottom: var(--space-md);
-  display: flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 700; color: var(--color-navy-800, #132040);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
 }
 
-.trustScoreContainer { margin-bottom: var(--space-md); }
+.trustScoreContainer { margin-bottom: 16px; }
+.trustScoreLabel { display: flex; justify-content: space-between; font-size: 13px; color: var(--color-navy-600, #213573); margin-bottom: 6px; }
+.trustScoreValue { font-weight: 700; color: #059669; }
 
-.trustScoreLabel {
-  display: flex; justify-content: space-between;
-  font-size: 13px; color: var(--color-navy-600);
-  margin-bottom: 6px;
-}
+.trustBar { height: 6px; background: var(--color-navy-50, #EFF1FA); border-radius: 999px; overflow: hidden; }
+.trustFill { height: 100%; background: linear-gradient(90deg, #059669, #34D399); border-radius: 999px; transition: width 600ms ease; }
 
-.trustScoreValue { font-weight: 700; color: #16a34a; }
-
-.trustBar {
-  height: 8px; background: #e5e7eb;
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.trustFill {
-  height: 100%;
-  background: linear-gradient(90deg, #16a34a, #22c55e);
-  border-radius: var(--radius-full);
-  transition: width 600ms ease;
-}
-
-.trustStats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
-}
-
+.trustStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .trustStat {
-  text-align: center;
-  padding: var(--space-md);
-  background: var(--color-navy-50);
-  border-radius: var(--radius-lg);
+  text-align: center; padding: 16px;
+  background: var(--color-navy-50, #EFF1FA);
+  border-radius: 10px; border: 1px solid var(--border-soft, #E3E7F2);
 }
-
-.trustStatValue {
-  font-size: 24px; font-weight: 800;
-  font-family: var(--font-mono);
-  color: var(--color-navy-900);
-  display: block;
-}
-
-.trustStatLabel {
-  font-size: 11px; color: var(--color-navy-500);
-  display: block; margin-top: 4px;
-}
+.trustStatValue { font-size: 22px; font-weight: 700; color: var(--color-navy-800, #132040); display: block; }
+.trustStatLabel { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--color-navy-400, #5B6478); display: block; margin-top: 4px; text-transform: uppercase; }
 
 /* Blockchain Card */
 .blockchainCard {
-  background: white;
-  border: 1px solid var(--color-navy-100);
-  border-radius: var(--radius-xl);
-  padding: var(--space-xl);
-  margin-bottom: var(--space-lg);
-  box-shadow: var(--shadow-sm);
+  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
+  border-radius: 12px; padding: 28px; margin-bottom: 20px;
 }
 
 .blockchainTitle {
-  font-size: 16px; font-weight: 700;
-  color: var(--color-navy-900);
-  margin-bottom: var(--space-md);
-  display: flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 700; color: var(--color-navy-800, #132040);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
 }
 
 .txLink {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-family: var(--font-mono);
-  color: var(--color-navy-500);
-  padding: 6px 12px;
-  background: var(--color-navy-50);
-  border-radius: var(--radius-md);
-  text-decoration: none;
-  transition: all 150ms ease;
+  font-size: 12px; font-family: var(--font-mono, monospace);
+  color: var(--color-navy-500, #5B6478);
+  padding: 8px 12px; background: var(--color-navy-50, #EFF1FA);
+  border: 1px solid var(--border-soft, #E3E7F2);
+  border-radius: 8px; text-decoration: none; transition: all 150ms ease;
   word-break: break-all;
 }
-
-.txLink:hover {
-  background: var(--color-navy-100);
-  color: var(--color-navy-700);
-}
+.txLink:hover { background: var(--color-navy-100, #D7DCF0); color: var(--color-navy-700, #1A2D5A); }
 
 /* Footer */
 .footer {
-  text-align: center;
-  padding: var(--space-lg);
-  border-top: 1px solid var(--color-navy-100);
-  font-size: 13px;
-  color: var(--color-navy-500);
+  text-align: center; padding: 20px 0;
+  border-top: 1px solid var(--border-soft, #E3E7F2);
+  font-size: 13px; color: var(--color-navy-400, #5B6478);
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .detailGrid { grid-template-columns: 1fr; }
   .trustStats { grid-template-columns: 1fr; }

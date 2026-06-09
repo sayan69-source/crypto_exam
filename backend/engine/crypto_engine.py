@@ -5,10 +5,9 @@ CryptoExam Core — Cryptographic Engine Orchestrator
 This module orchestrates the full exam lifecycle:
   1. Paper Encryption (AES-GCM-256 + HKDF)
   2. Key Splitting (Shamir SSS)
-  3. Time-Lock Puzzle Generation (RSA sequential squaring)
-  4. drand Key Derivation (online path)
-  5. Answer Commitment (SHA-256 Merkle tree)
-  6. ZK Proof Generation (CIRCOM Groth16)
+  3. drand Key Derivation (online path)
+  4. Answer Commitment (SHA-256 Merkle tree)
+  5. ZK Proof Generation (CIRCOM Groth16)
 
 Each operation is logged and its result stored in the database.
 No plaintext, key material, or shard values are ever persisted.
@@ -24,7 +23,6 @@ from crypto.encryption import QuestionEncryptor, EncryptedPaper
 from crypto.drand_client import DrandClient
 from crypto.merkle import build_tree, generate_leaf, verify_inclusion, root_hex
 from crypto.shamir import ShamirPaperGuardian
-from crypto.timelock import TimeLockPuzzle
 
 logger = logging.getLogger(__name__)
 
@@ -153,41 +151,7 @@ class CryptoEngine:
         return self.encryptor.decrypt_paper(ciphertext, tag, nonce, aes_key)
 
     # ═══════════════════════════════════════════════════════
-    # Phase 2: Time-Lock Puzzle
-    # ═══════════════════════════════════════════════════════
-
-    def generate_timelock(
-        self,
-        secret: bytes,
-        seconds: int,
-        sps: int = 2_200_000,
-    ) -> dict:
-        """
-        Generate a time-lock puzzle for offline centers.
-
-        Args:
-            secret: 32-byte AES key to lock.
-            seconds: Seconds until T₀.
-            sps: Calibrated squarings per second for target hardware.
-
-        Returns:
-            Dict with puzzle parameters for the hardware node.
-        """
-        logger.info(f"Generating time-lock puzzle: {seconds}s, {sps:,} sps")
-        puzzle_gen = TimeLockPuzzle(bits=2048)
-        result = puzzle_gen.generate(secret, seconds, sps)
-
-        return {
-            "a": result.a,
-            "N": result.N,
-            "T": result.T,
-            "masked": result.masked,
-            "seconds": result.seconds,
-            "sps": result.sps,
-        }
-
-    # ═══════════════════════════════════════════════════════
-    # Phase 3: Answer Commitment
+    # Phase 2: Answer Commitment
     # ═══════════════════════════════════════════════════════
 
     def build_answer_merkle_tree(
@@ -249,7 +213,7 @@ class CryptoEngine:
         return verify_inclusion(leaf, proof_path, expected_root)
 
     # ═══════════════════════════════════════════════════════
-    # Phase 4: drand Integration
+    # Phase 3: drand Integration
     # ═══════════════════════════════════════════════════════
 
     def get_drand_round_for_exam(self, scheduled_at: datetime) -> int:
