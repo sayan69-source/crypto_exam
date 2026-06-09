@@ -334,9 +334,9 @@ export default function LandingPage() {
           </div>
           <div className={s.rolesGrid}>
             {[
-              { icon: "graduation-cap", title: "Candidate", tag: "Calm institutionalism", desc: "A focused, distraction-free exam environment with biometric check-in, real-time autosave, and a printable cryptographic receipt for every submission.", href: "/exam", linkText: "View candidate flow" },
+              { icon: "graduation-cap", title: "Candidate", tag: "Centre-computer only", desc: "A focused, distraction-free exam environment with biometric check-in, real-time autosave, and a printable cryptographic receipt for every submission. Runs only on examination-centre terminals.", href: "/center-access", linkText: "How candidate access works" },
               { icon: "flask-conical", title: "Setter", tag: "Workbench", desc: "A dense authoring workbench for composing papers, generating ZK difficulty proofs, running red-team review, and sealing question banks under lock.", href: "/for-setters", linkText: "View setter workbench" },
-              { icon: "badge-check", title: "Invigilator", tag: "Gateway", desc: "Biometric verification of candidates at the centre, live roster management, and a one-tap channel to raise alerts and incident reports.", href: "/invigilator/login", linkText: "View invigilator gateway" },
+              { icon: "badge-check", title: "Invigilator", tag: "Centre staff only", desc: "Biometric verification of candidates at the centre, live roster management, and a one-tap channel to raise alerts and incident reports. Operated from centre devices only.", href: "/center-access", linkText: "How invigilator access works" },
               { icon: "radar", title: "Administrator", tag: "Mission control", desc: "A real-time command console for centres, candidates, nodes and emergencies — with dual-control authorisation for every sensitive action.", href: "/for-administrators", linkText: "View admin console" },
             ].map((role) => (
               <article className={`card card-hover ${s.roleCard} reveal`} key={role.title}>
