@@ -33,6 +33,15 @@ redis_data/
 .DS_Store
 Thumbs.db
 
+# Local databases (backend auto-seeds in DEBUG)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# TypeScript incremental cache
+*.tsbuildinfo
+
 # Crypto artifacts (sensitive)
 *.pem
 *.key
