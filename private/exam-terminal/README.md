@@ -60,9 +60,32 @@ A centre terminal moves through five states. The application root
    └───────────────────┘
 ```
 
-The state is held locally on the terminal and synchronised with the backend
-over the centre LAN. The backend is authoritative; local cache exists for
-network-offline resilience.
+The state is held locally on the terminal and coordinated with the centre's
+own invigilator station over the centre LAN. That coordination stays *inside*
+the centre — it never crosses to the public website.
+
+## The bridge to the public side (blockchain only)
+
+This is the load-bearing security rule: **the private terminal and the public
+website share no code, no database, no API call, and no secret. The only thing
+that crosses the boundary is the public blockchain.**
+
+To obtain an exam, the terminal (`lib/chain-bridge.ts`) does exactly three
+things:
+
+1. **Reads the chain** for the exam's record — `{ questionsRoot, bundleCid,
+   drandRound }` — committed by the public side's `lockExam`.
+2. **Fetches the sealed bundle by CID** from a public content store (IPFS). The
+   bundle is keyless ciphertext + Merkle proofs; serving it publicly leaks
+   nothing.
+3. **Verifies every question against the on-chain root** before trusting a
+   single byte. A doctored bundle changes the CID (fails the fetch address) or
+   the root (fails the proof), so an impersonated server cannot inject a paper.
+
+Decryption keys never cross the bridge. At T₀ the terminal derives them locally
+from the public drand beacon and opens questions one at a time, on selection
+(`lib/question-crypto.ts`). The public side's matching half lives at
+`public/backend/app/api/v1/delivery.py` and `public/frontend/lib/exam/question-pipeline.ts`.
 
 ## What is in this project today
 
@@ -89,9 +112,12 @@ Deliberately not yet built:
   port them in via a shared workspace (recommended) or controlled copy, so
   the marketing site and the terminal remain consistent. That work is not
   in scope for this commit.
-- Per-terminal device attestation handshake. The backend exposes the right
-  endpoints already (`/api/v1/invigilator/*`, `/api/v1/sessions/*`); the
-  terminal will use them once it's running on attested hardware.
+- Per-terminal device attestation handshake. The TPM/GPS node in
+  `private/hardware/` signs a ProofOfDelivery that is committed on-chain; the
+  terminal will verify against that attestation once running on attested
+  hardware. Attendance/session coordination stays on the centre LAN between the
+  terminal and the centre invigilator station — it does not reach the public
+  website.
 - Auto-update / signed-bundle delivery. Belongs with the OS work.
 
 ## How to run

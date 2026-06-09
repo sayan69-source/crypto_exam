@@ -12,9 +12,9 @@ env/
 .env.production
 
 # Build outputs
-frontend/.next/
-frontend/out/
-backend/*.egg-info/
+public/frontend/.next/
+public/frontend/out/
+public/backend/*.egg-info/
 dist/
 build/
 
@@ -51,8 +51,8 @@ zuup_os_implementation_plan.md
 !*.key.example
 
 # Circuit build artifacts (large, reproducible)
-circuits/build/*.wtns
-circuits/build/pot*.ptau
+public/circuits/build/*.wtns
+public/circuits/build/pot*.ptau
 
 # Python
 *.egg
@@ -62,12 +62,12 @@ htmlcov/
 .coverage
 
 # Hardhat
-contracts/artifacts/
-contracts/cache/
-contracts/typechain-types/
+public/contracts/artifacts/
+public/contracts/cache/
+public/contracts/typechain-types/
 
 # Engine corpus (large, downloaded separately)
-backend/engine/corpus/*.parquet
+public/backend/engine/corpus/*.parquet
 
 # Logs
 *.log

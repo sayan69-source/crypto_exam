@@ -310,6 +310,7 @@ CREATE TABLE sealed_question_bundles (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     exam_id        UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
     questions_root VARCHAR(66) NOT NULL,   -- 0x-prefixed Merkle root (also on-chain)
+    bundle_cid     VARCHAR(100),           -- content-addressed pointer (IPFS), anchored on-chain
     question_count INTEGER NOT NULL DEFAULT 0,
     bundle         JSONB NOT NULL,         -- {examId, questionsRoot, count, items[]}
     chain_tx       VARCHAR(66),            -- lockExam transaction hash

@@ -41,11 +41,40 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _publish_to_content_store(bundle_dict: dict) -> str:
+    """
+    Publish the opaque sealed bundle to a public, content-addressed store and
+    return its content id (CID).
+
+    If an IPFS node is configured we pin it there; otherwise we fall back to a
+    deterministic content id derived from the bundle's own bytes. Either way the
+    id is a pure function of the content, so the on-chain anchor pins exactly
+    this bundle — a swapped bundle yields a different CID and fails the match.
+
+    The bundle is keyless ciphertext, so publishing it publicly leaks nothing.
+    """
+    import hashlib
+    import json as _json
+    canonical = _json.dumps(bundle_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.sha256(canonical).hexdigest()
+    try:  # pragma: no cover — only when an IPFS node is wired up
+        import ipfshttpclient  # type: ignore
+        from app.config import get_settings
+        addr = getattr(get_settings(), "IPFS_API", None)
+        if addr:
+            with ipfshttpclient.connect(addr) as client:
+                return "ipfs://" + client.add_bytes(canonical)
+    except Exception:  # noqa: BLE001 — no IPFS in dev; deterministic CID still anchors content
+        pass
+    return "ipfs://b" + digest  # content-addressed stand-in (sha256 of the bundle)
+
+
 # ── Schemas ──
 
 class SealResponse(BaseModel):
     exam_id: str
     questions_root: str
+    bundle_cid: str             # content pointer anchored on-chain
     question_count: int
     chain_tx: str | None
     shards: list[dict]          # master-seed shards — shown ONCE, never stored raw
@@ -103,21 +132,32 @@ async def seal_questions(
     master_seed = os.urandom(32)
     bundle = seal_exam_questions(questions, master_seed, str(exam_id))
     shards = ShamirPaperGuardian.split(master_seed, n=exam.shamir_shard_count or 5, k=exam.shamir_threshold or 3)
+    bundle_dict = bundle.to_dict()
 
-    # 2. COMMIT — put the questions root on-chain (reuses lockExam).
+    # 2. PUBLISH — push the opaque (keyless) bundle to a public content store.
+    #    This is how the bundle reaches the private centre terminals: NOT via a
+    #    private API, but via a public, content-addressed object whose id is
+    #    anchored on-chain. The terminal trusts it only because the on-chain
+    #    root matches — see private/exam-terminal/lib/chain-bridge.ts.
+    bundle_cid = _publish_to_content_store(bundle_dict)
+
+    # 3. COMMIT — anchor {questionsRoot, bundleCID} on-chain (reuses lockExam,
+    #    carrying the CID in its IPFS field). The blockchain is the ONLY trust
+    #    channel between the public side and the private terminals.
     chain_tx: str | None = None
     try:
         from app.services.blockchain import blockchain_service
         root_bytes = bytes.fromhex(bundle.questions_root[2:])
         chain_tx = await blockchain_service.lock_exam(
-            str(exam_id), root_bytes, exam.drand_round or 0, exam.constraint_spec_ipfs or "",
+            str(exam_id), root_bytes, exam.drand_round or 0, bundle_cid,
         )
     except Exception as e:  # noqa: BLE001 — chain may be unconfigured in dev; seal still valid
         logger.warning("On-chain commit skipped/failed for %s: %s", str(exam_id)[:8], e)
 
-    # 3. STORE — persist the keyless bundle + commitments.
+    # 4. STORE — persist the keyless bundle + commitments.
     exam.question_hash = bytes.fromhex(bundle.questions_root[2:])
     exam.polygon_exam_tx = chain_tx
+    exam.constraint_spec_ipfs = bundle_cid
     exam.updated_at = datetime.now(timezone.utc)
 
     existing = (await db.execute(
@@ -125,16 +165,18 @@ async def seal_questions(
     )).scalar_one_or_none()
     if existing:
         existing.questions_root = bundle.questions_root
+        existing.bundle_cid = bundle_cid
         existing.question_count = bundle.count
-        existing.bundle = bundle.to_dict()
+        existing.bundle = bundle_dict
         existing.chain_tx = chain_tx
         existing.drand_round = exam.drand_round
     else:
         db.add(SealedQuestionBundle(
             exam_id=str(exam_id),
             questions_root=bundle.questions_root,
+            bundle_cid=bundle_cid,
             question_count=bundle.count,
-            bundle=bundle.to_dict(),
+            bundle=bundle_dict,
             chain_tx=chain_tx,
             drand_round=exam.drand_round,
         ))
@@ -142,13 +184,14 @@ async def seal_questions(
     for s in shards:
         db.add(ShamirShardModel(exam_id=exam_id, shard_index=s.index, shard_hash=s.hash))
 
-    logger.info("Sealed exam=%s questions=%d root=%s tx=%s",
+    logger.info("Sealed exam=%s questions=%d root=%s cid=%s tx=%s",
                 str(exam_id)[:8], bundle.count, bundle.questions_root[:14],
-                (chain_tx or "—")[:14])
+                bundle_cid[:18], (chain_tx or "—")[:14])
 
     return SealResponse(
         exam_id=str(exam_id),
         questions_root=bundle.questions_root,
+        bundle_cid=bundle_cid,
         question_count=bundle.count,
         chain_tx=chain_tx,
         shards=[{"index": s.index, "value": s.value} for s in shards],
@@ -173,8 +216,15 @@ async def get_bundle(exam_id: UUID, db: AsyncSession = Depends(get_db)):
     return row.bundle
 
 
-@router.get("/root/{exam_id}", summary="On-chain questions root (public)")
+@router.get("/root/{exam_id}", summary="On-chain exam record (public — the bridge handshake)")
 async def get_root(exam_id: UUID, db: AsyncSession = Depends(get_db)):
+    """
+    The on-chain record a private terminal reads to discover an exam: the
+    questions Merkle root, the content id of the sealed bundle, the lockExam tx,
+    and the drand round for T₀. This is the ONLY thing a terminal needs from the
+    public side — everything else (the bundle itself) is fetched by CID and
+    verified against `questionsRoot`.
+    """
     row = (await db.execute(
         select(SealedQuestionBundle).where(SealedQuestionBundle.exam_id == exam_id)
     )).scalar_one_or_none()
@@ -183,6 +233,7 @@ async def get_root(exam_id: UUID, db: AsyncSession = Depends(get_db)):
     return {
         "examId": str(exam_id),
         "questionsRoot": row.questions_root,
+        "bundleCid": row.bundle_cid,
         "questionCount": row.question_count,
         "chainTx": row.chain_tx,
         "drandRound": row.drand_round,

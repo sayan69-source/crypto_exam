@@ -517,7 +517,8 @@ class SealedQuestionBundle(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
-    questions_root = Column(String(66), nullable=False)   # 0x-prefixed hex
+    questions_root = Column(String(66), nullable=False)   # 0x-prefixed hex — committed on-chain
+    bundle_cid = Column(String(100), nullable=True)       # content-addressed pointer (IPFS) anchored on-chain
     question_count = Column(Integer, nullable=False, default=0)
     bundle = Column(JSON, nullable=False)                 # {examId, questionsRoot, count, items[]}
     chain_tx = Column(String(66), nullable=True)          # lockExam tx hash

@@ -99,8 +99,8 @@ docker compose up -d
 ### Manual Setup
 
 ```bash
-# Backend
-cd backend
+# Backend (public website API)
+cd public/backend
 python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
@@ -109,14 +109,14 @@ uvicorn app.main:app --reload
 cd public/frontend
 npm install && npm run dev
 
-# Smart Contracts
-cd contracts
+# Smart Contracts (the public↔private blockchain bridge)
+cd public/contracts
 npm install
 npx hardhat compile
 npx hardhat test
 
 # AI Pipeline Test
-cd backend
+cd public/backend
 python -m app.agents.test_pipeline
 
 # Hardware Firmware (emulated)
@@ -270,40 +270,46 @@ Built from the schema level — not retrofitted.
 
 ## Project Structure
 
+The repo has exactly two top-level halves. They share **no code and no runtime
+channel** — the only thing that crosses the boundary is the public blockchain,
+over which sealed questions are committed and delivered.
+
 ```
-cryptoexam-core/
-├── public/                # PUBLIC — everything anyone may reach over the web
-│   └── frontend/          # Next.js 16 — marketing site + setter/admin/audit interfaces
-│       ├── app/           # App Router
-│       │   ├── (auth)/    #   Login + verification
-│       │   ├── exam/      #   Candidate portal (public explainer + audit)
-│       │   ├── setter/    #   Setter Workbench
-│       │   └── admin/     #   Admin Control Centre
-│       ├── components/    # Shared components (UI + crypto + layout)
-│       └── lib/           # API client, mock data, types
-├── private/               # PRIVATE — the secure centre stack (runs only on centre OS)
-│   └── exam-terminal/     # Candidate + invigilator portals; future OS + hardened Firefox
-├── backend/               # FastAPI — API, crypto engine, AI agents (shared by both)
-│   └── app/
-│       ├── agents/        # 6-agent AI pipeline (Generator, IRT, Blooms, Validator, Balancer, Orchestrator)
-│       ├── api/           # REST endpoints + SSE streaming
-│       ├── services/      # Auth, Blockchain, Crypto
-│       ├── tasks/         # Celery async tasks
-│       └── models/        # SQLAlchemy ORM
-├── contracts/             # Hardhat — Solidity smart contracts
-│   └── src/
-│       └── CryptoExamCore.sol  # 362 lines, AccessControl + ReentrancyGuard
-├── circuits/              # CIRCOM — ZK-SNARK difficulty proof
-├── hardware/              # KiCad — PCB design + firmware
-│   ├── kicad/             #   Schematic + PCB layout (4-layer)
-│   ├── gerbers/           #   Manufacturing files
-│   ├── firmware/          #   Python firmware (TPM + GPS + ATECC608A)
-│   ├── bom/               #   Bill of Materials (30+ components)
-│   └── 3d/                #   CNC enclosure specification
-├── docs/                  # Architecture, compliance, deployment
-├── docker-compose.yml     # Full stack: Postgres + Redis + IPFS + backend + frontend
-└── nginx.conf             # Reverse proxy with SSL termination
+Japan_Zuup/
+├── public/                    # PUBLIC — everything reachable over the open web
+│   ├── frontend/              # Next.js — marketing site, setter/admin/audit UIs,
+│   │   │                      #   candidate explainer, and the live /pipeline demo
+│   │   ├── app/               # App Router (routes)
+│   │   ├── components/        # Shared UI + crypto + layout
+│   │   └── lib/               # API client, exam crypto (question-pipeline.ts), types
+│   ├── backend/               # FastAPI — API, crypto engine, sealing pipeline, AI agents
+│   │   └── app/
+│   │       ├── agents/        #   6-agent AI generation pipeline
+│   │       ├── api/v1/        #   REST endpoints (incl. delivery.py — §10.7 sealing)
+│   │       ├── services/      #   Auth, Blockchain, Crypto
+│   │       └── models/        #   SQLAlchemy ORM
+│   ├── contracts/             # Hardhat — Solidity (CryptoExamCore.sol = the bridge)
+│   ├── circuits/              # CIRCOM — ZK-SNARK difficulty proof
+│   ├── docs/                  # Architecture, compliance, deployment, master spec
+│   ├── docker-compose.yml     # Public stack: Postgres + Redis + IPFS + backend + frontend
+│   └── nginx.conf             # Reverse proxy with SSL termination
+│
+└── private/                   # PRIVATE — the centre-only stack (never web-reachable)
+    ├── exam-terminal/         # Candidate + invigilator portals; future OS + hardened Firefox
+    ├── lockdown-client/       # Electron lockdown shell for the candidate environment
+    └── hardware/              # KiCad PCB + firmware for the centre security node (TPM/GPS)
 ```
+
+### The boundary
+
+`public/` and `private/` never call each other directly. A setter seals
+questions in `public/backend`, which commits the questions' Merkle root (and a
+content pointer) to the chain via `public/contracts`. A centre terminal in
+`private/` reads **only** the chain, fetches the opaque (keyless) sealed bundle
+from a public content store, and verifies every question against the on-chain
+root before decrypting it at T₀. No shared database, no shared secret, no
+private API — the blockchain is the entire trust channel. See
+`private/exam-terminal/lib/chain-bridge.ts` and `public/backend/app/api/v1/delivery.py`.
 
 ---
 
