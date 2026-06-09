@@ -4,7 +4,7 @@ import Link from "next/link";
  * Candidate Examination Portal — entry point on the centre terminal.
  *
  * The full candidate flow already exists and is battle-tested in
- *   frontend/app/exam/* (system-check, instructions, session, receipt)
+ *   public/frontend/app/exam/* (system-check, instructions, session, receipt)
  *
  * For this scaffold we render a clear placeholder rather than duplicating
  * those screens here. Porting them in (via a shared workspace package or a
@@ -24,7 +24,7 @@ export default function CandidatePortalEntry() {
         </p>
         <p style={{ marginTop: 18, fontSize: 14, color: "#64748b" }}>
           The canonical implementation of these screens lives in{" "}
-          <code>frontend/app/exam/*</code>. They will be brought into this
+          <code>public/frontend/app/exam/*</code>. They will be brought into this
           terminal via a shared workspace package; that work is described in
           the project README and is not part of this scaffold commit.
         </p>

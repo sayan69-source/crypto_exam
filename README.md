@@ -105,8 +105,8 @@ python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activat
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 
-# Frontend
-cd frontend
+# Frontend (the public website)
+cd public/frontend
 npm install && npm run dev
 
 # Smart Contracts
@@ -272,15 +272,18 @@ Built from the schema level — not retrofitted.
 
 ```
 cryptoexam-core/
-├── frontend/              # Next.js 16 — 3 interfaces (Candidate, Setter, Admin)
-│   ├── app/               # App Router — 24 routes
-│   │   ├── (auth)/        #   Login + verification
-│   │   ├── exam/          #   Interface A: Candidate Portal
-│   │   ├── setter/        #   Interface B: Setter Workbench
-│   │   └── admin/         #   Interface C: Admin Control Centre
-│   ├── components/        # 14 shared components (UI + crypto + layout)
-│   └── lib/               # API client, mock data, types
-├── backend/               # FastAPI — API, crypto engine, AI agents
+├── public/                # PUBLIC — everything anyone may reach over the web
+│   └── frontend/          # Next.js 16 — marketing site + setter/admin/audit interfaces
+│       ├── app/           # App Router
+│       │   ├── (auth)/    #   Login + verification
+│       │   ├── exam/      #   Candidate portal (public explainer + audit)
+│       │   ├── setter/    #   Setter Workbench
+│       │   └── admin/     #   Admin Control Centre
+│       ├── components/    # Shared components (UI + crypto + layout)
+│       └── lib/           # API client, mock data, types
+├── private/               # PRIVATE — the secure centre stack (runs only on centre OS)
+│   └── exam-terminal/     # Candidate + invigilator portals; future OS + hardened Firefox
+├── backend/               # FastAPI — API, crypto engine, AI agents (shared by both)
 │   └── app/
 │       ├── agents/        # 6-agent AI pipeline (Generator, IRT, Blooms, Validator, Balancer, Orchestrator)
 │       ├── api/           # REST endpoints + SSE streaming

@@ -114,7 +114,7 @@ services:
   # ── Next.js 14 Frontend ──
   frontend:
     build:
-      context: ./frontend
+      context: ./public/frontend
       dockerfile: Dockerfile
     container_name: cryptoexam-frontend
     ports:
@@ -125,7 +125,7 @@ services:
     depends_on:
       - backend
     volumes:
-      - ./frontend:/app
+      - ./public/frontend:/app
       - /app/node_modules
       - /app/.next
     restart: unless-stopped

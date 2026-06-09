@@ -11,7 +11,7 @@ surfaces of CryptoExam Core:
    interface used by centre staff.
 
 Nothing else runs here. No marketing, no setter workbench, no admin console,
-no public audit portal. Those live on the public website at `frontend/`.
+no public audit portal. Those live on the public website at `public/frontend/`.
 
 ## Why this is a separate software
 
@@ -27,7 +27,7 @@ itself (a stripped, signed Linux build) is described elsewhere; that's
 deferred work — see "Future: OS embedding" below.
 
 For the public-facing explanation that the marketing site links to, see
-[`/center-access`](../frontend/app/center-access/page.tsx).
+[`/center-access`](../../public/frontend/app/center-access/page.tsx).
 
 ## Terminal state machine
 
@@ -73,10 +73,10 @@ Built (in this commit):
 - `app/page.tsx` — terminal entry that reads `lib/terminal-state` and renders
   the screen matching the current state.
 - `app/candidate/page.tsx` — entry point for the Candidate Examination
-  Portal. Currently a stub that documents which routes from `frontend/app/exam`
-  are the canonical implementations to be pulled in.
+  Portal. Currently a stub that documents which routes from
+  `public/frontend/app/exam` are the canonical implementations to be pulled in.
 - `app/invigilator/page.tsx` — entry point for the Centre Invigilator Portal.
-  Same stub pattern, referencing `frontend/app/invigilator`.
+  Same stub pattern, referencing `public/frontend/app/invigilator`.
 - `lib/terminal-state.ts` — the state machine: types, allowed transitions,
   and an in-memory store with a localStorage cache.
 - `app/globals.css` — kiosk reset (no scrollbars, no text selection on
@@ -85,7 +85,7 @@ Built (in this commit):
 Deliberately not yet built:
 
 - The actual portal UIs. They already exist and are battle-tested in
-  `frontend/app/exam` and `frontend/app/invigilator`. The next step is to
+  `public/frontend/app/exam` and `public/frontend/app/invigilator`. The next step is to
   port them in via a shared workspace (recommended) or controlled copy, so
   the marketing site and the terminal remain consistent. That work is not
   in scope for this commit.
