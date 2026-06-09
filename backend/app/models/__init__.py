@@ -504,3 +504,30 @@ class ShamirShard(Base):
 
     # Relationships
     exam = relationship("Exam", back_populates="shamir_shards")
+
+
+class SealedQuestionBundle(Base):
+    """
+    The keyless, per-question sealed bundle that is pre-positioned on the
+    candidate terminal (§ 10.7 — TCS-iON-style lazy decryption).
+
+    Stores ONLY ciphertext, IVs, tags and Merkle proofs — never a key and
+    never plaintext. The `questions_root` is the value committed on-chain
+    (mirrored on Exam.question_hash); `chain_tx` is the lockExam transaction.
+
+    A terminal downloads `bundle` before T₀, then decrypts each question on
+    demand once the T₀ master seed is released.
+    """
+    __tablename__ = "sealed_question_bundles"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    questions_root = Column(String(66), nullable=False)   # 0x-prefixed hex
+    question_count = Column(Integer, nullable=False, default=0)
+    bundle = Column(JSON, nullable=False)                 # {examId, questionsRoot, count, items[]}
+    chain_tx = Column(String(66), nullable=True)          # lockExam tx hash
+    drand_round = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # Relationships
+    exam = relationship("Exam")

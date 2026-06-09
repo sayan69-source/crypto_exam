@@ -51,36 +51,49 @@ export default function ExamPortal() {
 
         <section className={styles.features}>
           <div className={styles.featureCard}>
-            <span className={styles.featureIcon}>🔒</span>
+            <span className={styles.featureIcon}>
+              <Icon name="lock" size={22} strokeWidth={1.7} />
+            </span>
             <h3>End-to-End Encrypted</h3>
             <p>AES-GCM-256 encryption. No human can see the paper before T₀.</p>
           </div>
           <div className={styles.featureCard}>
-            <span className={styles.featureIcon}>🌐</span>
-            <h3>10 Indian Languages</h3>
+            <span className={styles.featureIcon}>
+              <Icon name="languages" size={22} strokeWidth={1.7} />
+            </span>
+            <h3>11 Indian Languages</h3>
             <p>Hindi, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Odia, Marathi, English.</p>
           </div>
           <div className={styles.featureCard}>
-            <span className={styles.featureIcon}>📜</span>
+            <span className={styles.featureIcon}>
+              <Icon name="receipt" size={22} strokeWidth={1.7} />
+            </span>
             <h3>Court-Admissible Receipt</h3>
             <p>Merkle inclusion proof is mathematical evidence. The math is the affidavit.</p>
           </div>
           <div className={styles.featureCard}>
-            <span className={styles.featureIcon}>🛡️</span>
+            <span className={styles.featureIcon}>
+              <Icon name="shield" size={22} strokeWidth={1.7} />
+            </span>
             <h3>DPDP Compliant</h3>
             <p>Biometric data never stored. Only hash of facial embedding. Consent tracked.</p>
           </div>
           <Link href="/exam/paper-info/e1a2b3c4-5678-90ab-cdef-1234567890ab" className={styles.featureCard} style={{ textDecoration: 'none' }}>
-            <span className={styles.featureIcon}>👤</span>
+            <span className={styles.featureIcon}>
+              <Icon name="eye" size={22} strokeWidth={1.7} />
+            </span>
             <h3>Paper Transparency</h3>
             <p>Know who set your paper — setter details, institution trust score, and blockchain proof.</p>
           </Link>
+          <Link href="/pipeline" className={styles.featureCard} style={{ textDecoration: 'none' }}>
+            <span className={styles.featureIcon}>
+              <Icon name="git-branch" size={22} strokeWidth={1.7} />
+            </span>
+            <h3>Sealed, One-by-One Delivery</h3>
+            <p>See how each question stays encrypted from setter to seat and decrypts only when you open it. Runs live.</p>
+          </Link>
         </section>
       </main>
-
-      <footer className={styles.footer}>
-        <p>CryptoExam Core · Your answers are mathematically protected</p>
-      </footer>
     </div>
   );
 }

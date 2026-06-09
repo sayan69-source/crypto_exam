@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
@@ -207,6 +208,12 @@ export default function PlatformPage() {
                 <span className={s.archMono}>{tile.mono}</span>
               </div>
             ))}
+          </div>
+          <div className={s.archCta}>
+            <Link className="btn btn-primary btn-lg" href="/pipeline">
+              Watch the sealing layer run, live <Icon name="arrow-right" size={15} />
+            </Link>
+            <span className={s.archCtaNote}>Per-question encryption → on-chain commit → one-at-a-time decryption, in your browser.</span>
           </div>
         </div>
       </section>

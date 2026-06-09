@@ -302,6 +302,25 @@ CREATE TABLE shamir_shards (
 
 
 -- ═══════════════════════════════════════════════════════════════
+-- Table: sealed_question_bundles
+-- §10.7 — keyless, per-question sealed bundle pre-positioned on the
+-- candidate terminal. Stores ONLY ciphertext/IV/tag/Merkle proofs —
+-- never a key, never plaintext. questions_root is committed on-chain.
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE sealed_question_bundles (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    exam_id        UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+    questions_root VARCHAR(66) NOT NULL,   -- 0x-prefixed Merkle root (also on-chain)
+    question_count INTEGER NOT NULL DEFAULT 0,
+    bundle         JSONB NOT NULL,         -- {examId, questionsRoot, count, items[]}
+    chain_tx       VARCHAR(66),            -- lockExam transaction hash
+    drand_round    INTEGER,
+    created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+
+-- ═══════════════════════════════════════════════════════════════
 -- Performance Indexes
 -- ═══════════════════════════════════════════════════════════════
 
@@ -327,6 +346,7 @@ CREATE INDEX idx_dpdp_principal         ON dpdp_audit_log(principal_id);
 CREATE INDEX idx_users_role             ON users(role);
 CREATE INDEX idx_users_email            ON users(email);
 CREATE INDEX idx_shamir_exam            ON shamir_shards(exam_id);
+CREATE INDEX idx_sealed_bundle_exam     ON sealed_question_bundles(exam_id);
 
 
 -- ═══════════════════════════════════════════════════════════════

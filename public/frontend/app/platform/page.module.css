@@ -98,6 +98,12 @@
   color: var(--color-navy-500); margin-top: var(--space-md);
   display: block;
 }
+.archCta {
+  margin-top: var(--space-2xl);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-sm);
+  text-align: center;
+}
+.archCtaNote { font-size: var(--fs-sm); color: var(--text-muted); }
 
 @media (max-width: 880px) {
   .roleGrid, .archGrid { grid-template-columns: 1fr; gap: var(--space-xl); }

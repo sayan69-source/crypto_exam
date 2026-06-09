@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // collide with the authenticated SetterLayout/AdminLayout chrome.
     const publicRoutes = [
       '/', '/about', '/platform', '/contact', '/privacy', '/terms',
-      '/for-setters', '/for-administrators', '/center-access',
+      '/for-setters', '/for-administrators', '/center-access', '/pipeline',
       '/exam',
       '/login', '/setter/login', '/admin/login', '/invigilator/login', '/invigilator/register',
       '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony',
