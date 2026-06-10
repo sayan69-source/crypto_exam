@@ -1,0 +1,32 @@
+# ZUUP-OS seat heartbeat (spec §10.2) — live health for the invigilator grid.
+
+[Unit]
+Description=ZUUP-OS seat heartbeat to the Centre Edge
+After=zuup-network.target
+Requires=zuup-network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/zuup/zuup-heartbeatd.sh
+Restart=always
+RestartSec=5
+User=zuup-hb
+Group=zuup-hb
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+PrivateTmp=yes
+DevicePolicy=closed
+
+[Install]
+WantedBy=zuup-session.target

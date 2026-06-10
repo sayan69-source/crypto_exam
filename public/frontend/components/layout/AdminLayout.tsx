@@ -17,6 +17,8 @@ const NAV_ITEMS = [
   { href: '/admin/centers', label: 'Centers Map', icon: 'map' },
   { href: '/admin/nodes', label: 'Hardware Nodes', icon: 'cpu' },
   { href: '/admin/blockchain', label: 'Blockchain', icon: 'link' },
+  { href: '/admin/centre-admin-approvals', label: 'Centre-Admin Approvals', icon: 'user-check' },
+  { href: '/admin/answer-vault', label: 'Answer Vault', icon: 'lock' },
   { href: '/admin/candidates', label: 'Candidates', icon: 'users-round' },
   { href: '/admin/emergency', label: 'Emergency', icon: 'siren', emergency: true },
   { href: '/admin/roles', label: 'Roles', icon: 'key-round' },

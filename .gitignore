@@ -75,3 +75,4 @@ logs/
 
 # IPFS
 ipfs_data/
+scripts/out/

@@ -1,0 +1,42 @@
+{
+  "_comment": "ZUUP-OS Firefox ESR enterprise policy (spec §7.4). Loaded read-only from /etc/firefox/policies/policies.json. Strips Firefox down to a single locked surface pointed at the Edge: no devtools, no about:config, no downloads, no printing, no extensions, no URL bar, no context menu, no update channels. The webcam is permitted (face capture); everything else off.",
+  "policies": {
+    "DisableDeveloperTools": true,
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DisableFirefoxAccounts": true,
+    "DisableProfileImport": true,
+    "DisableFormHistory": true,
+    "DisablePrivateBrowsing": true,
+    "DisableMasterPasswordCreation": true,
+    "DisableSetDesktopBackground": true,
+    "DisableSystemAddonUpdate": true,
+    "DontCheckDefaultBrowser": true,
+    "OfferToSaveLogins": false,
+    "PasswordManagerEnabled": false,
+    "PrintingEnabled": false,
+    "NetworkPrediction": false,
+    "DisableBuiltinPDFViewer": false,
+    "ExtensionSettings": {
+      "*": { "installation_mode": "blocked", "blocked_install_message": "Extensions are disabled on exam terminals." }
+    },
+    "Permissions": {
+      "Camera": { "Allow": ["https://edge.local"], "BlockNewRequests": true },
+      "Microphone": { "Block": ["https://edge.local"], "BlockNewRequests": true },
+      "Location": { "BlockNewRequests": true },
+      "Notifications": { "BlockNewRequests": true }
+    },
+    "WebsiteFilter": {
+      "_comment": "Whitelist-only: the Edge is the sole reachable origin. Combined with nftables (§6.3) this is belt-and-braces.",
+      "Block": ["<all_urls>"],
+      "Exceptions": ["https://edge.local/*"]
+    },
+    "Homepage": { "URL": "https://edge.local/", "Locked": true, "StartPage": "homepage-locked" },
+    "Preferences": {
+      "browser.tabs.warnOnClose": { "Value": true, "Status": "locked" },
+      "browser.cache.disk.enable": { "Value": false, "Status": "locked" },
+      "browser.sessionstore.resume_from_crash": { "Value": false, "Status": "locked" }
+    }
+  }
+}

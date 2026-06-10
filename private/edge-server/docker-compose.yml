@@ -1,0 +1,31 @@
+# Centre Edge data plane — PostgreSQL + Redis.
+#
+# LAN/local ONLY. Ports are published to 127.0.0.1 so the dev host never exposes
+# them on any network. In a real centre this runs on the air-gapped exam VLAN
+# with NO WAN route (§6). There is intentionally no `ports` mapping to 0.0.0.0
+# and no outbound service here.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zuup
+      POSTGRES_PASSWORD: zuup
+      POSTGRES_DB: zuup_edge
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - edge_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zuup -d zuup_edge"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6380:6379"
+
+volumes:
+  edge_pg:

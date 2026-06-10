@@ -1,0 +1,35 @@
+# ZUUP-OS remote attestation gate (spec §7.1) — blocks the session until the
+# Edge has accepted this boot's TPM measurements. zuup-kiosk.service declares
+# After=zuup-attest.service, so the Login Gate cannot render first; and because
+# the script poweroffs on any failure, there is no denied-but-running state.
+
+[Unit]
+Description=ZUUP-OS boot attestation against the Centre Edge
+After=zuup-network.target
+Requires=zuup-network.target
+Before=zuup-session.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/zuup/zuup-attest.sh
+TimeoutStartSec=90
+
+# ── §7.5 hardening: this unit talks to ONE host and reads ONE device ────────
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+DeviceAllow=/dev/tpmrm0 rw
+SupplementaryGroups=tss
+
+[Install]
+WantedBy=zuup-session.target

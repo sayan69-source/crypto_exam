@@ -29,40 +29,30 @@ deferred work — see "Future: OS embedding" below.
 For the public-facing explanation that the marketing site links to, see
 [`/center-access`](../../public/frontend/app/center-access/page.tsx).
 
-## Terminal state machine
+## Terminal state machine (§5.3, v2)
 
-A centre terminal moves through five states. The application root
-(`app/page.tsx`) routes the screen based on the current state.
+The app root (`app/page.tsx` — the Login Gate) routes the screen by state. v2
+adds the locked Gate + the assignment states around the original exam states
+(`lib/terminal-state.ts`):
 
 ```
-   ┌───────────────────┐   provisioned for an exam
-   │   PROVISIONED     │   by the admin console (per-seat binding)
-   └─────────┬─────────┘
-             │
-             ▼
-   ┌───────────────────┐   waiting for the candidate to arrive
-   │ AWAITING_CANDIDATE│   and the invigilator to verify them
-   └─────────┬─────────┘
-             │  invigilator marks attendance in /invigilator
-             ▼
-   ┌───────────────────┐   /candidate is now reachable on this
-   │     ATTENDED      │   terminal — but the paper is still sealed
-   └─────────┬─────────┘
-             │  drand beacon releases the key at T0
-             ▼
-   ┌───────────────────┐   /candidate displays the paper, anti-cheat
-   │     IN_EXAM       │   lockdown is active, autosave runs
-   └─────────┬─────────┘
-             │  candidate submits or time elapses
-             ▼
-   ┌───────────────────┐   cryptographic receipt printed; terminal
-   │    SUBMITTED      │   returns to PROVISIONED for the next slot
-   └───────────────────┘
+  LOCKED_GATE ─pick Invigilator─▶ INVIGILATOR_AUTH ─ok─▶ INVIGILATOR_CONSOLE
+       │                                                  (drives assignment of OTHER seats)
+       └─candidate seat, idle, polling Edge─▶ AVAILABLE
+                                                │ invigilator runs Verify & Seat → binds a roll
+                                                ▼
+                                            ASSIGNED ─auto-redirect─▶ CANDIDATE_AUTH
+                                                                          │ roll+DOB ok
+                                                                          ▼
+                                                                      ATTENDED ─T₀─▶ IN_EXAM
+                                                                                       │ submit/timeout
+                                                                                       ▼
+                                            AVAILABLE ◀──── wipe ──── SUBMITTED
 ```
 
-The state is held locally on the terminal and coordinated with the centre's
-own invigilator station over the centre LAN. That coordination stays *inside*
-the centre — it never crosses to the public website.
+The Gate is **fail-closed** (INV-10): while `GET /api/health` fails it shows a
+locked "Centre offline" wall with no actionable control. All coordination stays
+on the centre LAN over the WireGuard tunnel — it never crosses to the public website.
 
 ## The bridge to the public side (blockchain only)
 
@@ -87,49 +77,43 @@ from the public drand beacon and opens questions one at a time, on selection
 (`lib/question-crypto.ts`). The public side's matching half lives at
 `public/backend/app/api/v1/delivery.py` and `public/frontend/lib/exam/question-pipeline.ts`.
 
-## What is in this project today
+## What is in this project today (v2, wired to the Edge)
 
-Built (in this commit):
+- `app/page.tsx` — the **Login Gate** (§7.6): capability-driven role chooser,
+  fail-closed health wall (INV-10), candidate-seat assignment poll + auto-redirect.
+- `app/invigilator/page.tsx` — the **Invigilator Console** (§10.2): match-all
+  login + §9.2 registration; **Verify & Seat** (biometric check-in → random seat
+  assignment), live seat map, incident raising.
+- `app/candidate/page.tsx` — the **Candidate Portal** (§10.1): seat poll →
+  roll+DOB login (§9.7) → exam → **seal+submit** → signed receipt.
+- `lib/edge.ts` — typed Edge client (§13.1–§13.3) over same-origin `/api/*`
+  (proxied to the Edge in dev; WireGuard tunnel in prod).
+- `lib/identity.ts` — §9.1 match-all login client + §9.2 register/activate.
+- `lib/assignment.ts` — §9.6 seat-state poll/watch (fail-closed).
+- `lib/answer-seal.ts` — §11.2 WebCrypto envelope (AES-256-GCM + RSA-OAEP),
+  byte-compatible with the Edge/HQ (`seal-compat.test.ts` proves it).
+- `lib/terminal-state.ts` — the §5.3 v2 state machine.
 
-- `app/layout.tsx` — kiosk-mode root layout (no marketing chrome, no public
-  navigation, locked viewport).
-- `app/page.tsx` — terminal entry that reads `lib/terminal-state` and renders
-  the screen matching the current state.
-- `app/candidate/page.tsx` — entry point for the Candidate Examination
-  Portal. Currently a stub that documents which routes from
-  `public/frontend/app/exam` are the canonical implementations to be pulled in.
-- `app/invigilator/page.tsx` — entry point for the Centre Invigilator Portal.
-  Same stub pattern, referencing `public/frontend/app/invigilator`.
-- `lib/terminal-state.ts` — the state machine: types, allowed transitions,
-  and an in-memory store with a localStorage cache.
-- `app/globals.css` — kiosk reset (no scrollbars, no text selection on
-  non-input elements, OS-level focus styles).
+The candidate/invigilator *exam-content* screens still defer to the proven
+`public/frontend/app/{exam,invigilator}` via the shared `@zuup/exam-ui` package;
+the security-critical flows (login, assignment, seal/submit/receipt) are built
+and tested here.
 
-Deliberately not yet built:
-
-- The actual portal UIs. They already exist and are battle-tested in
-  `public/frontend/app/exam` and `public/frontend/app/invigilator`. The next step is to
-  port them in via a shared workspace (recommended) or controlled copy, so
-  the marketing site and the terminal remain consistent. That work is not
-  in scope for this commit.
-- Per-terminal device attestation handshake. The TPM/GPS node in
-  `private/hardware/` signs a ProofOfDelivery that is committed on-chain; the
-  terminal will verify against that attestation once running on attested
-  hardware. Attendance/session coordination stays on the centre LAN between the
-  terminal and the centre invigilator station — it does not reach the public
-  website.
-- Auto-update / signed-bundle delivery. Belongs with the OS work.
-
-## How to run
+## How to run (dev)
 
 ```bash
-cd exam-terminal
-npm install
-npm run dev
+npm install                                    # from repo root
+# 1) bring up the Edge (it serves /api/* the terminal proxies to):
+docker compose -f private/edge-server/docker-compose.yml up -d
+DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge npm run migrate -w edge-server
+DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge node --experimental-strip-types private/edge-server/src/seed-demo.ts
+DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge EDGE_PORT=4000 npm start -w edge-server &
+# 2) run the terminal (proxies /api → 127.0.0.1:4000):
+cd private/exam-terminal && npm run dev -- -p 3003
 ```
 
-By default the terminal expects the main CryptoExam Core backend at
-`http://localhost:8000`. Set `NEXT_PUBLIC_API_URL` to override.
+Open `/?terminal=<uuid>` with a provisioned terminal id (see `seed-demo.ts`:
+invigilator station `5555…`, candidate seat `7777…`).
 
 The terminal binds to a single keyboard/mouse and a single display. It does
 not present any window chrome or address bar of its own — when launched

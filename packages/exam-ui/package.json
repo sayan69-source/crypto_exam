@@ -1,0 +1,26 @@
+{
+  "name": "@zuup/exam-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared presentational React components for the ZUUP-OS portals. Presentation ONLY — no secrets, no network calls, no business logic (§14 boundary rule). Consumed as source via Next transpilePackages.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme.css": "./src/theme.css"
+  },
+  "files": ["src"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,7 @@
+/node_modules
+/dist
+.env
+.env.local
+*.tsbuildinfo
+# dev HQ sealing key (public half; the private half lives in system-admin/.env.local)
+.hq-pub.pem

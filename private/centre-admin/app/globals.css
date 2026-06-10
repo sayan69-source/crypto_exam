@@ -1,0 +1,11 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--zuup-bg);
+  color: var(--zuup-fg);
+  font-family: var(--zuup-font);
+}

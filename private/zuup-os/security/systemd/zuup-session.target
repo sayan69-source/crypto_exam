@@ -1,0 +1,12 @@
+# ZUUP-OS session milestone (spec §7.4) — the locked examination surface.
+#
+# This is the image's default target: there is no multi-user.target, no
+# graphical.target, no getty. The ONLY units WantedBy this target are the
+# biometric daemon, the attestation gate, the heartbeat, and the kiosk —
+# the closed process set Tetragon enforces (security/tetragon).
+
+[Unit]
+Description=ZUUP-OS locked examination session
+Requires=zuup-network.target
+After=zuup-network.target
+AllowIsolate=yes

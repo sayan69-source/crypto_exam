@@ -1,0 +1,68 @@
+#!/bin/sh
+# ZUUP-OS initramfs /init (spec §7.3) — the first userspace instruction.
+#
+# Runs from the signed UKI (so this script's bytes are themselves under the
+# Secure Boot signature). Its ONLY job is to close the trust chain:
+#
+#   UEFI ─verified─▶ UKI ─carries─▶ zuup.roothash ─verifies─▶ SquashFS root
+#
+# and to make every writable path RAM-only before handing off to systemd.
+# FAIL-CLOSED: any error path ends in poweroff -f. There is no rescue shell,
+# no prompt, no fallback root — a terminal that cannot prove its rootfs
+# integrity must not reach the Login Gate (INV-10).
+
+# Build note (mkinitramfs.sh): /bin/sh here is busybox; veritysetup is the
+# only external binary shipped. No mdev/udev — the devices used are static.
+
+fail() {
+  echo "ZUUP-OS BOOT HALT: $1" > /dev/kmsg 2>/dev/null
+  sync
+  poweroff -f
+  exit 1 # unreachable
+}
+
+/bin/busybox mount -t proc     -o nosuid,nodev,noexec proc     /proc || fail "proc"
+/bin/busybox mount -t sysfs    -o nosuid,nodev,noexec sysfs    /sys  || fail "sysfs"
+/bin/busybox mount -t devtmpfs -o nosuid,noexec       devtmpfs /dev  || fail "devtmpfs"
+
+# ── 1. the verity root hash travels INSIDE the signed UKI cmdline ──────────
+ROOTHASH=""
+for arg in $(cat /proc/cmdline); do
+  case "$arg" in zuup.roothash=*) ROOTHASH="${arg#zuup.roothash=}" ;; esac
+done
+case "$ROOTHASH" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) [ ${#ROOTHASH} -eq 64 ] || fail "malformed roothash" ;;
+  *) fail "no zuup.roothash on the signed cmdline" ;;
+esac
+
+# ── 2. the SquashFS + its verity tree arrive from PXE into RAM (/dev/ram0
+#       is populated by the UKI's PXE loader stage; on disk-provisioned
+#       terminals this is the read-only GPT partition by PARTLABEL) ─────────
+ROOTDEV="/dev/disk/by-partlabel/zuup-root"
+HASHDEV="/dev/disk/by-partlabel/zuup-hash"
+[ -b "$ROOTDEV" ] || ROOTDEV=/dev/ram0
+[ -b "$HASHDEV" ] || HASHDEV=/dev/ram1
+[ -b "$ROOTDEV" ] || fail "no root device"
+
+# ── 3. open the verity mapping: every 4K block is hash-checked on read; a
+#       single flipped bit anywhere → I/O error → kernel panic → poweroff ────
+veritysetup open "$ROOTDEV" zuup-root "$HASHDEV" "$ROOTHASH" \
+  --panic-on-corruption || fail "verity open (image does not match signed hash)"
+
+/bin/busybox mount -t squashfs -o ro,nosuid,nodev /dev/mapper/zuup-root /newroot \
+  || fail "squashfs mount"
+
+# ── 4. RAM-only writable surfaces (INV-2). The real fstab (rootfs/overlay.
+#       fstab) re-asserts these; mounting them here means even early systemd
+#       cannot touch a persistent medium. ───────────────────────────────────
+for d in tmp run var/log; do
+  /bin/busybox mount -t tmpfs -o rw,nosuid,nodev,noexec,mode=0755 tmpfs "/newroot/$d" \
+    || fail "tmpfs $d"
+done
+
+# ── 5. hand off. PID 1 becomes the signed image's systemd. ──────────────────
+/bin/busybox mount --move /proc /newroot/proc 2>/dev/null
+/bin/busybox mount --move /sys  /newroot/sys  2>/dev/null
+/bin/busybox mount --move /dev  /newroot/dev  2>/dev/null
+exec /bin/busybox switch_root /newroot /usr/lib/systemd/systemd
+fail "switch_root returned"

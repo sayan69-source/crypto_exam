@@ -1,0 +1,24 @@
+# ZUUP-OS WireGuard config TEMPLATE (spec §6.4).
+#
+# A per-terminal instance of this file is generated at image-build time and
+# baked into the SquashFS, so it is covered by the Secure Boot signature. The
+# placeholders are filled by network/wireguard/gen-peer.sh on the build host.
+#
+# The crucial line is AllowedIPs: it is the Edge's SINGLE tunnel IP. There is
+# literally no route to anything else — pulling the LAN cable does not fail over
+# to any other interface, because the kernel has no Wi-Fi/WWAN driver (§6.2).
+
+[Interface]
+# Per-terminal static private key (unique per seat, useless off the centre LAN).
+PrivateKey = {{TERMINAL_PRIVATE_KEY}}
+Address    = {{TERMINAL_TUNNEL_IP}}/32
+# No DNS pointed at the internet; the Edge resolver answers only *.local (§6.2 layer 3).
+DNS        = {{EDGE_TUNNEL_IP}}
+
+[Peer]
+# The Centre Edge Server — the ONLY peer this terminal will ever speak to.
+PublicKey           = {{EDGE_PUBLIC_KEY}}
+PresharedKey        = {{CENTRE_PRESHARED_KEY}}    # symmetric, mTLS-equivalent
+Endpoint            = {{EDGE_LAN_IP}}:51820
+AllowedIPs          = {{EDGE_TUNNEL_IP}}/32       # one host: no broader route exists
+PersistentKeepalive = 25

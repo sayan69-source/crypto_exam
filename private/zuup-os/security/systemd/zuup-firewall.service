@@ -1,0 +1,25 @@
+# ZUUP-OS firewall loader (spec §6.3) — default-drop BEFORE any interface is
+# configured. Ordered Before=network-pre.target so there is no window in which
+# an interface exists without the drop policy (isolation layer #4 of §6.2).
+
+[Unit]
+Description=ZUUP-OS nftables default-drop ruleset
+DefaultDependencies=no
+Before=network-pre.target zuup-wireguard.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/zuup/nftables.conf
+# re-assert on reload; never flush to permissive
+ExecReload=/usr/sbin/nft -f /etc/zuup/nftables.conf
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+
+[Install]
+WantedBy=zuup-network.target

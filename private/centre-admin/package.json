@@ -1,0 +1,25 @@
+{
+  "name": "centre-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Centre Admin Portal (§10.3). Runs on an ADMIN_STATION kiosk on the centre LAN. Counts for THIS centre only; approves invigilators; holds answer CIPHERTEXT as a blind courier (cannot decrypt — INV-6).",
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zuup/exam-ui": "*",
+    "next": "16.2.7",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.7.2"
+  }
+}

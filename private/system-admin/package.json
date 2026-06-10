@@ -1,0 +1,25 @@
+{
+  "name": "system-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "System Admin Portal (§13.5, tier-0). The root of trust: approves Centre Admins (issues the one-time code shown ONLY here), oversees every centre's counts, and is the boundary past which sealed answers are decrypted (HQ + HSM). Never holds a centre's data; counts + hashes only.",
+  "scripts": {
+    "dev": "next dev -p 3004",
+    "build": "next build",
+    "start": "next start -p 3004",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zuup/exam-ui": "*",
+    "next": "16.2.7",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.7.2"
+  }
+}

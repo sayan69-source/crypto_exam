@@ -1,0 +1,13 @@
+/* @zuup/exam-ui shared theme tokens. Import once at the app root. */
+:root {
+  --zuup-bg: #0b0f14;
+  --zuup-fg: #e6edf3;
+  --zuup-panel: #11161d;
+  --zuup-line: #243044;
+  --zuup-accent: #1f6feb;
+  --zuup-ok: #3fb950;
+  --zuup-warn: #d29922;
+  --zuup-danger: #f85149;
+  --zuup-sealed: #8957e5;
+  --zuup-font: ui-monospace, "SFMono-Regular", "Cascadia Code", monospace;
+}

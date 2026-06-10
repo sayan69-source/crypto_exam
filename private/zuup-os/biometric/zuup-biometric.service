@@ -1,0 +1,48 @@
+# ZUUP-OS biometric capture daemon (spec §8) — loopback-only scores/templates
+# for the kiosk. zuup-kiosk.service orders After= this unit. The §7.5 sandbox
+# below leaves it exactly three capabilities: the camera, the fingerprint
+# reader, and the /run/biometric tmpfs. It cannot reach the network, the disk,
+# or another process.
+
+[Unit]
+Description=ZUUP-OS on-device biometric capture (face + fingerprint)
+After=local-fs.target
+Before=zuup-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/lib/zuup/zuup-biometricd.py
+Restart=always
+RestartSec=2
+User=zuup-bio
+Group=zuup-bio
+
+# ── §7.5 runtime hardening ───────────────────────────────────────────────────
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+# loopback HTTP only — the LAN is unreachable from this process
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/8
+LockPersonality=yes
+SystemCallFilter=@system-service
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+# RAM-only working set (INV-2 / §8.4); raw captures never touch a disk
+ReadWritePaths=/run/biometric
+PrivateTmp=yes
+# exactly the two capture devices, nothing else
+DeviceAllow=/dev/video0 rw
+DeviceAllow=/dev/ttyACM0 rw
+DevicePolicy=closed
+
+[Install]
+WantedBy=zuup-session.target

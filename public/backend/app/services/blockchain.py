@@ -203,6 +203,50 @@ class BlockchainService:
         )
         return tx_hash
 
+    async def anchor_centre_answer_root(
+        self,
+        exam_id: str,
+        centre_id_hash: str,
+        answer_root: str,
+        count: int,
+        node_pubkey: str,
+    ) -> str:
+        """
+        Anchor ONE centre's answer-root for an exam (ZUUP-OS §11.5).
+
+        Called by the System Admin AFTER HSM-decrypting that centre's sync
+        bundle and re-verifying its hash-chain off-chain. NO PII goes on chain —
+        only the SHA-256 of the centre id, the chain root, a count, and the
+        centre node signing pubkey (§11.6 / DPDP). One anchor per (exam, centre):
+        the contract reverts a second attempt, so a root can never be back-dated.
+
+        Args:
+            exam_id: UUID string (hashed to bytes32 with keccak on chain).
+            centre_id_hash: SHA-256(centreId) hex — NEVER the raw centre id.
+            answer_root: final centre Merkle hash-chain root, hex.
+            count: number of sealed submissions in the chain.
+            node_pubkey: centre node signing pubkey (raw 32 bytes), hex.
+
+        Returns:
+            Transaction hash.
+        """
+        exam_id_bytes = self.w3.keccak(text=exam_id)
+
+        tx_hash = await self._send_tx(
+            "anchorCentreAnswerRoot",
+            exam_id_bytes,
+            bytes.fromhex(centre_id_hash),
+            bytes.fromhex(answer_root),
+            count,
+            bytes.fromhex(node_pubkey).ljust(32, b"\x00")[:32],
+        )
+
+        logger.info(
+            f"Centre answer-root anchored: exam={exam_id[:8]}..., "
+            f"centre={centre_id_hash[:12]}..., count={count}, tx={tx_hash[:16]}..."
+        )
+        return tx_hash
+
     async def submit_delivery_proof(
         self,
         exam_id: str,

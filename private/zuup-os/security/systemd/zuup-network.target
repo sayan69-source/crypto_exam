@@ -1,0 +1,11 @@
+# ZUUP-OS network readiness milestone (spec §6) — "the tunnel is up".
+#
+# Reached only after the firewall is loaded (default-drop BEFORE any interface
+# carries traffic) and the WireGuard tunnel to the Edge is established. Units
+# that talk to the Edge (attestation, kiosk, heartbeat) order After= this
+# target, so no Edge-bound byte can ever travel outside wg0 (INV-3).
+
+[Unit]
+Description=ZUUP-OS network up (firewall loaded, WireGuard tunnel established)
+Requires=zuup-firewall.service zuup-wireguard.service
+After=zuup-firewall.service zuup-wireguard.service

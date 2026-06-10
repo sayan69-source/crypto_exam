@@ -1,0 +1,33 @@
+{
+  "_comment": "ZUUP-OS seccomp-bpf allow-list for the Firefox kiosk service (spec §7.5). Referenced from the systemd unit via SystemCallFilter. Default action KILL_PROCESS: any syscall not on the allow-list terminates the process and raises an incident. This is the syscall-level complement to the AppArmor path-level profile.",
+  "defaultAction": "SCMP_ACT_KILL_PROCESS",
+  "architectures": ["SCMP_ARCH_X86_64"],
+  "syscalls": [
+    {
+      "names": [
+        "read", "write", "readv", "writev", "pread64", "pwrite64",
+        "open", "openat", "close", "stat", "fstat", "lstat", "lseek",
+        "mmap", "munmap", "mprotect", "brk", "madvise",
+        "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
+        "ioctl", "poll", "ppoll", "epoll_create1", "epoll_ctl", "epoll_wait",
+        "futex", "clock_gettime", "gettimeofday", "nanosleep",
+        "clone3", "set_robust_list", "rseq", "exit", "exit_group",
+        "socket", "connect", "sendto", "recvfrom", "sendmsg", "recvmsg",
+        "getsockopt", "setsockopt", "getpid", "gettid",
+        "memfd_create", "eventfd2", "pipe2", "dup3"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_comment": "Explicitly forbidden even if some library tries them — these are the escape/exfil primitives (§7.5 hardening).",
+      "names": [
+        "ptrace", "process_vm_readv", "process_vm_writev",
+        "kexec_load", "kexec_file_load", "init_module", "finit_module",
+        "mount", "umount2", "pivot_root", "chroot",
+        "bpf", "perf_event_open", "userfaultfd",
+        "setuid", "setgid", "reboot", "swapon", "swapoff"
+      ],
+      "action": "SCMP_ACT_KILL_PROCESS"
+    }
+  ]
+}

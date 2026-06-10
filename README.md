@@ -4,7 +4,7 @@
 
 ### Zero-Trust Examination Infrastructure for India
 
-> **The math cannot be bribed. The blockchain cannot forget. The hardware cannot lie.**
+> **The math cannot be bribed. The blockchain cannot forget.**
 
 **FAR AWAY 2026 · Examinations Track · Built for India's 40M+ annual candidates**
 
@@ -16,7 +16,7 @@
 
 ---
 
-[**Live Demo**](#live-demo) · [**Verify on Blockchain**](#verify-on-blockchain) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture) · [**Hardware**](#hardware-security-node)
+[**Live Demo**](#live-demo) · [**Verify on Blockchain**](#verify-on-blockchain) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture)
 
 </div>
 
@@ -47,10 +47,8 @@ This is not an isolated incident:
 | # | Guarantee | Enforced By |
 |---|-----------|-------------|
 | 1 | **No human sees the paper before T₀** | AES-GCM-256 encryption → HKDF key derivation → key released only at drand beacon T₀ |
-| 2 | **Offline centers cannot cheat** | RSA time-lock puzzle on custom PCB with TPM 2.0 + GPS UTC — no parallel speedup possible |
-| 3 | **Answer records are immutable** | SHA-256 Merkle root committed to Polygon PoS — any modification changes the root |
-| 4 | **Paper difficulty is machine-verifiable** | ZK-SNARK (CIRCOM + Groth16) proof on-chain — proves IRT compliance without revealing questions |
-| 5 | **Delivery is provable** | TPM 2.0 signed ProofOfDelivery with GPS timestamp submitted to blockchain |
+| 2 | **Answer records are immutable** | SHA-256 Merkle root committed to Polygon PoS — any modification changes the root |
+| 3 | **Paper difficulty is machine-verifiable** | ZK-SNARK (CIRCOM + Groth16) proof on-chain — proves IRT compliance without revealing questions |
 
 ---
 
@@ -119,8 +117,6 @@ npx hardhat test
 cd public/backend
 python -m app.agents.test_pipeline
 
-# Hardware Firmware (emulated)
-python hardware/firmware/main.py
 ```
 
 ---
@@ -151,10 +147,6 @@ python hardware/firmware/main.py
 │  │primary │  │+Celery   │  │IRT+LLM   │  │ Storage │  │ + CIRCOM ZK    │   │
 │  └────────┘  └──────────┘  └──────────┘  └─────────┘  └────────────────┘   │
 │                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────────┐│
-│  │              HARDWARE SECURITY NODE (FIELD DEPLOYED)                    ││
-│  │  Pi CM4 · Infineon TPM 2.0 · u-blox GPS · ATECC608A · Tamper Mesh     ││
-│  └──────────────────────────────────────────────────────────────────────────┘│
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,9 +160,8 @@ python hardware/firmware/main.py
 | **Task Queue** | Celery + Redis |
 | **Blockchain** | Polygon PoS (Amoy testnet) · Solidity 0.8.20 · Hardhat · OpenZeppelin |
 | **ZK Proofs** | CIRCOM 2.1.6 · snarkjs · Groth16 |
-| **Cryptography** | AES-GCM-256 · HKDF · SHA-256 Merkle · Shamir SSS · RSA Time-Lock |
+| **Cryptography** | AES-GCM-256 · HKDF · SHA-256 Merkle · Shamir SSS |
 | **AI Agents** | 6-agent pipeline · Instructor + LLM · IRT 3PL Scoring · Bloom's Taxonomy |
-| **Hardware** | Raspberry Pi CM4 · Infineon TPM 2.0 · u-blox NEO-M9N GPS · ATECC608A · KiCad 4-layer PCB |
 | **Infrastructure** | Docker Compose · Nginx reverse proxy · IPFS |
 
 ---
@@ -203,35 +194,7 @@ python hardware/firmware/main.py
 
 ---
 
-## Hardware Security Node
 
-**PCB design files in `/hardware/`. KiCad 4-layer Gerbers ready for fabrication.**
-
-| Component | Part | Purpose |
-|-----------|------|---------|
-| **Compute** | Raspberry Pi CM4 (4GB/32GB) | Main controller |
-| **TPM 2.0** | Infineon SLB9670 | Hardware attestation, key sealing, PCR extend |
-| **GPS** | u-blox NEO-M9N | GPS-derived UTC time (1PPS), tamper-resistant clock |
-| **Secure Element** | ATECC608A | Hardware ECDSA signing, cannot be extracted even with chip decap |
-| **Display** | ST7789 240x320 TFT | Status, exam countdown, tamper alerts |
-| **Ethernet** | LAN8720A PHY | 10/100 Mbps for local exam delivery |
-| **UPS** | 50F Supercapacitor | 30s graceful shutdown on power loss |
-| **Tamper** | Kapton flex mesh | Serpentine Cu trace — break triggers key zeroisation |
-| **Enclosure** | CNC 6061-T6 Aluminum | IP54, tamper-evident, anodized black |
-
-**BOM cost:** $138.50/unit (prototype) → $85-95/unit (1000+ qty)
-
-### Firmware Demo
-
-```bash
-python hardware/firmware/main.py
-# Output:
-# TPM 2.0 initialized (EMULATED)
-# GPS: 28.6139, 77.2090 (12 sats)
-# Tamper mesh: OK (47.0 ohms)
-# Boot complete. State: idle
-# Proof of Delivery generated: 88b1d60f...
-```
 
 ---
 
@@ -295,9 +258,7 @@ Japan_Zuup/
 │   └── nginx.conf             # Reverse proxy with SSL termination
 │
 └── private/                   # PRIVATE — the centre-only stack (never web-reachable)
-    ├── exam-terminal/         # Candidate + invigilator portals; future OS + hardened Firefox
-    ├── lockdown-client/       # Electron lockdown shell for the candidate environment
-    └── hardware/              # KiCad PCB + firmware for the centre security node (TPM/GPS)
+    └── exam-terminal/         # Candidate + invigilator portals; future OS + hardened Firefox
 ```
 
 ### The boundary
@@ -317,13 +278,13 @@ private API — the blockchain is the entire trust channel. See
 
 | Exam | Body | Candidates/Year | Our Solution |
 |------|------|-----------------|-------------|
-| NEET UG | NTA | 2.4M | ZK proof + hardware delivery |
+| NEET UG | NTA | 2.4M | ZK proof + online CBT |
 | JEE Main/Advanced | NTA/IITs | 1.4M | ZK proof + online CBT |
 | CUET UG/PG | NTA | 1.4M | ZK proof + online CBT |
-| UPSC Civil Services | UPSC | 1.3M | ZK proof + OMR-equivalent |
-| SSC CGL/CHSL | SSC | 3M+ | ZK proof + hardware |
+| UPSC Civil Services | UPSC | 1.3M | ZK proof + online CBT |
+| SSC CGL/CHSL | SSC | 3M+ | ZK proof + online CBT |
 | GATE | IITs/NIT | 900K | ZK proof + online CBT |
-| State PSC Exams | 28 States | 10M+ | Hardware node offline path |
+| State PSC Exams | 28 States | 10M+ | ZK proof + online CBT |
 | CBSE Class 10/12 | CBSE | 35M+ | Blockchain audit trail |
 
 **Total addressable:** 40M+ candidates/year across 1,000+ examinations.
@@ -335,9 +296,8 @@ private API — the blockchain is the entire trust channel. See
 | We Built | Others Build |
 |----------|-------------|
 | 3 production interfaces with distinct UX personalities | 1 MVP screen |
-| ZK-SNARK (Groth16) + RSA time-lock + TPM 2.0 + Shamir SSS | "We used blockchain" |
+| ZK-SNARK (Groth16) + drand beacon + Shamir SSS | "We used blockchain" |
 | 6-agent AI pipeline with IRT scoring + Bloom's classification | Basic LLM API call |
-| KiCad 4-layer PCB with Gerbers ready for fabrication | Arduino + jumper wires |
 | DPDP Act 2023 compliant from schema level | Not mentioned |
 | Every claim verifiable on Polygon Amoy from your phone | "Trust us, it works" |
 

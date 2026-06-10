@@ -62,6 +62,23 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
         bool    verified;           // Admin verified the proof
     }
 
+    /**
+     * @notice Per-centre answer-root anchor (ZUUP-OS §11.5).
+     * @dev The System Admin anchors ONE of these per centre per exam after
+     *      HSM-decrypting that centre's sync bundle. It contains ONLY
+     *      roots/counts/hashes — never a roll, name, DOB, or any ciphertext
+     *      (DPDP / no-PII-on-chain, §11.6). `centreIdHash` is SHA-256(centreId),
+     *      never the raw id; `nodePubkey` is the centre node's signing key so
+     *      anyone can later verify a candidate receipt against this root.
+     */
+    struct CentreAnswerAnchor {
+        bytes32 answerRoot;         // final centre Merkle hash-chain root
+        bytes32 nodePubkey;         // centre node signing pubkey (raw 32B)
+        uint64  count;              // number of sealed submissions in the chain
+        uint256 anchoredAt;         // block timestamp of the anchor
+        bool    anchored;           // set once; re-anchor is rejected
+    }
+
     // ═══════════════════════════════════════════════════════
     // State
     // ═══════════════════════════════════════════════════════
@@ -71,6 +88,9 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
 
     /// @notice Delivery proofs: examId => nodeId => proof
     mapping(bytes32 => mapping(bytes32 => DeliveryProof)) public deliveryProofs;
+
+    /// @notice Per-centre answer-root anchors (§11.5): examId => centreIdHash => anchor
+    mapping(bytes32 => mapping(bytes32 => CentreAnswerAnchor)) public centreAnchors;
 
     /// @notice All exam IDs for enumeration
     bytes32[] public examIds;
@@ -115,6 +135,14 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
         string  reason
     );
 
+    event CentreAnswerRootAnchored(
+        bytes32 indexed examId,
+        bytes32 indexed centreIdHash,
+        bytes32 answerRoot,
+        bytes32 nodePubkey,
+        uint64  count
+    );
+
     // ═══════════════════════════════════════════════════════
     // Errors
     // ═══════════════════════════════════════════════════════
@@ -125,6 +153,8 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     error ZKProofNotVerified(bytes32 examId);
     error InvalidExamId();
     error InvalidZKProof();
+    error CentreAlreadyAnchored(bytes32 examId, bytes32 centreIdHash);
+    error InvalidAnchor();
 
     // ═══════════════════════════════════════════════════════
     // Constructor
@@ -235,6 +265,46 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     }
 
     /**
+     * @notice Anchor ONE centre's answer-root for an exam (ZUUP-OS §11.5).
+     * @dev Called by the System Admin AFTER it HSM-decrypts that centre's sync
+     *      bundle and re-verifies the chain off-chain. The terminal/centre is a
+     *      blind courier (INV-6); this anchor makes the centre's local Merkle
+     *      hash-chain publicly tamper-evident. No PII is accepted or stored —
+     *      only the SHA-256 of the centre id, the chain root, a count, and the
+     *      centre node's signing pubkey. One anchor per (exam, centre): a second
+     *      attempt reverts, so a root can never be back-dated or overwritten.
+     *
+     * @param examId        Exam identifier (keccak/SHA of the exam UUID)
+     * @param centreIdHash  SHA-256(centreId) — NEVER the raw centre id
+     * @param answerRoot    Final centre hash-chain root for this exam
+     * @param count         Number of sealed submissions in the chain
+     * @param nodePubkey    Centre node signing pubkey (raw 32 bytes)
+     */
+    function anchorCentreAnswerRoot(
+        bytes32 examId,
+        bytes32 centreIdHash,
+        bytes32 answerRoot,
+        uint64  count,
+        bytes32 nodePubkey
+    ) external onlyRole(ADMIN_ROLE) nonReentrant {
+        if (!exams[examId].isLocked) revert ExamNotLocked(examId);
+        if (centreIdHash == bytes32(0) || answerRoot == bytes32(0)) revert InvalidAnchor();
+        if (centreAnchors[examId][centreIdHash].anchored) {
+            revert CentreAlreadyAnchored(examId, centreIdHash);
+        }
+
+        centreAnchors[examId][centreIdHash] = CentreAnswerAnchor({
+            answerRoot: answerRoot,
+            nodePubkey: nodePubkey,
+            count: count,
+            anchoredAt: block.timestamp,
+            anchored: true
+        });
+
+        emit CentreAnswerRootAnchored(examId, centreIdHash, answerRoot, nodePubkey, count);
+    }
+
+    /**
      * @notice Submit hardware node delivery proof.
      * @dev Called by the hardware node after successfully decrypting
      *      the paper at T₀ using the drand beacon randomness.
@@ -309,6 +379,21 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
      */
     function getExamCount() external view returns (uint256) {
         return examIds.length;
+    }
+
+    /**
+     * @notice Read one centre's anchored answer-root (§11.5). Public, trustless.
+     * @dev A candidate can verify their receipt's root against `answerRoot`, and
+     *      its `nodePubkey` against the node signature on the receipt — proving
+     *      their submission was committed, unaltered, with no API and no trust.
+     */
+    function getCentreAnchor(bytes32 examId, bytes32 centreIdHash)
+        external
+        view
+        returns (bytes32 answerRoot, bytes32 nodePubkey, uint64 count, uint256 anchoredAt, bool anchored)
+    {
+        CentreAnswerAnchor storage a = centreAnchors[examId][centreIdHash];
+        return (a.answerRoot, a.nodePubkey, a.count, a.anchoredAt, a.anchored);
     }
 
     /**

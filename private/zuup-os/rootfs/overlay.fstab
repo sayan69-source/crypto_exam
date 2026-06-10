@@ -1,0 +1,20 @@
+# ZUUP-OS mount table (spec §7.3) — read-only root, every write to RAM.
+#
+# The SquashFS root is mounted read-only behind dm-verity (§7.1/§7.3); the only
+# writable surfaces are tmpfs overlays that live in RAM and vanish at power-off.
+# This is what makes INV-1 (`remount,rw /` fails) and INV-2 (power-cycle →
+# forensic zero) true: there is no writable persistent medium in the trust path.
+#
+# Mount flags are maximally restrictive: nosuid,nodev everywhere; noexec on every
+# scratch area that does not legitimately run code.
+
+# <device>            <mount point>   <type>     <options>                                   <dump> <pass>
+/dev/mapper/zuup-root  /              squashfs   ro,nosuid,nodev                              0      0
+tmpfs                  /tmp           tmpfs      rw,nosuid,nodev,noexec,size=256m,mode=1777   0      0
+tmpfs                  /run           tmpfs      rw,nosuid,nodev,noexec,size=64m,mode=0755     0      0
+tmpfs                  /var/log       tmpfs      rw,nosuid,nodev,noexec,size=64m,mode=0755     0      0
+tmpfs                  /run/firefox   tmpfs      rw,nosuid,nodev,noexec,size=512m,mode=0700    0      0
+# webcam capture buffers: RAM only, zeroised on unmount (DPDP §8.4)
+tmpfs                  /run/biometric tmpfs      rw,nosuid,nodev,noexec,size=128m,mode=0700    0      0
+# /proc with hidepid=2 so no process can see another's command line/env (§7.3)
+proc                   /proc          proc       rw,nosuid,nodev,noexec,hidepid=2              0      0

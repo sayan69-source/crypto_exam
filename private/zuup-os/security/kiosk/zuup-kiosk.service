@@ -1,0 +1,47 @@
+# ZUUP-OS kiosk unit (spec §7.4, §7.5) — systemd → Cage → Firefox, no escape.
+#
+# Cage is a single-surface Wayland compositor: it refuses every additional
+# wl_surface, so no second window, overlay, or screenshot-of-another-window can
+# exist. Firefox launches --kiosk at the Edge. The hardening directives below
+# are the systemd half of the §7.5 runtime enforcement (the AppArmor + seccomp
+# halves live alongside this file). Restart=always: there is no way to "exit".
+
+[Unit]
+Description=ZUUP-OS locked examination surface
+# The Gate renders only after the boot is attested (§7.1) and the biometric
+# daemon is serving — and never without the tunnel (INV-3, INV-10).
+After=zuup-network.target zuup-attest.service zuup-biometric.service
+Requires=zuup-network.target zuup-attest.service
+
+[Service]
+Type=simple
+# Cage owns the only display surface; Firefox is its only child.
+ExecStart=/usr/bin/cage -d -- /usr/lib/firefox/firefox --kiosk https://edge.local/
+Restart=always
+RestartSec=1
+
+# ── §7.5 runtime hardening ───────────────────────────────────────────────────
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+# seccomp allow-list (the explicit kill-list complement, §7.5)
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete
+# writable surfaces are tmpfs only (RAM; INV-2)
+ReadWritePaths=/run/firefox /tmp/firefox
+# VT switching is disabled at logind; Cage takes the only seat.
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=zuup-session.target

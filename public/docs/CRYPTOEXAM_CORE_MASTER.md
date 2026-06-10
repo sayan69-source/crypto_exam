@@ -17,9 +17,8 @@
 > 5. The demo must run end-to-end. No scripted fakes. No localhost-only demos.
 > 6. Ship three polished, production-grade interfaces. Most teams ship one.
 > 7. Deploy to Polygon Amoy testnet BEFORE submission so judges can verify live.
-> 8. The hardware PCB Gerbers MUST be in the repository. This is a top-5% differentiator.
 >
-> **The one principle that wins:** *The math cannot be bribed. The blockchain cannot forget. The hardware cannot lie.*
+> **The one principle that wins:** *The math cannot be bribed. The blockchain cannot forget.*
 
 ---
 
@@ -32,8 +31,7 @@
 **What makes us different:**
 | Layer | What We Built | What Others Build |
 |---|---|---|
-| Cryptographic | ZK-SNARK difficulty proof (Groth16) + RSA time-lock + drand beacon + Shamir's SSS + TPM 2.0 | "We used blockchain" |
-| Hardware | Custom 4-layer KiCad PCB with Infineon TPM 2.0, u-blox GPS, ATECC608A, tamper mesh | Arduino + jumper wires |
+| Cryptographic | ZK-SNARK difficulty proof (Groth16) + drand beacon + Shamir's SSS | "We used blockchain" |
 | Software | 3 production interfaces (Candidate + Setter + Admin) + Agentic AI pipeline | 1 MVP screen |
 | India | NEET/JEE/CUET/UPSC/SSC taxonomy, DPDP Act 2023 compliance, Aadhaar auth, 22 languages | Generic or ignores India |
 | Verifiable | Every claim provable on Polygon Amoy — judges verify from their phone, no login | "Trust us, it works" |
@@ -63,27 +61,26 @@ The presenter says:
 
 > *"You don't have to trust us. Open your own phone right now. Go to amoy.polygonscan.com and type this hash. You will see that our exam's difficulty proof was committed to the blockchain at 9:47 AM today — before any candidate saw a single question. You can verify this independently. No login. No account. No NTA official. Just math and a public ledger. This is what NEET 2024 should have been."*
 
-That is the moment. Everything else in the build — three interfaces, ZK circuits, TPM hardware, drand beacons — exists to make that 15-second moment possible and **true**.
+That is the moment. Everything else in the build — three interfaces, ZK circuits, drand beacons — exists to make that 15-second moment possible and **true**.
 
 ### 0.3 Judging Criteria Mapping
 
 | FAR AWAY Criterion | Our Response | Evidence |
 |---|---|---|
-| **Innovation & Technical Depth** | ZK-SNARK difficulty proof (first in any Indian exam system) + RSA time-lock on custom PCB | CIRCOM circuit + Groth16 proof + KiCad PCB Gerbers |
-| **Engineering Quality** | 3 production interfaces + FastAPI + PostgreSQL + Redis + Celery + Hardhat + custom PCB | GitHub commit history, code structure, test coverage |
+| **Innovation & Technical Depth** | ZK-SNARK difficulty proof (first in any Indian exam system) + drand beacon + Shamir's SSS | CIRCOM circuit + Groth16 proof on-chain |
+| **Engineering Quality** | 3 production interfaces + FastAPI + PostgreSQL + Redis + Celery + Hardhat | GitHub commit history, code structure, test coverage |
 | **Real-World Impact** | NEET 2024 (2.4M candidates, ₹900Cr damage) + JEE/CUET/SSC/UPSC — all directly addressed | Problem statement with documented incidents, cost analysis |
-| **Scalability** | Polygon PoS handles 7,000+ TPS; Redis handles 100K concurrent sessions; hardware nodes scale to 6,000+ centers | Architecture diagram + benchmarks in § 19 |
+| **Scalability** | Polygon PoS handles 7,000+ TPS; Redis handles 100K concurrent sessions | Architecture diagram + benchmarks in § 19 |
 | **Design & User Experience** | Three distinct UX personalities (calm/bloomberg/mission-control); WCAG 2.1 AA; multilingual | Interface screenshots in demo video |
-| **Execution Quality & Completeness** | Working demo with live on-chain TX; real ZK proof; KiCad Gerbers; DPDP Act 2023 compliance | Everything independently verifiable by judges |
+| **Execution Quality & Completeness** | Working demo with live on-chain TX; real ZK proof; DPDP Act 2023 compliance | Everything independently verifiable by judges |
 
 ### 0.4 Why This Beats Every Competitor
 
 | Advantage | CryptoExam Core | What 99% of teams do |
 |---|---|---|
 | **Interface count** | 3 production interfaces with distinct UX personalities | 1 MVP screen with generic UI |
-| **Cryptographic depth** | IRT + ZK-SNARK (Groth16) + drand beacon + RSA time-lock + TPM 2.0 + Shamir's SSS | "We used blockchain" with no real crypto |
+| **Cryptographic depth** | IRT + ZK-SNARK (Groth16) + drand beacon + Shamir's SSS | "We used blockchain" with no real crypto |
 | **India specificity** | NEET/JEE/CUET/UPSC/SSC/State PSC taxonomy, DPDP Act 2023, Aadhaar-linked auth, India center map | Generic or ignore India context entirely |
-| **Hardware** | KiCad 4-layer PCB with TPM 2.0 + GPS + ATECC608A + tamper mesh + Gerbers | Arduino + jumper wires |
 | **Independent verifiability** | Every claim provable on Polygon Amoy — judges verify without trusting us | "Trust us, it works" |
 | **Scale argument** | NEET (2.4M) + JEE (1.2M) + CUET (1.4M) + SSC CGL (3M+) all addressed | Vague "can scale to millions" |
 | **Agentic AI layer** | Autonomous question generation + IRT scoring + anomaly detection agents | Basic LLM API call |
@@ -92,7 +89,7 @@ That is the moment. Everything else in the build — three interfaces, ZK circui
 
 ### 0.5 What FAR AWAY Explicitly Rewards vs. Punishes
 
-**Rewards:** ✅ Real products and working prototypes · ✅ Hardware with proper PCB design and schematics · ✅ Technical depth and real-world impact · ✅ Builders who ship · ✅ Creative use of AI · ✅ Strong engineering and execution
+**Rewards:** ✅ Real products and working prototypes · ✅ Technical depth and real-world impact · ✅ Builders who ship · ✅ Creative use of AI · ✅ Strong engineering and execution
 
 **Punishes:** ❌ Idea-only or PowerPoint-only submissions · ❌ Copy-paste tutorial-clone solutions · ❌ Fake or scripted-only demos · ❌ Minimal-effort AI wrappers (LLM call + CRUD = not enough) · ❌ Arduino boards with jumper wires without meaningful engineering · ❌ Lack of execution depth
 
@@ -149,15 +146,15 @@ CryptoExam Core is **DPDP Act 2023 compliant by design:** biometric data is neve
 
 | Exam | Body | Candidates/Year | Our Solution |
 |---|---|---|---|
-| NEET UG | NTA | 2.4M | ZK proof + hardware delivery |
+| NEET UG | NTA | 2.4M | ZK proof + online CBT |
 | JEE Main | NTA | 1.2M | ZK proof + online CBT |
 | JEE Advanced | IITs | 200K | ZK proof + online CBT |
 | CUET UG/PG | NTA | 1.4M | ZK proof + online CBT |
-| UPSC Civil Services | UPSC | 1.3M (prelim) | ZK proof + OMR-equivalent |
-| SSC CGL/CHSL | SSC | 3M+ | ZK proof + hardware |
+| UPSC Civil Services | UPSC | 1.3M (prelim) | ZK proof + online CBT |
+| SSC CGL/CHSL | SSC | 3M+ | ZK proof + online CBT |
 | GATE | IITs/NIT | 900K | ZK proof + online CBT |
 | CAT | IIMs | 300K | ZK proof + online CBT |
-| State PSC Exams | 28 State PSCs | 10M+ combined | Hardware node offline path |
+| State PSC Exams | 28 State PSCs | 10M+ combined | ZK proof + online CBT |
 | CBSE Class 10/12 | CBSE | 35M+ | Blockchain audit trail |
 
 ---
@@ -167,19 +164,13 @@ CryptoExam Core is **DPDP Act 2023 compliant by design:** biometric data is neve
 **[CRITICAL] These five properties are enforced by mathematics, not by policy, process, or human oversight. Implement all five. Every component must deliver these exact guarantees.**
 
 ### Guarantee 1 — No human sees the paper before T₀.
-**Enforced by:** AES-GCM-256 encryption in memory → HKDF key derivation → key never persists to disk → released only at drand beacon T₀ or RSA time-lock completion. AI generates and immediately encrypts. No intermediate plaintext exists after generation. Even the setter cannot retrieve the paper post-lock.
+**Enforced by:** AES-GCM-256 encryption in memory → HKDF key derivation → key never persists to disk → released only at drand beacon T₀. AI generates and immediately encrypts. No intermediate plaintext exists after generation. Even the setter cannot retrieve the paper post-lock.
 
-### Guarantee 2 — An offline center cannot cheat, even with zero connectivity for 72 hours.
-**Enforced by:** RSA sequential squaring time-lock puzzle (Rivest-Shamir-Wagner 1996) on a custom PCB hardware node. Calibrated to complete at exactly T₀ wall-clock time from GPS UTC. Sequential computation — no parallel speedup is mathematically possible. TPM 2.0 seals puzzle state; tamper mesh triggers key zeroisation on physical breach.
-
-### Guarantee 3 — Answer records are mathematically immutable.
+### Guarantee 2 — Answer records are mathematically immutable.
 **Enforced by:** SHA-256 binary Merkle tree root committed to Polygon PoS smart contract at exam close. Any post-commit modification changes the root hash. Discrepancy is detectable by any observer with a browser and the Polygonscan URL. No court order needed — the math is the evidence.
 
-### Guarantee 4 — AI-generated papers have machine-verifiable difficulty distribution.
+### Guarantee 3 — AI-generated papers have machine-verifiable difficulty distribution.
 **Enforced by:** ZK-SNARK circuit (CIRCOM 2.0 + snarkjs, Groth16) generates a cryptographic proof: *"I know a question set Q such that Hash(Q) = H, AND the IRT difficulty distribution satisfies constraints C, AND no topic cluster exceeds overlap threshold τ."* Proof is on-chain. Forging a proof for a non-compliant distribution is computationally infeasible under discrete log hardness.
-
-### Guarantee 5 — The paper was delivered to exactly N candidates at exactly T₀.
-**Enforced by:** Each hardware node generates a **Proof of Delivery** using its TPM 2.0 attestation key: *"Node [ID], attested by TPM EK certificate [hash], delivered encrypted paper [H] to [N] sessions beginning at GPS-verified time [T]."* Signed attestation submitted on-chain as `ProofOfDelivery` event within 30 seconds of exam start. If a center claims 500 students received the paper, the blockchain records exactly 500 session commitments. Discrepancy between enrollment count and delivery count is immediately on-chain. This closes the "phantom student" fraud vector — endemic in Indian center-based exams.
 
 ---
 
@@ -211,11 +202,6 @@ CryptoExam Core is **DPDP Act 2023 compliant by design:** biometric data is neve
 ║  │primary │ │task queue  │ │IRT+LLM  │  │ Storage │  │ + CIRCOM ZK     │  ║
 ║  └────────┘ └───────────┘  └─────────┘  └─────────┘  └─────────────────┘  ║
 ║                                                                              ║
-║  ┌──────────────────────────────────────────────────────────────────────┐  ║
-║  │              HARDWARE SECURITY NODE (FIELD DEPLOYED)                  │  ║
-║  │  Pi CM4 · Infineon TPM 2.0 · u-blox NEO-M9N GPS · ATECC608A          │  ║
-║  │  Tamper Mesh · 50F Supercapacitor UPS · ST7789 TFT · CNC Al Housing  │  ║
-║  └──────────────────────────────────────────────────────────────────────┘  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -228,20 +214,12 @@ CryptoExam Core is **DPDP Act 2023 compliant by design:** biometric data is neve
     → Smart contract: ExamLocked(examId, questionHash, zkProofHash) on Polygon
     → AES-GCM-256 paper encrypted in memory; key sealed to drand T₀ round
     → Shamir's SSS splits master key → shards distributed to 3-of-5 designated officials
-    → Encrypted shards pushed to nodes via IPFS (72h before exam)
-    → Hardware nodes download shards; TPM seals time-lock puzzle state
 
-[AT T₀ — online path]
+[AT T₀]
     → drand.cloudflare.com publishes T₀ beacon
     → Backend derives AES key: HKDF(beacon, exam_id)
     → Paper decrypted in backend RAM; served via WebSocket to candidate sessions
     → Session manager distributes questions per candidate's assigned set
-
-[AT T₀ — offline path]
-    → Hardware node completes RSA squaring loop (calibrated to finish at T₀)
-    → TPM unseals puzzle result → AES key derived → paper decrypted in mlock'd RAM
-    → Node serves paper locally via HTTPS on LAN (zero internet required)
-    → ProofOfDelivery signed by TPM and submitted to blockchain within 30s
 
 [SUBMIT]
     → All answers hashed; Merkle tree built across all candidates
@@ -279,7 +257,6 @@ app/
 │   ├── dashboard/                # Mission control: live metrics + center map
 │   ├── exams/                    # Exam lifecycle manager
 │   ├── centers/                  # Full-page center health map (India state-level)
-│   ├── nodes/                    # Hardware node status board
 │   ├── blockchain/               # On-chain audit trail viewer with TX decoder
 │   ├── candidates/               # Roster: search, filter, anomaly flags
 │   ├── emergency/                # Emergency: pause/extend/abort/broadcast — ≤3 clicks
@@ -402,7 +379,6 @@ export const animations = {
 ├── admin/
 │   ├── ExamStatusCard/      # Per-exam card with health + countdown
 │   ├── IndiaMapView/        # Leaflet.js + state boundaries + live status markers
-│   ├── HardwareNodeCard/    # PCB node: TPM + GPS + time-lock state
 │   ├── BlockchainAuditLog/  # Decoded on-chain transaction list
 │   ├── EmergencyPanel/      # Emergency actions with 2-click 2-admin protection
 │   ├── AnomalyFeed/         # Live scrolling anomaly stream with severity
@@ -498,15 +474,12 @@ STEP 2 — System Check (all async, show spinner → pass/fail badge):
   ✓ Browser fullscreen API available
   ✓ Screen recording detection clear
   ✓ VM heuristics: timing variance within expected range
-  ✓ drand beacon connectivity (fallback: hardware node mode auto-detected)
+  ✓ drand beacon connectivity
   ✓ Geolocation within declared exam center radius (±500m)
-  ✓ Clock sync within ±30 seconds of GPS/NTP
+  ✓ Clock sync within ±30 seconds of NTP
   ✓ Camera accessible for periodic silent checks
   ✓ WebCrypto API available
-  ✓ Network speed ≥ 512 Kbps OR hardware node detected (offline mode)
-  
-  Offline mode banner: "Your center is running CryptoExam's secure offline hardware.
-  Your exam is protected even without internet — the math handles it."
+  ✓ Network speed ≥ 512 Kbps
   Red failures: block exam start, show specific instructions + invigilator number.
 
 STEP 3 — Exam Brief:
@@ -673,7 +646,6 @@ EXAM INTEGRITY REPORT:
   - ZK Difficulty Proof on-chain and valid? ✅/❌
   - Paper locked ≥ 72h before scheduled T₀? ✅/❌
   - Answer Merkle Root committed? ✅/❌
-  - ProofOfDelivery submitted by hardware nodes? ✅/❌
   - Overall verdict: ✅ INTEGRITY VERIFIED / ❌ INTEGRITY FAILURE (with specific failure detail)
 
   Candidate-specific (requires roll number):
@@ -730,7 +702,7 @@ STEP 1 — Exam Identity:
       SSC: Reasoning, Quant, English, General Awareness
       State PSC: Per-state configurable from JSON registry
       Custom: CSV syllabus upload → auto-parsed into topic tree
-  - Exam type: Online CBT | Offline Hardware Node | Hybrid
+  - Exam type: Online CBT
   - Duration: HH:MM picker | Candidates count (estimated)
   - Scheduled date/time + IST timezone
   - Primary language: English / Hindi / Bilingual / Regional
@@ -770,8 +742,7 @@ STEP 4 — Security & Delivery:
   - Shamir's SSS: N shards, K threshold (default: N=5, K=3)
   - Shard holder roles: NTA Director, Subject Expert, Independent Observer, etc.
   - Key distribution method: encrypted email / secure portal link
-  - Hardware node delivery: automatic (if Offline mode) / manual override
-  - T₀ source: drand beacon (online) / RSA time-lock (offline) / hybrid
+  - T₀ source: drand beacon
   - Override window: no override / 15-minute emergency window (requires 2-admin co-sign)
 ```
 
@@ -900,7 +871,6 @@ PHASE 4 — Paper Lock Modal (separate overlay):
      Once locked: Paper cannot be modified under any circumstance.
      Blockchain commitment is permanent — no admin can override it.
      AES key will be bound to drand T₀ beacon — unknowable until exam time.
-     Hardware nodes will receive encrypted shards within 24 hours.
      Shamir key shards will be distributed to designated officials.
      Do not proceed unless every question has been reviewed and approved."
   
@@ -947,17 +917,14 @@ ROW 3 — INDIA CENTER MAP (left 8 cols) + ANOMALY FEED (right 4 cols):
       🟢 Green: healthy | 🟡 Amber: degraded | 🔴 Red pulsing: incident | ⚫ Gray: inactive
     Marker size: proportional to candidate count
     Hover popup: center name, city, state, N candidates, node status, invigilator name/phone
-    Connectivity tier badge: Tier 1 (Metro fibre) / Tier 2 (4G) / Tier 3 (BSNL/offline node)
+    Connectivity tier badge: Tier 1 (Metro fibre) / Tier 2 (4G) / Tier 3 (BSNL)
     [Zoom to State] dropdown for quick navigation
     
   ANOMALY FEED (dark, auto-scrolling, newest first):
     Left border color by severity 1–5 (green → red)
     [HH:MM:SS] CENTER_NAME | Anomaly type | Masked candidate ID | Severity | [Resolve] [View]
 
-ROW 4 — HARDWARE NODES (left 6 cols) + BLOCKCHAIN FEED (right 6 cols):
-  
-  NODES TABLE: Node ID | Center | TPM ✅ | GPS ✅ | Time-Lock | Last Heartbeat | Status
-    TAMPER_BREACH: red flash across entire row, push notification to all admins, SMS to invigilator
+ROW 4 — BLOCKCHAIN FEED (full width):
 
   BLOCKCHAIN FEED (live):
     Latest block #[N] | TPS | Gas gwei | Finality
@@ -983,36 +950,13 @@ DETAIL DRAWER (slides in on click):
   - Exam + time remaining | Candidates present/total + absence count
   - Invigilator: name, [📞 Call] button, email
   - Connectivity: Tier [1/2/3], ISP: [Jio/Airtel/BSNL/other], current ping [Nms]
-  - Hardware node:
-      TPM ✅ | GPS Lock ✅ ±2.4m | ATECC608A ✅
-      Time-lock: ARMED T-45:30 | Battery UPS: [%] | Tamper mesh: ✅ Intact
   - 24h connectivity sparkline
   - Active anomalies list
   - Actions: [Contact via SMS] [Run Diagnostic] [Mark Incident]
               [Pause This Center] [View Candidates]
 ```
 
-### 7.3 Page: Hardware Node Board (`/admin/nodes`)
-
-```
-HEADER STRIP: Total | Armed | Decrypting | Complete | Errors | BREACH count (red badge)
-
-GRID VIEW (3 per row desktop, 1 per row mobile):
-  Each node card:
-    Node ID badge + serial number
-    Status chip: OFFLINE / ARMED / DECRYPTING / COMPLETE / ERROR / TAMPER_BREACH
-    TPM ✅/❌ | GPS ✅/❌ | ATECC608A ✅/❌ | Tamper mesh ✅/❌
-    Time-lock: countdown or progress bar (ARMED) / "COMPLETE 09:47:23 IST" (done)
-    Last heartbeat: [timestamp, Ns ago] | Firmware: v[X.X.X]
-    Battery: [%] bar (critical <20% → amber, <10% → red)
-    Actions: [Ping] [Diagnose] [Flag] [View Logs]
-    
-  TAMPER_BREACH card: red bg, flashing border, immediate push notification
-
-TABLE VIEW toggle: sortable, filterable, export CSV
-```
-
-### 7.4 Page: Blockchain Audit Trail (`/admin/blockchain`)
+### 7.3 Page: Blockchain Audit Trail (`/admin/blockchain`)
 
 ```
 TOP: Polygon Amoy live stats — Block #[N] | TPS | Gas | Finality
@@ -1155,12 +1099,9 @@ POST   /api/v1/sessions/{id}/anomaly   # Report anti-cheat event (client-side)
 ADMIN:
 GET    /api/v1/admin/dashboard         # Aggregated live metrics for mission control
 GET    /api/v1/admin/centers           # All centers + health
-GET    /api/v1/admin/nodes             # All hardware nodes + status
 GET    /api/v1/admin/anomalies         # All active (filterable by exam/center/type/severity)
 POST   /api/v1/admin/anomalies/{id}/resolve
 POST   /api/v1/admin/broadcast         # Emergency broadcast to candidates
-POST   /api/v1/admin/nodes/{id}/ping
-POST   /api/v1/admin/nodes/{id}/diagnose
 GET    /api/v1/admin/blockchain/integrity/{id}  # Full integrity report [PUBLIC variant too]
 GET    /api/v1/admin/reports/{type}    # Analytics report generation
 
@@ -1175,7 +1116,6 @@ WEBSOCKET ENDPOINTS:
 WS /ws/admin/dashboard              # Live metrics push
 WS /ws/admin/centers/{examId}       # Center status updates
 WS /ws/admin/anomalies              # Anomaly stream
-WS /ws/admin/nodes/{examId}         # Node heartbeat stream
 WS /ws/exam/{examId}/status         # Exam status updates to candidates
 WS /ws/generation/{taskId}          # AI generation progress stream
 ```
@@ -1188,17 +1128,16 @@ WS /ws/generation/{taskId}          # AI generation progress stream
 -- PostgreSQL 16
 
 CREATE TYPE user_role         AS ENUM ('CANDIDATE', 'SETTER', 'ADMIN');
-CREATE TYPE exam_type         AS ENUM ('ONLINE_CBT', 'OFFLINE_HARDWARE', 'HYBRID');
+CREATE TYPE exam_type         AS ENUM ('ONLINE_CBT');
 CREATE TYPE exam_body         AS ENUM ('NTA', 'UPSC', 'SSC', 'IBPS', 'STATE_PSC', 'CBSE', 'CUSTOM');
 CREATE TYPE exam_status       AS ENUM ('DRAFT','GENERATING','PROOF_PENDING','LOCKED',
                                         'DISTRIBUTED','LIVE','PAUSED','COMPLETED','AUDITED','ABORTED');
-CREATE TYPE node_status       AS ENUM ('OFFLINE','ARMED','DECRYPTING','COMPLETE','ERROR','TAMPER_BREACH');
 CREATE TYPE question_source   AS ENUM ('AI_GENERATED','AI_HYBRID','MANUAL_UPLOAD');
-CREATE TYPE anomaly_type      AS ENUM ('TAB_SWITCH','FACE_FAIL','NETWORK_DROP','NODE_OFFLINE',
+CREATE TYPE anomaly_type      AS ENUM ('TAB_SWITCH','FACE_FAIL','NETWORK_DROP',
                                         'COPY_ATTEMPT','SUSPICIOUS_TIMING','FULLSCREEN_EXIT',
                                         'VM_DETECTED','BLUETOOTH_DETECTED','SCREEN_RECORD_ATTEMPT');
 CREATE TYPE enrollment_status AS ENUM ('ENROLLED','PRESENT','ABSENT','DISQUALIFIED');
-CREATE TYPE connectivity_tier AS ENUM ('TIER_1_METRO','TIER_2_4G','TIER_3_BSNL','TIER_4_OFFLINE');
+CREATE TYPE connectivity_tier AS ENUM ('TIER_1_METRO','TIER_2_4G','TIER_3_BSNL');
 
 CREATE TABLE users (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1308,24 +1247,6 @@ CREATE TABLE centers (
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE hardware_nodes (
-  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  center_id            UUID REFERENCES centers(id),
-  serial_number        VARCHAR(100) UNIQUE,
-  tpm_ek_cert_hash     BYTEA,
-  gps_calibration      JSONB,
-  firmware_version     VARCHAR(50),
-  last_heartbeat       TIMESTAMPTZ,
-  last_heartbeat_sig   BYTEA,            -- TPM 2.0 signed heartbeat
-  status               node_status DEFAULT 'OFFLINE',
-  timelock_puzzle      JSONB,
-  delivery_proof_sig   BYTEA,
-  delivery_proof_tx    VARCHAR(66),
-  tamper_breach_at     TIMESTAMPTZ,
-  battery_percent      INTEGER,
-  deployed_at          TIMESTAMPTZ
-);
-
 CREATE TABLE enrollments (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_id  UUID REFERENCES users(id),
@@ -1411,8 +1332,6 @@ CREATE INDEX idx_enrollments_exam       ON enrollments(exam_id);
 CREATE INDEX idx_questions_exam         ON questions(exam_id);
 CREATE INDEX idx_anomalies_exam         ON anomalies(exam_id);
 CREATE INDEX idx_anomalies_unresolved   ON anomalies(exam_id, resolved) WHERE NOT resolved;
-CREATE INDEX idx_nodes_center           ON hardware_nodes(center_id);
-CREATE INDEX idx_nodes_status           ON hardware_nodes(status);
 CREATE INDEX idx_audit_admin            ON admin_audit_log(admin_id);
 CREATE INDEX idx_exams_status           ON exams(status);
 CREATE INDEX idx_exams_scheduled        ON exams(scheduled_at);
@@ -1490,7 +1409,7 @@ class DrandClient:
                     r = await c.get(f"{ep}/{DRAND_CHAIN}/public/{round}")
                     return bytes.fromhex(r.json()['randomness'])
             except: continue
-        raise RuntimeError("All drand endpoints unreachable — activate hardware node path")
+        raise RuntimeError("All drand endpoints unreachable")
 
     async def derive_key(self, exam_id: str, round: int) -> bytes:
         beacon = await self.get_beacon(round)
@@ -1524,52 +1443,7 @@ class ShamirPaperGuardian:
         import hashlib; return hashlib.sha256(shard.encode()).digest()
 ```
 
-### 10.4 RSA Time-Lock Puzzle (Offline Hardware Path)
-
-```python
-# /crypto/timelock.py — Rivest-Shamir-Wagner 1996
-
-import gmpy2
-from gmpy2 import mpz
-import hashlib, os
-
-class TimeLockPuzzle:
-    """
-    Pi CM4 8GB benchmark: ~2,200,000 squarings/second (SCHED_FIFO, single core).
-    Calibration MUST run on ACTUAL deployed hardware. Result stored in hardware_nodes.
-    
-    T = (seconds to T₀) × squarings_per_sec
-    Setup (fast, server): uses phi(N) → direct computation
-    Solve (slow, node): sequential squarings — mathematically unparallelisable
-    """
-    def __init__(self, bits: int = 2048):
-        import sympy
-        p = sympy.randprime(2**(bits//2-1), 2**(bits//2))
-        q = sympy.randprime(2**(bits//2-1), 2**(bits//2))
-        self.N = mpz(p * q)
-        self.phi_N = mpz((p-1) * (q-1))
-    
-    def generate(self, secret: bytes, seconds: int, sps: int) -> dict:
-        T = seconds * sps
-        a = mpz(int.from_bytes(os.urandom(256), 'big') % int(self.N))
-        e = gmpy2.powmod(2, T, self.phi_N)
-        C = gmpy2.powmod(a, e, self.N)
-        masked = bytes(x^y for x,y in zip(
-            secret, hashlib.sha256(int(C).to_bytes(256,'big')).digest()))
-        return {'a': int(a), 'N': int(self.N), 'T': T, 'masked': masked.hex()}
-    
-    @staticmethod
-    def solve(puzzle: dict) -> bytes:
-        """Run on hardware node. Sequential. Cannot be sped up by any party."""
-        r = mpz(puzzle['a'])
-        N = mpz(puzzle['N'])
-        for _ in range(puzzle['T']): r = gmpy2.powmod(r, 2, N)
-        return bytes(x^y for x,y in zip(
-            bytes.fromhex(puzzle['masked']),
-            hashlib.sha256(int(r).to_bytes(256,'big')).digest()))
-```
-
-### 10.5 CIRCOM ZK-SNARK Difficulty Proof Circuit
+### 10.4 CIRCOM ZK-SNARK Difficulty Proof Circuit
 
 ```circom
 // /circuits/difficulty_proof.circom — CIRCOM 2.1.6 + snarkjs Groth16
@@ -1644,7 +1518,7 @@ snarkjs zkey export verificationkey build/difficulty_proof_final.zkey build/veri
 snarkjs zkey export solidityverifier build/difficulty_proof_final.zkey contracts/src/ZKVerifier.sol
 ```
 
-### 10.6 Merkle Answer Commitment
+### 10.5 Merkle Answer Commitment
 
 ```python
 # /crypto/merkle.py — SHA-256 binary Merkle tree
@@ -1913,96 +1787,9 @@ main().catch(console.error);
 
 ---
 
-## § 13 — HARDWARE PCB SPECIFICATION [BUILD THIS — JUDGES LOVE HARDWARE]
+## § 13 — INFRASTRUCTURE & DEVOPS [BUILD THIS]
 
-**[CRITICAL] KiCad Gerbers must be in the repository. This alone puts you in the top 5% of submissions. Build it.**
-
-### 13.1 Hardware Node BOM
-
-| Component | Part | Purpose |
-|---|---|---|
-| Compute | Raspberry Pi CM4 8GB eMMC | Main processor + eMMC boot (no SD card vulnerability) |
-| TPM | Infineon SLB 9670 TPM 2.0 (SPI) | Hardware attestation + key sealing + heartbeat signing |
-| GPS | u-blox NEO-M9N (UART) | GPS time reference (UTC ±30ns) — offline T₀ anchor |
-| Crypto | Microchip ATECC608A (I2C) | Hardware ECDSA signing for session tokens |
-| Tamper | Honeywell SS41F mesh matrix | Tamper detection → GPIO interrupt → key zeroisation |
-| Display | 2.0" ST7789 TFT (SPI, 240×320) | Status display: ARMED / COMPLETE / TAMPER / time-lock % |
-| UPS | 2× Maxwell 25F supercap + BQ25895 | 45-minute UPS with charge monitor |
-| Storage | 32GB eMMC (CM4 onboard) | OS + time-lock state (encrypted) |
-| Enclosure | CNC-machined 6061 aluminium | Tamper-resistant housing — visible in demo video |
-| Power | 12V DC → 5V/3A + 3.3V/1A | Input protection + fused |
-
-### 13.2 PCB Layer Stack (4-layer)
-
-```
-Layer 1 (Top copper):    Signal routing — SPI/UART/I2C + power traces
-Layer 2 (Ground plane):  Solid GND — EMI shielding + reference plane
-Layer 3 (Power plane):   3.3V + 5V power planes
-Layer 4 (Bottom copper): Signal routing — USB + GPIO + debug
-```
-
-### 13.3 KiCad Files [BUILD THESE]
-
-```
-/hardware/
-├── kicad/
-│   ├── cryptoexam_node.kicad_pro   # Project file
-│   ├── cryptoexam_node.kicad_sch   # Schematic (all components, all connections)
-│   ├── cryptoexam_node.kicad_pcb   # PCB layout (4-layer)
-│   └── cryptoexam_node.kicad_prl   # Project local settings
-├── gerbers/
-│   ├── cryptoexam_node-F_Cu.gbr    # Top copper
-│   ├── cryptoexam_node-B_Cu.gbr    # Bottom copper
-│   ├── cryptoexam_node-In1_Cu.gbr  # Inner 1 (GND)
-│   ├── cryptoexam_node-In2_Cu.gbr  # Inner 2 (PWR)
-│   ├── cryptoexam_node-F_SilkS.gbr # Silkscreen
-│   ├── cryptoexam_node-Edge_Cuts.gbr
-│   └── cryptoexam_node.drl         # Drill file
-├── bom/
-│   └── bom.csv                     # Full BOM with Mouser/DigiKey part numbers
-└── 3d/
-    └── enclosure.step              # CNC housing CAD file
-```
-
-### 13.4 Node Firmware (Pi CM4)
-
-```python
-# /firmware/node_main.py — runs on Pi CM4 under systemd
-
-"""
-NODE STARTUP SEQUENCE:
-  1. TPM 2.0: load EK cert → verify against manufacturer CA → attest platform
-  2. GPS: acquire fix → sync system clock to UTC (stratum 1 via GPS PPS)
-  3. ATECC608A: load device cert → ready for session signing
-  4. Tamper mesh: arm GPIO interrupt → register zeroisation handler
-  5. Download encrypted shards from IPFS (if not cached)
-  6. Verify shard hashes match on-chain commitments
-  7. Begin RSA time-lock puzzle (SCHED_FIFO, single core, no interruption)
-  8. Status display: "ARMED · T-XX:XX:XX · TPM ✓ GPS ✓"
-  9. Heartbeat: every 30s → sign {timestamp, status, T_remaining} with TPM
-  10. At puzzle completion: unseal key → decrypt paper in mlock'd RAM
-  11. Serve paper via HTTPS on LAN (self-signed cert, pinned by client)
-  12. Collect encrypted answer submissions via LAN
-  13. Build local Merkle tree → submit root to backend when connectivity restored
-  14. Generate + submit ProofOfDelivery (TPM-signed) to blockchain
-  15. Secure wipe: after exam close, zero all RAM containing plaintext
-
-ANTI-TAMPER:
-  - GPIO interrupt on tamper mesh break → TPM 2.0 evictControl (key eviction)
-  - mlock() all plaintext memory regions → prevent swap to disk
-  - Encrypted swap disabled in /etc/fstab
-  - Physical tamper → ST7789 displays "SECURITY BREACH — CONTACT BOARD"
-  - Heartbeat stops → admin dashboard alerts within 35 seconds
-"""
-import tpm2_pytss, gps, smbus2, PIL
-# [Full implementation per above sequence]
-```
-
----
-
-## § 14 — INFRASTRUCTURE & DEVOPS [BUILD THIS]
-
-### 14.1 Docker Compose (Development)
+### 13.1 Docker Compose (Development)
 
 ```yaml
 # docker-compose.yml
@@ -2060,7 +1847,7 @@ services:
 volumes: {postgres_data:, ipfs_data:}
 ```
 
-### 14.2 FastAPI Application Structure
+### 13.2 FastAPI Application Structure
 
 ```
 /backend/
@@ -2086,8 +1873,7 @@ volumes: {postgres_data:, ipfs_data:}
 │   │   ├── exam_service.py
 │   │   ├── crypto_service.py
 │   │   ├── blockchain_service.py
-│   │   ├── agent_orchestrator.py  # Manages agentic AI pipeline
-│   │   └── node_orchestrator.py   # Manages hardware node fleet
+│   │   └── agent_orchestrator.py  # Manages agentic AI pipeline
 │   └── tasks/               # Celery async tasks
 │       ├── generation.py    # AI question generation tasks
 │       ├── zk_proof.py      # ZK proof generation task
@@ -2097,11 +1883,10 @@ volumes: {postgres_data:, ipfs_data:}
     ├── test_crypto.py       # Crypto primitives unit tests
     ├── test_merkle.py       # Merkle tree correctness tests
     ├── test_zk.py           # ZK proof generate/verify roundtrip
-    ├── test_timelock.py     # Time-lock puzzle correctness
     └── test_api.py          # API integration tests (pytest + httpx)
 ```
 
-### 14.3 Environment Variables (`.env.example`)
+### 13.3 Environment Variables (`.env.example`)
 
 ```env
 # Database
@@ -2166,25 +1951,19 @@ NEXT_PUBLIC_HCAPTCHA_SITE_KEY=<key>
   Voice: "You don't need to trust us. Any judge in this room can verify this right now,
          from their phone. Just type that hash. The blockchain remembers."
 
-1:05–1:35 — PRODUCT WALKTHROUGH (30 seconds, 3 screens)
+1:05–1:45 — PRODUCT WALKTHROUGH (40 seconds, 3 screens)
   15 sec: Setter workbench — AI generating NEET questions with live IRT bars + agent log
-  10 sec: Live exam session — candidate answering, crypto status bar, encrypted answers badge
-  5 sec:  Admin dashboard — India map, live centers, anomaly feed
+  15 sec: Live exam session — candidate answering, crypto status bar, encrypted answers badge
+  10 sec: Admin dashboard — India map, live centers, anomaly feed
 
-1:35–2:00 — THE HARDWARE (physical, impressive)
-  Hold PCB on camera: "This is our custom PCB — KiCad 4-layer, Infineon TPM 2.0, GPS module.
-         It deploys to exam centers with no internet. RSA math unlocks the paper at
-         exactly T₀. Tamper it — the TPM destroys the keys instantly."
-  Show ST7789 display: "ARMED · T-00:47:23"
-
-2:00–2:20 — RECEIPT (the proof that matters)
+1:45–2:05 — RECEIPT (the proof that matters)
   Show receipt page with Polygonscan QR
   Voice: "Every candidate gets this receipt. It's not a PDF. It's a Merkle proof.
          It proves, mathematically, that their specific answers were committed to the
          blockchain unmodified. A student can submit this to any High Court.
          The math is the affidavit."
 
-2:20–2:30 — THE CLOSE
+2:05–2:15 — THE CLOSE
   Back to product wordmark
   Voice: "NEET 2024 cost ₹900 crore and the careers of 24 lakh students.
          CryptoExam Core makes that impossible. Not harder. Impossible.
@@ -2200,11 +1979,9 @@ Before recording or presenting:
 - [ ] Answer Merkle root committed — receipt page loaded and tested
 - [ ] All three interfaces running on stable URL (Vercel/Railway)
 - [ ] Admin India map shows at least 5 demo centers with green status
-- [ ] Hardware node (or emulator) showing ARMED state on ST7789 display
 - [ ] Polygonscan loaded on phone, zoom set, TX hash rehearsed
 - [ ] Demo video exported at 1080p minimum, <5 min, no watermarks
 - [ ] README has one-click setup, working setup instructions tested on fresh machine
-- [ ] KiCad Gerber files committed to /hardware/gerbers/
 
 ---
 
@@ -2240,56 +2017,49 @@ Slide 5 — THE ZK PROOF (technical showpiece)
    Committed before any candidate enrolled. Verifiable by anyone."
   Screenshot: Polygonscan ZKProofSubmitted event (real TX)
 
-Slide 6 — THE HARDWARE
-  PCB photo (KiCad render or actual)
-  "Custom 4-layer PCB · TPM 2.0 · GPS time-lock · Tamper mesh"
-  "An offline center in Bihar can run a cryptographically secure exam with zero internet
-   for 72 hours. The RSA math unlocks the paper at exactly T₀."
-
-Slide 7 — THREE INTERFACES
+Slide 6 — THREE INTERFACES
   3-column screenshot grid: Candidate / Setter / Admin
   "Three production interfaces. Most teams ship one."
   Each column: one sentence on the UX philosophy
 
-Slide 8 — CANDIDATE EXPERIENCE
+Slide 7 — CANDIDATE EXPERIENCE
   Screenshot: Receipt page with Merkle proof and Polygonscan QR
   "Every candidate gets a cryptographic receipt. Blockchain-verifiable. Court-submittable.
    The math is the affidavit."
 
-Slide 9 — AGENTIC AI ENGINE
+Slide 8 — AGENTIC AI ENGINE
   Diagram: Multi-agent pipeline (Generator → IRT Scorer → Bloom's → Validator → Balancer)
   "This is not an LLM API call. It is an autonomous agent pipeline that generates,
    scores, validates, and balances IRT-equivalent paper sets independently."
   Cross-reference: "Examinations × Agentic & Autonomous Systems"
 
-Slide 10 — SCALE ARGUMENT
+Slide 9 — SCALE ARGUMENT
   Table: NEET 2.4M / JEE 1.2M / CUET 1.4M / SSC 3M+ — total: 40M+ candidates/year
-  Architecture benchmarks: 7,000 TPS Polygon / 100K concurrent sessions / 6,000+ centers
+  Architecture benchmarks: 7,000 TPS Polygon / 100K concurrent sessions
   "Not a demo. A deployable national infrastructure."
 
-Slide 11 — DPDP ACT 2023 COMPLIANCE
+Slide 10 — DPDP ACT 2023 COMPLIANCE
   "Built for India's data law — not retrofitted."
   Key compliance features: no raw biometrics stored, explicit consent flow, 7-year retention,
   data subject access rights endpoint, ₹250 Crore penalty avoidance
 
-Slide 12 — BLOCKCHAIN AUDIT
+Slide 11 — BLOCKCHAIN AUDIT
   Screenshot: Admin blockchain audit page with decoded events
   "Every exam lifecycle event — lock, ZK proof, answer commit, delivery proof —
    is permanently on-chain. A journalist, RTI officer, or court can verify without
    logging in. Public ledger as public accountability."
 
-Slide 13 — TECHNOLOGY STACK
+Slide 12 — TECHNOLOGY STACK
   Clean stack diagram: Next.js 14 · FastAPI · PostgreSQL 16 · Redis · Celery
   CIRCOM 2.0 · Groth16 · Polygon PoS · IPFS · Hardhat
-  Raspberry Pi CM4 · Infineon TPM 2.0 · u-blox GPS · KiCad 4-layer PCB
 
-Slide 14 — FUTURE ROADMAP
-  Phase 1 (Now):   NEET/JEE/CUET online CBT + hardware node pilot (5 centers)
-  Phase 2 (6mo):   State PSC integration + 500 hardware nodes + DPDP audit certification
-  Phase 3 (1yr):   UPSC Prelims + biometric enrollment via DigiLocker API + 6,000 centers
+Slide 13 — FUTURE ROADMAP
+  Phase 1 (Now):   NEET/JEE/CUET online CBT + pilot rollout
+  Phase 2 (6mo):   State PSC integration + DPDP audit certification
+  Phase 3 (1yr):   UPSC Prelims + biometric enrollment via DigiLocker API
   Phase 4 (2yr):   Open-source SDK for state boards + international licensing
 
-Slide 15 — THE CLOSE
+Slide 14 — THE CLOSE
   "NEET 2024 cost ₹900 Crore and the futures of 24 lakh students."
   "CryptoExam Core makes that structurally impossible."
   Large: "The math cannot be bribed."
@@ -2333,13 +2103,6 @@ cryptoexam-core/                         # Root
 │   ├── build.sh
 │   └── verification_key.json
 │
-├── hardware/                            # PCB files [judges look here]
-│   ├── kicad/                           # Schematic + PCB layout
-│   ├── gerbers/                         # Fabrication files
-│   ├── bom/                             # Bill of materials
-│   ├── 3d/                              # Enclosure CAD
-│   └── firmware/                        # Pi CM4 node firmware
-│
 └── docs/
     ├── ARCHITECTURE.md                  # System architecture + data flows
     ├── CRYPTO_GUARANTEES.md             # Formal description of 5 guarantees
@@ -2353,7 +2116,7 @@ cryptoexam-core/                         # Root
 ````markdown
 # CryptoExam Core
 ## Zero-Trust Examination Infrastructure for India
-> The math cannot be bribed. The blockchain cannot forget. The hardware cannot lie.
+> The math cannot be bribed. The blockchain cannot forget.
 
 ### Live Demo
 | Interface | URL |
@@ -2385,8 +2148,6 @@ docker compose up -d
 ### Tech Stack
 [Brief stack table]
 
-### Hardware
-PCB design files in /hardware/. KiCad Gerbers ready for fabrication.
 ````
 
 ---
@@ -2448,8 +2209,6 @@ CRYPTOGRAPHIC OPERATIONS (measured, not estimated):
   SHA-256 Merkle tree (10,000 leaves):         ~45ms
   Groth16 proof generation (100 constraints):  ~78 seconds (snarkjs + bn128)
   Groth16 proof verification (on-chain):       ~210,000 gas / ~0.002 MATIC
-  RSA time-lock setup (2048-bit, 72h target):  ~8 seconds (server side)
-  RSA time-lock solve (Pi CM4):                calibration-dependent, ±0.3% T₀ accuracy
 
 API THROUGHPUT (FastAPI + async SQLAlchemy):
   GET /api/v1/exams (list, 100 exams):        ~12ms p50, ~28ms p99
@@ -2459,7 +2218,6 @@ API THROUGHPUT (FastAPI + async SQLAlchemy):
 
 SCALE CAPACITY (designed for):
   Concurrent exam sessions:    100,000 (Redis + PostgreSQL + horizontal backend pods)
-  Hardware nodes:              6,000+ (India center count per NTA registry)
   Blockchain TPS (Polygon PoS): 7,000+ (well above any exam event rate)
   AI generation throughput:    ~45 questions/minute per GPU worker (Llama-3.1-70B)
 ```
@@ -2525,10 +2283,9 @@ PHASE 1 — Cryptography Core (Day 1–2):
   [ ] CIRCOM circuit compile + trusted setup (§10.5) — START THIS FIRST, takes longest
   [ ] AES-GCM-256 encryption module (§10.1)
   [ ] drand client (§10.2)
-  [ ] Merkle tree (§10.6)
+  [ ] Merkle tree (§10.5)
   [ ] Shamir's SSS (§10.3)
-  [ ] Time-lock puzzle (§10.4) — can stub solve() for demo
-  [ ] All crypto tests passing (§14.2 test files)
+  [ ] All crypto tests passing (§13.2 test files)
 
 PHASE 2 — Smart Contract (Day 2):
   [ ] CryptoExamCore.sol (§12)
@@ -2572,19 +2329,11 @@ PHASE 6 — Interface B: Setter (Day 4–5):
 PHASE 7 — Interface C: Admin (Day 5–6):
   [ ] Mission control dashboard
   [ ] India center map (Leaflet)
-  [ ] Hardware node board
   [ ] Blockchain audit trail
   [ ] Emergency controls
   [ ] Analytics reports
 
-PHASE 8 — Hardware (Day 6):
-  [ ] KiCad schematic (all components from BOM)
-  [ ] PCB layout (4-layer)
-  [ ] Gerbers generated and committed
-  [ ] Firmware main.py (even if full node emulated for demo)
-  [ ] Node heartbeat to backend (demo-able)
-
-PHASE 9 — Polish + Demo (Day 7):
+PHASE 8 — Polish + Demo (Day 7):
   [ ] Deploy frontend to Vercel (or Railway)
   [ ] Deploy backend to Railway (or Fly.io)
   [ ] End-to-end demo exam: create → lock → live → submit → receipt
@@ -2604,7 +2353,6 @@ REPOSITORY:
   [ ] GitHub repo public and accessible without login
   [ ] README with live demo URL + Polygonscan contract link + one-command setup
   [ ] All code committed (no "WIP" or broken branches on main)
-  [ ] /hardware/gerbers/ directory with valid Gerber files
   [ ] /circuits/build/ with compiled .r1cs, .wasm, .zkey
   [ ] docker-compose.yml tested on fresh machine: builds and runs
   [ ] .env.example complete (no actual secrets)
@@ -2619,9 +2367,8 @@ BLOCKCHAIN:
 
 DEMO VIDEO OR PRESENTATION:
   [ ] Option A: Video 2–5 minutes, 1080p, clearly shows all three interfaces
-  [ ] Option B: ≤15 slides, every claim backed by screenshot or live link
+  [ ] Option B: ≤14 slides, every claim backed by screenshot or live link
   [ ] ZK proof moment is present and shows real Polygonscan URL
-  [ ] Hardware PCB visible (physical or KiCad 3D render)
   [ ] All three interfaces shown briefly
   [ ] NEET 2024 problem context in opening
 
@@ -2636,7 +2383,6 @@ CRYPTOGRAPHIC CORRECTNESS:
   [ ] ZK proof: generate_proof(valid_input) → verify_proof returns True
   [ ] ZK proof: generate_proof(invalid_input) → verify_proof returns False
   [ ] drand: round_for_timestamp is deterministic and correct for test vectors
-  [ ] Time-lock: solve(generate(secret, T=100, sps=100)) == secret
 ```
 
 ---
@@ -2647,9 +2393,7 @@ CRYPTOGRAPHIC CORRECTNESS:
 
 2. **The blockchain TX is your proof.** Any claim that isn't verifiable on Polygonscan is a claim, not a fact. Judges know the difference.
 
-3. **The hardware is your unfair advantage.** 95% of teams will not submit KiCad Gerbers. The 5 minutes you spend generating them puts you ahead of thousands of submissions.
-
-4. **India is the customer.** Every feature decision: "Does this solve NEET's problem? Would an NTA official trust this? Would a Supreme Court accept this receipt?" If yes, build it. If no, cut it.
+3. **India is the customer.** Every feature decision: "Does this solve NEET's problem? Would an NTA official trust this? Would a Supreme Court accept this receipt?" If yes, build it. If no, cut it.
 
 5. **Three interfaces is table stakes for this spec.** Interface A alone is a decent submission. All three means you're competing for the top.
 
@@ -2671,13 +2415,13 @@ Based on typical hackathon submissions in this domain, 90%+ of competing teams w
 
 | Category | What they build | Why it loses |
 |---|---|---|
-| **Type A: Basic blockchain** | CRUD exam app with answers stored on-chain | No ZK proof. On-chain answers expose data. No hardware. No real crypto insight. |
+| **Type A: Basic blockchain** | CRUD exam app with answers stored on-chain | No ZK proof. On-chain answers expose data. No real crypto insight. |
 | **Type B: AI wrapper** | LLM generates questions → stored in DB → users take exam | No blockchain. No ZK. No cryptographic guarantee. AI wrapper explicitly punished by FAR AWAY. |
-| **Type C: Arduino "security"** | Arduino + fingerprint sensor + basic web app | FAR AWAY explicitly penalises jumper wires without real engineering. No PCB. No real crypto. |
+| **Type C: Arduino "security"** | Arduino + fingerprint sensor + basic web app | FAR AWAY explicitly penalises jumper wires without real engineering. No real crypto. |
 | **Type D: PowerPoint** | Idea-only: "We will use ZK proofs and blockchain to..." | Idea-only submissions explicitly disqualified. |
 | **Type E: Academic ZK** | CIRCOM circuit only, no product, no demo | No interfaces. No India context. No deployment. |
 
-**CryptoExam Core is in a category of its own:** it combines all five crypto layers + hardware PCB + three production interfaces + India-specific design + DPDP compliance + live deployed contract. No team building in 7 days can match all seven simultaneously.
+**CryptoExam Core is in a category of its own:** it combines all crypto layers + three production interfaces + India-specific design + DPDP compliance + live deployed contract. No team building in 7 days can match all of this simultaneously.
 
 ### 24.2 The Three Questions Judges Will Ask
 
@@ -2688,7 +2432,7 @@ Answer with: Live demo URL, Polygonscan TX hash, docker compose up in <5 minutes
 Most teams fail here. CryptoExam Core succeeds because the spec mandates working deployment.
 
 **Q2: "Is it technically impressive?"**
-Answer with: ZK-SNARK circuit, Groth16 proof, RSA time-lock, TPM 2.0, KiCad Gerbers.
+Answer with: ZK-SNARK circuit, Groth16 proof, drand beacon, Shamir's SSS, Merkle tree.
 The judge does not need to understand all of it. They need to recognise depth.
 
 **Q3: "Does it solve a real Indian problem?"**
@@ -2698,11 +2442,10 @@ The emotional hook + legal urgency + scale argument make this undeniable.
 ### 24.3 Your Unfair Advantages (Protect These)
 
 1. **ZK Difficulty Proof** — No Indian exam system has ever implemented this. First-mover advantage.
-2. **Hardware PCB** — Gerbers in repo = fabricable. Judges can hold it. Most teams have a picture.
-3. **DPDP Act 2023** — Legal compliance built from schema. Competitors will mention it. You demonstrate it.
-4. **India Tricolour Design Language** — Saffron, white, green Tricolour colors; Devanagari support; 10 languages; India map. Every visual choice says "built for India."
-5. **Three Interfaces** — The workload of 3 separate projects delivered as one coherent system.
-6. **Cross-Track Claim** — Examinations AND Agentic & Autonomous Systems. Double coverage.
+2. **DPDP Act 2023** — Legal compliance built from schema. Competitors will mention it. You demonstrate it.
+3. **India Tricolour Design Language** — Saffron, white, green Tricolour colors; Devanagari support; 10 languages; India map. Every visual choice says "built for India."
+4. **Three Interfaces** — The workload of 3 separate projects delivered as one coherent system.
+5. **Cross-Track Claim** — Examinations AND Agentic & Autonomous Systems. Double coverage.
 
 ---
 
@@ -2746,7 +2489,6 @@ Every piece of text on the candidate interface must pass this test: *"Would an 1
 DO:
   ✅ "Your answers are mathematically sealed — no official can change them."
   ✅ "This paper's difficulty was verified on a public blockchain before you arrived."
-  ✅ "Your center is offline today. Our hardware handles it — no internet needed."
   ✅ "आपके उत्तर गणितीय रूप से सुरक्षित हैं।" (Hindi version of every key message)
   ✅ All timestamps in IST (mention UTC as secondary only)
   ✅ Error messages: specific, actionable, always with invigilator number
@@ -2774,7 +2516,6 @@ LITERACY:
   - Reading level: maximum Class 10 difficulty for candidate-facing text
 
 CONNECTIVITY:
-  - Offline mode with full functionality for TIER_4_OFFLINE centers
   - Progressive Web App (PWA) — installable, works on 2G with graceful degradation
   - API calls: implement retry with exponential backoff (2G networks drop frequently)
   - Images: lazy-loaded, WebP format, <100KB per image
@@ -2844,9 +2585,7 @@ First: the question paper is encrypted the moment it is generated. The key doesn
 
 Second: before any candidate sees a question, we publish a cryptographic proof on the Polygon blockchain — a mathematical proof that the paper's difficulty distribution is exactly what it should be. Any journalist, RTI officer, or Supreme Court judge can verify this from their phone. Right now. Without logging in.
 
-Third: for centers with no internet — a village school in Bihar, a center in Ladakh — we deploy a custom PCB with a TPM 2.0 chip and GPS. The RSA math unlocks the paper at exactly T₀. Tamper the hardware — the chip destroys the keys instantly.
-
-When a candidate submits their exam, every answer is hashed, built into a Merkle tree, and committed to the blockchain. The candidate gets a cryptographic receipt. It is verifiable by any High Court. The math is the affidavit.
+Third: when a candidate submits their exam, every answer is hashed, built into a Merkle tree, and committed to the blockchain. The candidate gets a cryptographic receipt. It is verifiable by any High Court. The math is the affidavit.
 
 NEET 2024 happened because the system trusted humans. CryptoExam Core trusts math.
 

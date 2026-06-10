@@ -1,0 +1,55 @@
+# ZUUP-OS AppArmor profile — Firefox ESR kiosk (spec §7.5).
+#
+# Generated from a clean mock run recorded in audit mode, then tightened to an
+# aggressive allow-list. Firefox may read the webcam, draw to the Wayland
+# socket, talk to the WireGuard tunnel, and write only to tmpfs. Everything else
+# — /home, /root, block devices, USB, other processes' memory — is denied.
+#
+# Acceptance: a simulated Firefox RCE cannot write outside tmpfs or open a
+# non-tunnel socket.
+
+#include <tunables/global>
+
+profile zuup-firefox /usr/lib/firefox/firefox {
+  #include <abstractions/base>
+  #include <abstractions/wayland>
+  #include <abstractions/fonts>
+
+  # ── network: AF_INET to the Edge tunnel only; AF_UNIX for Wayland ─────────
+  network inet stream,
+  network inet dgram,
+  network unix stream,
+  deny network inet6,
+  deny network netlink,
+  deny network packet,
+
+  # ── the Firefox binary + its libs (read/exec only) ───────────────────────
+  /usr/lib/firefox/** r,
+  /usr/lib/firefox/firefox rix,
+  /usr/lib/firefox/*.so mr,
+
+  # ── kiosk policy + the locked profile (read-only) ────────────────────────
+  /etc/firefox/policies/policies.json r,
+  /etc/firefox/zuup.user.js r,
+
+  # ── webcam for face capture / liveness; NO microphone ────────────────────
+  /dev/video* rw,
+  deny /dev/snd/** rwx,
+
+  # ── writable scratch: tmpfs only (RAM; gone on power-off, INV-2) ──────────
+  owner /run/firefox/** rwk,
+  owner /tmp/firefox/** rwk,
+
+  # ── hard denials: the whole point of the lockdown ────────────────────────
+  deny /home/** rwklx,
+  deny /root/** rwklx,
+  deny /dev/sd* rwklx,
+  deny /dev/usb* rwklx,
+  deny /dev/mem rwklx,
+  deny /proc/*/mem rwklx,
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny /usr/bin/** x,        # no spawning shells/tools (there are none shipped)
+  deny mount,
+  deny umount,
+  deny ptrace,
+}

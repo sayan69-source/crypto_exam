@@ -1,0 +1,27 @@
+# ZUUP-OS WireGuard link (spec §6.4) — the terminal's ONLY route anywhere.
+#
+# The interface config (network/wireguard/wg0.conf.template) is instantiated
+# per terminal at image-bake time: keys are baked into the signed image, the
+# peer is the centre Edge, AllowedIPs is the Edge /32 — nothing else is
+# routable even before nftables says so.
+
+[Unit]
+Description=ZUUP-OS WireGuard tunnel to the Centre Edge (wg0)
+After=zuup-firewall.service network-pre.target
+Requires=zuup-firewall.service
+Before=zuup-network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/wg-quick up /etc/zuup/wg0.conf
+ExecStop=/usr/bin/wg-quick down /etc/zuup/wg0.conf
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN
+
+[Install]
+WantedBy=zuup-network.target

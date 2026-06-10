@@ -1,0 +1,27 @@
+{
+  "name": "edge-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Centre Edge Server (§5, §13). On-prem centre appliance: TPM attestation, match-all identity, one-time codes, random seat assignment, ciphertext answer ledger + Merkle hash-chain. LAN-only, NO WAN.",
+  "scripts": {
+    "start": "node src/index.ts",
+    "dev": "node --watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
+    "test:db": "node --test --experimental-strip-types \"src/test/integration/*.test.ts\"",
+    "migrate": "node src/migrate.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down -v"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.6.1",
+    "fastify": "^5.2.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.2"
+  }
+}

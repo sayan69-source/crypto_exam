@@ -1,0 +1,50 @@
+# ZUUP-OS Tetragon enforcing policy (spec §7.5).
+#
+# eBPF runtime enforcement that watches the process tree and key syscalls. The
+# allowed process set is CLOSED — anything outside it spawning is an incident
+# and is killed in-kernel (SIGKILL override). Ships ENFORCING, not observing.
+#
+# Allowed: systemd, cage, firefox, biometric-daemon, proctor-daemon,
+#          heartbeat-daemon, wg.  Anything else = breach.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: zuup-closed-process-set
+spec:
+  kprobes:
+    # ── kill any exec that is not on the allow-list ──────────────────────────
+    - call: "security_bprm_creds_from_file"
+      syscall: false
+      args:
+        - index: 0
+          type: "file"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "NotPrefix"
+              values:
+                - "/usr/lib/systemd/systemd"
+                - "/usr/bin/cage"
+                - "/usr/lib/firefox/firefox"
+                - "/usr/bin/biometric-daemon"
+                - "/usr/bin/proctor-daemon"
+                - "/usr/bin/heartbeat-daemon"
+                - "/usr/bin/wg"
+          matchActions:
+            - action: Sigkill        # in-kernel kill of the unexpected binary
+            - action: Post           # emit incident to the heartbeat daemon
+
+    # ── deny write to any real block device (state must stay in RAM) ─────────
+    - call: "security_file_open"
+      syscall: false
+      args:
+        - index: 0
+          type: "file"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values: ["/dev/sd", "/dev/nvme", "/dev/mmcblk"]
+          matchActions:
+            - action: Override
+              argError: -1           # EPERM — no terminal disk is in the trust path
