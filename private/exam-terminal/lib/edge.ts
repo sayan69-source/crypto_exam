@@ -117,13 +117,38 @@ export const raiseIncident = (body: { seatNo?: string; type: string; severity?: 
 // ── §13.3 candidate seat ──────────────────────────────────────────────────
 export interface SeatStateResponse {
   state: string;
-  binding: { candidateRoll: string; examId: string } | null;
+  // ASSIGNED → full binding (roll the candidate logs in with); post-attend
+  // states → exam id only (roll withheld, but the seat still knows its exam).
+  binding: { candidateRoll?: string; examId: string } | null;
 }
 export const seatState = (terminalId: string) =>
   call<SeatStateResponse>(`/seat/${encodeURIComponent(terminalId)}/state`, { auth: false });
 
 export const candidateLogin = (body: { terminalId: string; roll: string; dob: string }) =>
   call<{ ok: boolean; state: string }>("/candidate/login", { method: "POST", body: JSON.stringify(body), auth: false });
+
+// ── §10.7 question delivery (Edge serves the keyless bundle + gated beacon) ─
+import type { SealedBundle } from "@/lib/question-crypto";
+
+export interface BundleResponse {
+  questionsRoot: string;
+  bundleCid: string | null;
+  chainTx: string | null;
+  bundle: SealedBundle;
+}
+/** Fetch the sealed, keyless question bundle for this seat's exam. */
+export const questionBundle = (examId: string, terminalId: string) =>
+  call<BundleResponse>(`/exam/${encodeURIComponent(examId)}/bundle?terminalId=${encodeURIComponent(terminalId)}`, { auth: false });
+
+export interface BeaconResponse {
+  ok: boolean;
+  beacon: string;
+  hkdfSalt: string;
+  t0At: number;
+}
+/** Poll for the T₀ beacon. Throws EdgeError 425 while still before T₀. */
+export const examBeacon = (examId: string, terminalId: string) =>
+  call<BeaconResponse>(`/exam/${encodeURIComponent(examId)}/beacon?terminalId=${encodeURIComponent(terminalId)}`, { auth: false });
 
 // ── §11 answer pipeline (seal happens client-side, lib/answer-seal.ts) ─────
 /** The System Admin SEALING key (public half) + the centre node pubkey. */
