@@ -47,18 +47,22 @@ sleep 1
 SERIAL="$BUILD/smoke-serial.log"; : > "$SERIAL"
 echo "[zuup-os] booting $VARIANT image in QEMU (goal=$GOAL, ${TIMEOUT}s budget)…"
 
-# Headless, no network out (user-net only), serial → log. No KVM needed (TCG),
-# so this runs in a plain container. `-no-reboot` turns the fail-closed
-# poweroff into a clean QEMU exit we can assert on.
+# Headless but WITH a virtio-GPU: -nodefaults strips the default display
+# adapter, and the kiosk compositor (Cage) needs a DRM node to open. A
+# virtio-gpu-pci + the in-kernel DRM_VIRTIO_GPU driver give it /dev/dri/card0
+# while -display none keeps it windowless. Serial → log; no KVM (TCG) so this
+# runs in a plain container. `-no-reboot` turns the fail-closed poweroff into a
+# clean QEMU exit we can assert on.
 set +e
 timeout "$TIMEOUT" qemu-system-x86_64 \
-  -machine q35,smm=on -m 2048 -no-reboot -nographic \
+  -machine q35,smm=on -m 2048 -no-reboot -display none \
   -drive if=pflash,format=raw,unit=0,readonly=on,file="$OVMF_CODE" \
   -drive if=pflash,format=raw,unit=1,file="$VARS" \
   -chardev socket,id=chrtpm,path="$SOCK" \
   -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0 \
   -drive file="$IMG",format=raw,if=virtio \
   -netdev user,id=n0 -device virtio-net-pci,netdev=n0 \
+  -device virtio-gpu-pci \
   -serial file:"$SERIAL" -no-user-config -nodefaults \
   >/dev/null 2>&1
 QEMU_RC=$?
@@ -75,11 +79,25 @@ fail() { echo "[zuup-os] SMOKE FAIL — $1 (full log: $SERIAL)" >&2; exit 1; }
 # Boot integrity is required for BOTH goals: verity must open and hand off.
 have "Linux version|systemd\[1\]" || fail "kernel/PID1 never started (UKI or virtio issue)"
 
+# A dependency/unit failure anywhere on the session path is a HARD fail. This
+# must be checked BEFORE the success patterns: the failure lines themselves
+# contain unit names ("Dependency failed for zuup-kiosk…"), so a naive
+# substring match on the unit name would otherwise read a failure as a pass.
+if grep -aqE "Dependency failed for (zuup-session|zuup-kiosk|zuup-network)|Failed to start zuup-(firewall|wireguard|kiosk)" "$SERIAL"; then
+  echo "── failing units ──" >&2
+  grep -aE "Dependency failed|Failed to start zuup" "$SERIAL" | sed -E 's/\x1b\[[0-9;:]*m//g' | sort -u >&2
+  fail "a unit on the session path failed (see above)"
+fi
+
 case "$GOAL" in
   gate)
-    have "Reached target .*session|zuup-kiosk|cage" \
-      && pass "DEV image reached the locked session (Login Gate)" \
-      || fail "session/kiosk target not reached"
+    # Require a POSITIVE start — and match systemd's console text, which prints
+    # the unit DESCRIPTION, not the unit id ("Reached target ZUUP-OS locked
+    # examination session", "Started ZUUP-OS locked examination surface").
+    if have "Reached target .*[Ee]xamination session|Started .*locked examination surface"; then
+      pass "DEV image reached zuup-session.target (Gate surface launched)"
+    fi
+    fail "zuup-session.target never reached a Started/Reached state"
     ;;
   failclosed)
     # success = the attestation gate halted the boot and powered off without

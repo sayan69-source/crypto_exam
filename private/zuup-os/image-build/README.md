@@ -12,7 +12,10 @@ builder container the guards pass and the scripts run for real.**
 ## Safety model (why this can't hurt your machine)
 
 Everything heavy runs inside the `zuup-os-builder` Docker container. The
-container mounts the repository **read-only** and writes **only** to `./out`.
+container mounts the repository **read-only**; intermediate build state lives
+in the `zuup-os-build` named volume (a Linux ext4 filesystem inside Docker's
+VM — required, because the kernel tree has case-colliding paths that NTFS
+would silently merge), and only final artifacts are exported to `./out`.
 It never touches the host's disks, bootloader, or UEFI firmware. The pipeline
 also assembles the GPT disk image **unprivileged** — no loop devices, no
 `mount`, no root on the host (`sfdisk` + `mtools` + `dd` into a plain file).
@@ -64,6 +67,32 @@ Without those, stage 30 generates **ephemeral DEV keys** under `out/keys` and
 prints a loud warning — fine for QEMU, **never enrol them on real firmware.**
 Enrolment of the real PK/KEK/db into each terminal's UEFI happens at centre
 commissioning via `../boot/secureboot/enroll-keys.sh`.
+
+## Booting it on a real (spare) laptop — the safe procedure
+
+The right way to first touch hardware: a machine with **no data you care about**.
+The image runs entirely from the stick + RAM; it does not touch the laptop's
+internal disk unless you deliberately `dd` it there.
+
+1. **Write the image to a pendrive** (≥ 1 GB). From Windows use Rufus or
+   balenaEtcher and point them at `out/zuup-os.img` — both only list removable
+   drives, which removes the classic wrong-disk `dd` risk. From Linux:
+   `sudo dd if=zuup-os.img of=/dev/sdX bs=4M oflag=direct status=progress`
+   (triple-check `/dev/sdX` is the stick: `lsblk`).
+2. **Boot the spare laptop from USB** (F12/F10/Esc boot menu). With the
+   ephemeral **dev keys**, disable Secure Boot in firmware first — only the
+   real ceremony keys (`make-keys.sh` + `enroll-keys.sh`) make SB enforcement
+   meaningful. Wired Ethernet only by design: the kernel has **no Wi-Fi**.
+3. **Expect, by variant:**
+   - `--dev` image → boots to the **Login Gate** (shows "Centre offline" until
+     an Edge is reachable — that wall is INV-10 working, not a bug).
+   - production image → **powers itself off** unless a provisioned Edge
+     attests it. That is the fail-closed design proving itself.
+4. To reach a live Gate, run the Edge stack on another machine on the same
+   LAN and provision `/etc/zuup/{terminal-id,wg0.conf}` (next section).
+
+The laptop's internal Linux/Windows stays intact: remove the stick, reboot,
+and the machine is exactly as before — ZUUP-OS keeps every write in RAM.
 
 ## Per-terminal provisioning (the last mile)
 

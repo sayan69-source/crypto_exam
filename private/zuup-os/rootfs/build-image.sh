@@ -33,11 +33,25 @@ if [[ -n "$(find "$ROOTFS" -perm -4000 -type f 2>/dev/null)" ]]; then
 fi
 
 mksquashfs "$ROOTFS" "$OUT" -comp xz -noappend -no-xattrs
-veritysetup format "$OUT" "${OUT}.verity" | tee "${OUT}.roothash"
 
+# veritysetup format prints BOTH a "Salt:" and a "Root hash:" line (salt first).
+# Capture the full report for the record, but write ONLY the root hash to
+# .roothash — grabbing the first 64-hex token would pick the SALT and seal the
+# image against the wrong value (dm-verity then panics "metadata corrupted").
+veritysetup format "$OUT" "${OUT}.verity" | tee "${OUT}.verity.report"
+ROOTHASH="$(awk '/Root hash:/ {print $NF}' "${OUT}.verity.report")"
+case "$ROOTHASH" in
+  [0-9a-f]*) [ ${#ROOTHASH} -eq 64 ] || { echo "[zuup-os] FAIL: bad root hash len" >&2; exit 1; } ;;
+  *) echo "[zuup-os] FAIL: no 'Root hash:' in veritysetup output" >&2; exit 1 ;;
+esac
+printf '%s\n' "$ROOTHASH" > "${OUT}.roothash"
+
+# §19 target is 300 MB; the face-enabled variant raises it (opencv + SFace) via
+# ZUUP_IMAGE_MAX_MB so the assert still fails on genuinely bloated images.
+MAX_MB="${ZUUP_IMAGE_MAX_MB:-300}"
 SIZE=$(stat -c%s "$OUT")
-if (( SIZE > 300 * 1024 * 1024 )); then
-  echo "[zuup-os] FAIL: image ${SIZE}B exceeds 300 MB budget (§19)" >&2
+if (( SIZE > MAX_MB * 1024 * 1024 )); then
+  echo "[zuup-os] FAIL: image ${SIZE}B exceeds ${MAX_MB} MB budget" >&2
   exit 1
 fi
 echo "[zuup-os] image OK: ${SIZE} bytes; verity root hash in ${OUT}.roothash"

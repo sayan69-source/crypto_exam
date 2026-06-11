@@ -37,10 +37,21 @@ OUT="${OUT:-zuup.efi.signed}"
 ROOTHASH="$(grep -Eo '[0-9a-f]{64}' "$ROOTHASH_FILE" | head -1)"
 [[ -n "$ROOTHASH" ]] || { echo "[zuup-os] FAIL: no root hash in $ROOTHASH_FILE" >&2; exit 1; }
 
-# The locked cmdline (§7.2): verity-rooted rootfs, kernel lockdown, no consoles.
+# Console policy: production is SILENT (console=null — a terminal shows no
+# kernel text, ever). A dev/test build may route the console to serial via
+# ZUUP_CONSOLE=ttyS0,115200 so QEMU smoke boots are observable; the variable
+# has no effect on production builds, which never set it.
+CONSOLE="${ZUUP_CONSOLE:-null}"
+if [[ "$CONSOLE" == "null" ]]; then
+  CONSOLE_ARGS="console=null quiet loglevel=0"
+else
+  CONSOLE_ARGS="console=${CONSOLE} loglevel=7 systemd.show_status=1 systemd.log_level=info systemd.log_target=console"
+fi
+
+# The locked cmdline (§7.2): verity-rooted rootfs, kernel lockdown.
 CMDLINE="zuup.roothash=${ROOTHASH} lockdown=confidentiality module.sig_enforce=1 \
 slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 randomize_kstack_offset=on \
-console=null quiet loglevel=0"
+${CONSOLE_ARGS}"
 
 ukify build \
   --linux "$KERNEL" \

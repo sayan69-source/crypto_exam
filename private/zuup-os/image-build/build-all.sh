@@ -59,4 +59,13 @@ if [[ -f "$BUILD/zuup-os.img" ]]; then
   echo
   echo "[zuup-os] PIPELINE COMPLETE → $BUILD/zuup-os.img"
   echo "[zuup-os] manifest: $BUILD/zuup-os.manifest.sha256"
+
+  # When the host mounted an export directory (docker-build.sh → ./out), hand
+  # over the FINAL artifacts only; the heavy intermediates stay in the volume.
+  if [[ -d /dist && -w /dist ]]; then
+    cp -f "$BUILD/zuup-os.img" "$BUILD/zuup-os.manifest.sha256" \
+          "$BUILD/zuup.efi.signed" "$BUILD/kernel.config" /dist/ 2>/dev/null || true
+    [[ -f "$BUILD/smoke-serial.log" ]] && cp -f "$BUILD/smoke-serial.log" /dist/ || true
+    echo "[zuup-os] exported → /dist (host ./out): zuup-os.img + manifest + UKI + kernel.config"
+  fi
 fi

@@ -40,6 +40,26 @@ pipeline, and *finally* validated on real terminal hardware at commissioning.
 | dm-verity squashfs seals; a flipped byte fails `veritysetup open` | fingerprint reader + UVC liveness against live spoofs (§8.3) |
 | signed UKI; QEMU boot reaches the Gate (dev) / fails closed (prod) | 100-terminal PXE boot < 30 s at a real centre (Phase 11 scale) |
 
+## Role tiering — where each role authenticates (and why it matters)
+
+A role's login location is a security decision, not a UX one: it determines what
+network the credential surface is exposed on. The rule is **only the HQ tier
+touches the public internet; every centre-scoped role authenticates on the
+centre LAN against the Centre Edge.**
+
+| Role | Login surface | Network | Rationale |
+|---|---|---|---|
+| **System Admin** (tier-0) | **public website** (`private/system-admin`, HQ) | internet, behind the HSM | nationwide oversight + the only decrypt boundary; lives at HQ by definition |
+| **Centre Admin** (tier-1) | **the OS software** — `ADMIN_STATION` ZUUP-OS terminal, Centre Admin portal served by the Edge at `/admin/` | **centre LAN only** | its match-all login *needs* the bound LAN IP + TPM + on-device face/fingerprint; INV-3 means the centre has no internet during an exam, so a public page would be both unreachable and a new attack surface |
+| **Invigilator** | exam-terminal Gate on an `INVIGILATOR_STATION` | centre LAN only | same hardware-bound match-all |
+| **Candidate** | exam-terminal Gate on a `CANDIDATE_SEAT` | centre LAN only | roll+DOB, terminal-bound (INV-5) |
+
+The kiosk launcher (`security/kiosk/zuup-kiosk-launch.sh`) enforces this on the
+image: it reads the terminal's Edge-reported capability and opens exactly one
+surface — `ADMIN_STATION → /admin/`, invigilator/candidate stations → the Gate,
+anything else → the fail-closed `/locked` wall. A Centre Admin credential
+surface therefore **cannot** appear on a candidate seat or on the public web.
+
 ## Adversaries (spec §2.1)
 
 | Adversary | Capability | Primary defence | Proof |

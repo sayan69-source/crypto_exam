@@ -40,12 +40,23 @@ fi
 echo "[zuup-os] building the pinned build-host container…"
 docker build -t "$IMAGE_TAG" -f "$HERE/Dockerfile" "$HERE"
 
-echo "[zuup-os] running pipeline (repo ro → /zuup, artifacts → /build)…"
+# Intermediate state (kernel tree, rootfs) lives in a NAMED VOLUME — a real
+# Linux ext4 filesystem inside Docker's VM. It must NOT live on the Windows
+# bind mount: NTFS is case-insensitive and silently merges kernel-source paths
+# that differ only by case (Documentation/Kbuild vs kbuild/), corrupting the
+# tree. Only the final artifacts are exported to ./out.
+docker volume create zuup-os-build >/dev/null
+
+echo "[zuup-os] running pipeline (repo ro → /zuup, build state → volume, artifacts → /dist)…"
 docker run --rm \
   -v "$repo_mnt:/zuup:ro" \
-  -v "$out_mnt:/build" \
+  -v zuup-os-build:/build \
+  -v "$out_mnt:/dist" \
   -e KVER -e ZUUP_KERNEL_SHA256 -e ZUUP_TRUST_CDN -e ZUUP_DB_KEY -e ZUUP_DB_CRT \
+  -e ZUUP_SMOKE_TIMEOUT \
   "$IMAGE_TAG" \
   /zuup/private/zuup-os/image-build/build-all.sh "$@"
 
 echo "[zuup-os] done. Artifacts in: $OUT"
+echo "[zuup-os] (intermediates persist in the 'zuup-os-build' volume for fast rebuilds;"
+echo "[zuup-os]  reclaim the space anytime with: docker volume rm zuup-os-build)"

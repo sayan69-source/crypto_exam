@@ -25,7 +25,11 @@ cd "$BUILD"
 [[ -f "$BUILD/bzImage" ]] || { echo "[zuup-os] bzImage missing — run stage 10" >&2; exit 1; }
 
 # ── 1. squashfs + dm-verity + root hash (the authored §7.3 sealer) ─────────
-echo "[zuup-os] sealing rootfs → squashfs + dm-verity…"
+# A face-enabled rootfs (stage 20) raises the size ceiling via the state file.
+if [[ -f "$BUILD/.image-max-mb" ]]; then
+  export ZUUP_IMAGE_MAX_MB="$(cat "$BUILD/.image-max-mb")"
+fi
+echo "[zuup-os] sealing rootfs → squashfs + dm-verity (budget ${ZUUP_IMAGE_MAX_MB:-300} MB)…"
 OUT="$BUILD/zuup-root.squashfs" bash "$ZOS/rootfs/build-image.sh" "$ROOT"
 ROOTHASH_FILE="$BUILD/zuup-root.squashfs.roothash"
 [[ -s "$ROOTHASH_FILE" ]] || { echo "[zuup-os] no roothash produced" >&2; exit 1; }
@@ -50,7 +54,12 @@ if [[ -z "${ZUUP_DB_KEY:-}" || -z "${ZUUP_DB_CRT:-}" ]]; then
 fi
 
 # ── 4. UKI: kernel + initramfs + locked cmdline(verity hash), sbsigned ─────
-echo "[zuup-os] building + signing the Unified Kernel Image…"
+# Dev images get an observable serial console; production stays console=null.
+VARIANT="$(cat "$BUILD/.rootfs-variant" 2>/dev/null || echo production)"
+if [[ "$VARIANT" == dev ]]; then
+  export ZUUP_CONSOLE="${ZUUP_CONSOLE:-ttyS0,115200}"
+fi
+echo "[zuup-os] building + signing the Unified Kernel Image (variant=$VARIANT)…"
 OUT="$BUILD/zuup.efi.signed" bash "$ZOS/boot/secureboot/sign-image.sh" \
   "$BUILD/bzImage" "$BUILD/zuup-initramfs.cpio.gz" "$ROOTHASH_FILE"
 UKI="$BUILD/zuup.efi.signed"

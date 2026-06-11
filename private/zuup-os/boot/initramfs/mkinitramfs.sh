@@ -44,15 +44,30 @@ if ldd "$BUSYBOX" 2>/dev/null | grep -q "=>"; then
   exit 1
 fi
 
-# Bundle veritysetup's shared objects + loader when it is not static. ldd's
-# resolution happens HERE on the verified build host; the copied bytes are
-# sealed by the UKI signature like everything else in the archive.
+# Bundle veritysetup's shared objects AND its ELF interpreter (ld-linux) when it
+# is not static. ldd resolution happens HERE on the verified build host; the
+# copied bytes are sealed by the UKI signature like everything else.
+#
+# Harvest every absolute path token ldd prints — this catches both the resolved
+# libraries (the "=> /path" column) and the loader line ("/lib64/ld-linux…"),
+# WITHOUT depending on awk's \s (Debian's mawk doesn't support it; that gap is
+# exactly what previously dropped the loader and broke the exec).
 if ldd "$VERITYSETUP" 2>/dev/null | grep -q "=>"; then
+  copied=0
   while read -r lib; do
     [[ -f "$lib" ]] || continue
     mkdir -p "$STAGE$(dirname "$lib")"
     cp -L "$lib" "$STAGE$lib"
-  done < <(ldd "$VERITYSETUP" | awk '/=>/ {print $3} /^\s*\// {print $1}')
+    copied=$((copied + 1))
+  done < <(ldd "$VERITYSETUP" | grep -oE '/[A-Za-z0-9_./+-]+\.so[A-Za-z0-9_./+-]*|/[A-Za-z0-9_./+-]*ld-[A-Za-z0-9_./+-]+' | sort -u)
+  # The loader is mandatory — without it the dynamic binary cannot exec at all.
+  # (find, not a glob: a non-matching shell glob would pass through literally and
+  # make the check spuriously "fail" even when the loader was copied fine.)
+  if [[ -z "$(find "$STAGE" -name 'ld-*' -type f -print -quit)" ]]; then
+    echo "[zuup-os] FAIL: ELF interpreter (ld-*) not bundled for $VERITYSETUP" >&2
+    exit 1
+  fi
+  echo "[zuup-os] bundled $copied shared objects + loader for veritysetup"
 fi
 
 # static device nodes — no udev in the initramfs

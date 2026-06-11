@@ -59,7 +59,9 @@ HASHDEV="$(find_part 3 || true)"
 
 # ── 3. open the verity mapping: every 4K block is hash-checked on read; a
 #       single flipped bit anywhere → I/O error → kernel panic → poweroff ────
-veritysetup open "$ROOTDEV" zuup-root "$HASHDEV" "$ROOTHASH" \
+# Absolute path: there is no /etc/profile here to set PATH, and the binary
+# lives at a known location staged by mkinitramfs.sh.
+/sbin/veritysetup open "$ROOTDEV" zuup-root "$HASHDEV" "$ROOTHASH" \
   --panic-on-corruption || fail "verity open (image does not match signed hash)"
 
 /bin/busybox mount -t squashfs -o ro,nosuid,nodev /dev/mapper/zuup-root /newroot \

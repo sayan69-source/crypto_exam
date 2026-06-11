@@ -15,8 +15,11 @@ Requires=zuup-network.target zuup-attest.service
 
 [Service]
 Type=simple
-# Cage owns the only display surface; Firefox is its only child.
-ExecStart=/usr/bin/cage -d -- /usr/lib/firefox/firefox --kiosk https://edge.local/
+# Cage owns the only display surface; Firefox is its only child. The launcher
+# picks the URL from this terminal's Edge-reported capability (§7.6) so the
+# ADMIN_STATION opens the Centre Admin portal, an INVIGILATOR_STATION/
+# CANDIDATE_SEAT opens the exam-terminal Gate, and anything else fails closed.
+ExecStart=/usr/lib/zuup/zuup-kiosk-launch.sh
 Restart=always
 RestartSec=1
 

@@ -27,6 +27,11 @@ import { watchAssignment } from "@/lib/assignment";
 type GateHealth = "PROBING" | "ONLINE" | "OFFLINE";
 const HEALTH_POLL_MS = 3_000;
 
+// The Centre Admin portal (private/centre-admin) is served BY the Centre Edge
+// on the centre LAN at /admin/ in production (same origin → no CORS, no public
+// exposure). In dev it runs on its own port; set NEXT_PUBLIC_CENTRE_ADMIN_URL.
+const ADMIN_PORTAL_URL = process.env.NEXT_PUBLIC_CENTRE_ADMIN_URL ?? "/admin/";
+
 export default function LoginGate() {
   const router = useRouter();
   const [edge, setEdge] = useState<GateHealth>("PROBING");
@@ -142,6 +147,7 @@ export default function LoginGate() {
 
   const isInvigilatorStation = cap === "INVIGILATOR_STATION";
   const isCandidateSeat = cap === "CANDIDATE_SEAT";
+  const isAdminStation = cap === "ADMIN_STATION";
 
   return (
     <div className="screen">
@@ -178,14 +184,21 @@ export default function LoginGate() {
             )}
             {!isCandidateSeat && <small style={smallNote}>not a candidate seat</small>}
           </button>
-        </div>
 
-        {cap === "ADMIN_STATION" && (
-          <p style={{ marginTop: 22, fontSize: 13, color: "#64748b" }}>
-            This is an admin station — the Centre Admin portal is its own
-            surface (<code>centre-admin</code>), not part of this terminal.
-          </p>
-        )}
+          {/* Centre Admin is a LAN-only role (NOT the public website — that is
+              the System Admin's HQ tier). On a real ADMIN_STATION the kiosk
+              launcher opens the Centre Admin portal directly; this button is
+              the same entry on the unified dev surface. */}
+          <button
+            disabled={!isAdminStation}
+            onClick={() => { window.location.href = ADMIN_PORTAL_URL; }}
+            style={chooserBtn(isAdminStation)}
+          >
+            Centre Admin login
+            {!isAdminStation && <small style={smallNote}>not an admin station</small>}
+            {isAdminStation && <small style={smallNote}>centre LAN · match-all (face + fingerprint + IP + TPM)</small>}
+          </button>
+        </div>
 
         <p style={{ marginTop: 26, fontSize: 12, color: "#94a3b8" }}>
           terminal <code>{terminalId.slice(0, 8)}…</code> · edge link OK ·

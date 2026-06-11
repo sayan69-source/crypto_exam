@@ -13,6 +13,12 @@ set -euo pipefail
 
 BUILD="${BUILD:-/build}"
 KVER="${KVER:-6.6.52}"
+# Known-good pin for the default KVER, recorded from a PGP-WKD-verified fetch
+# (2026-06-11). Other versions still verify via sha256sums.asc + PGP; an
+# explicit ZUUP_KERNEL_SHA256 always wins.
+if [[ -z "${ZUUP_KERNEL_SHA256:-}" && "$KVER" == "6.6.52" ]]; then
+  ZUUP_KERNEL_SHA256="1591ab348399d4aa53121158525056a69c8cf0fe0e90935b0095e9a58e37b4b8"
+fi
 MAJOR="v${KVER%%.*}.x"
 CDN="https://cdn.kernel.org/pub/linux/kernel/${MAJOR}"
 TARBALL="linux-${KVER}.tar.xz"

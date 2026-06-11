@@ -36,6 +36,13 @@ rm -rf "$ROOT"; mkdir -p "$ROOT"
 #   usbguard/apparmor  : runtime device + MAC allow-lists (§7.5)
 #   tpm2-tools         : boot attestation (§7.1)
 #   python3 + numpy/pil/yaml : the biometric daemon (§8) + attest PCR parse
+# Face verification backend: ZUUP_FACE=cv pulls the real OpenCV (YuNet+SFace)
+# engine — python3-opencv + the two ONNX models — so face check works on any
+# commodity webcam with no vendor SDK. It is opt-in because opencv + the 37 MB
+# SFace model materially enlarge the image (the budget is raised to match).
+FACE="${ZUUP_FACE:-cv}"
+[[ "${1:-}" == "--no-face" ]] && FACE=none
+
 PKGS="systemd,systemd-sysv,udev,dbus,libpam-systemd,\
 cage,seatd,fonts-dejavu-core,${BROWSER_PKG},\
 wireguard-tools,nftables,iproute2,usbguard,\
@@ -43,6 +50,15 @@ apparmor,apparmor-profiles,libpam-apparmor,\
 tpm2-tools,\
 python3,python3-yaml,python3-numpy,python3-pil,\
 curl,ca-certificates,kmod,util-linux"
+if [[ "$FACE" == "cv" ]]; then
+  PKGS="$PKGS,python3-opencv"
+  # opencv + SFace need headroom over the §19 target. Stages are separate
+  # processes, so the raised ceiling must travel via a state file (stage 30
+  # reads it) — an env export would die with this process.
+  echo "${ZUUP_IMAGE_MAX_MB:-600}" > "$BUILD/.image-max-mb"
+else
+  rm -f "$BUILD/.image-max-mb"
+fi
 
 echo "[zuup-os] mmdebstrap $SUITE → $ROOT (this pulls the userland)…"
 mmdebstrap --variant=minbase \
@@ -76,10 +92,35 @@ done
 
 # ── 4. daemons + scripts ───────────────────────────────────────────────────
 inst 0755 "$ZOS/security/systemd/zuup-heartbeatd.sh"  usr/lib/zuup/zuup-heartbeatd.sh
+inst 0755 "$ZOS/security/kiosk/zuup-kiosk-launch.sh"  usr/lib/zuup/zuup-kiosk-launch.sh
 inst 0755 "$ZOS/boot/attest/zuup-attest.sh"           usr/lib/zuup/zuup-attest.sh
 inst 0755 "$ZOS/biometric/zuup-biometricd.py"         usr/lib/zuup/zuup-biometricd.py
-# biometric models are produced by the model pipeline, not git; ship the dir.
-mkdir -p "$ROOT/usr/lib/zuup/tflite-models"
+inst 0755 "$ZOS/biometric/face_engine_cv.py"          usr/lib/zuup/face_engine_cv.py
+mkdir -p "$ROOT/usr/share/zuup/models"
+
+# ── 4b. face models (§8.1) — real OpenCV Zoo ONNX, openly licensed ─────────
+# YuNet (detect+landmarks) + SFace (128-D embedding). Pinned by SHA-256; a
+# mismatch fails the build (no silently-swapped model ships in a signed image).
+if [[ "$FACE" == "cv" ]]; then
+  echo "[zuup-os] fetching face models (YuNet + SFace) into the image…"
+  ZOO="https://github.com/opencv/opencv_zoo/raw/main/models"
+  fetch_model() { # url  dest  sha256(optional)
+    local url="$1" dest="$2" want="${3:-}"
+    curl -fL --retry 3 --proto '=https' -o "$dest" "$url"
+    local got; got="$(sha256sum "$dest" | awk '{print $1}')"
+    if [[ -n "$want" && "$got" != "$want" ]]; then
+      echo "[zuup-os] FAIL: $(basename "$dest") sha256 $got != pinned $want" >&2; exit 1
+    fi
+    echo "[zuup-os]   $(basename "$dest")  sha256=$got${want:+ (pinned OK)}"
+  }
+  # Pins recorded from the verified 2026-06-11 fetch; override only with intent.
+  fetch_model "$ZOO/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
+    "$ROOT/usr/share/zuup/models/face_detection_yunet_2023mar.onnx" \
+    "${ZUUP_YUNET_SHA256:-8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4}"
+  fetch_model "$ZOO/face_recognition_sface/face_recognition_sface_2021dec.onnx" \
+    "$ROOT/usr/share/zuup/models/face_recognition_sface_2021dec.onnx" \
+    "${ZUUP_SFACE_SHA256:-0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79}"
+fi
 
 # ── 5. host hardening: sysctl, logind, AppArmor, USBGuard ──────────────────
 inst 0644 "$ZOS/security/systemd/sysctl.d-99-zuup.conf"        etc/sysctl.d/99-zuup.conf

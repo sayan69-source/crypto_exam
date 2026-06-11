@@ -204,7 +204,28 @@ class FingerprintEngine:
             _zeroise(buf)
 
 
-FACE = FaceEngine()
+def _select_face_engine():
+    """Prefer the real OpenCV (YuNet+SFace) engine when its models are present;
+    fall back to the TF Lite engine; if neither is available, the TF Lite
+    engine's .available stays False and every verify fail-closes to 0.0.
+
+    Both engines expose the same surface: .available (bool) and
+    .verify(enrolled_embedding: bytes) -> {"score","liveness","faces"}.
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from face_engine_cv import FaceEngineCV  # type: ignore
+
+        cv = FaceEngineCV()
+        if cv.available:
+            sys.stderr.write("zuup-biometricd: face engine = opencv (YuNet+SFace)\n")
+            return cv
+    except Exception as exc:  # noqa: BLE001 — any import/model error → fall back
+        sys.stderr.write(f"zuup-biometricd: opencv engine unavailable ({exc}); trying tflite\n")
+    return FaceEngine()
+
+
+FACE = _select_face_engine()
 FP = FingerprintEngine()
 
 
