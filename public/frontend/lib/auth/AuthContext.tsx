@@ -63,6 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       '/exam',
       '/login', '/setter/login', '/admin/login', '/invigilator/login', '/invigilator/register',
       '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony',
+      // Centre staff register on the PUBLIC site (centre LANs are internet-free,
+      // ZUUP-OS INV-3); approval + in-person activation still gate every identity.
+      '/staff-registration',
     ];
     const isPublicRoute = publicRoutes.some(r => pathname === r) || pathname.startsWith('/exam/paper-info');
 

@@ -76,3 +76,6 @@ logs/
 # IPFS
 ipfs_data/
 scripts/out/
+
+# ZUUP-OS image pipeline artifacts (multi-GB: disk image, kernel tree, UKI)
+private/zuup-os/image-build/out/

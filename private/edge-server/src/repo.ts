@@ -179,6 +179,15 @@ export async function listPendingCenterAdminApprovals(
   }));
 }
 
+/** Centre directory (id/name/state only) — feeds the public-website staff
+ * registration form over the HQ relay. Deliberately free of counts or PII. */
+export async function listCentres(
+  q: Q,
+): Promise<Array<{ centerId: string; name: string; state: string | null }>> {
+  const res = await q.query(`SELECT id, name, state FROM centers ORDER BY name`);
+  return res.rows.map((r) => ({ centerId: r.id, name: r.name, state: r.state ?? null }));
+}
+
 // ── System Admin oversight (§13.5) — per-centre rollup across the estate ───
 export interface CentreOverviewRow {
   centerId: string;

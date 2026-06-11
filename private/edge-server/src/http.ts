@@ -103,6 +103,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { ...out, status: "PENDING_APPROVAL" };
   });
 
+  // Centre directory for registration forms (id/name/state — no counts, no
+  // PII). Servable to the HQ relay so the PUBLIC website can offer a centre
+  // picker while the centre LAN itself stays internet-free (§6).
+  app.get("/api/centres", async () => ({ centres: await repo.listCentres(pool) }));
+
   // §10.1 step 3 — create a PENDING Centre Admin registration. Tier-1 onboarding:
   // only a SYSTEM_ADMIN (tier-0) can later approve it (canApprove). The applicant
   // captures the SAME factors as an invigilator (face hash + fp template + bound
