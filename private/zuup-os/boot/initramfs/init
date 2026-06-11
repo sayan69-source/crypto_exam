@@ -37,11 +37,24 @@ esac
 
 # ── 2. the SquashFS + its verity tree arrive from PXE into RAM (/dev/ram0
 #       is populated by the UKI's PXE loader stage; on disk-provisioned
-#       terminals this is the read-only GPT partition by PARTLABEL) ─────────
-ROOTDEV="/dev/disk/by-partlabel/zuup-root"
-HASHDEV="/dev/disk/by-partlabel/zuup-hash"
-[ -b "$ROOTDEV" ] || ROOTDEV=/dev/ram0
-[ -b "$HASHDEV" ] || HASHDEV=/dev/ram1
+#       terminals they are GPT partitions 2 and 3 of the image laid out by
+#       image-build/30-make-image.sh). There is no udev here, so partitions
+#       are resolved from sysfs by their fixed GPT index — misidentification
+#       is harmless because a wrong device cannot match the signed root hash
+#       and the boot HALTs at verity open. ──────────────────────────────────
+find_part() { # $1 = GPT partition number → echoes /dev node, or nothing
+  for b in /sys/class/block/*; do
+    [ -r "$b/partition" ] || continue
+    [ "$(cat "$b/partition")" = "$1" ] || continue
+    echo "/dev/$(basename "$b")"
+    return 0
+  done
+  return 1
+}
+ROOTDEV="$(find_part 2 || true)"
+HASHDEV="$(find_part 3 || true)"
+[ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] || ROOTDEV=/dev/ram0
+[ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] || HASHDEV=/dev/ram1
 [ -b "$ROOTDEV" ] || fail "no root device"
 
 # ── 3. open the verity mapping: every 4K block is hash-checked on read; a

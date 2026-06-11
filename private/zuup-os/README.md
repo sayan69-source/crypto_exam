@@ -4,22 +4,32 @@ This directory holds the **build specification and configuration artifacts** for
 the ZUUP-OS locked terminal image (spec §§6–7, §11 hardware trust). It implements
 phases 2–7 and 11 of `../zuup_os_implementation_plan.md`.
 
-## ⚠ These artifacts are authored, NOT executed here
+## How this gets built (safely) — `image-build/`
 
 Every script in this tree targets a **Linux build host** and operates on kernels,
 block devices, bootloaders, Secure Boot keys, and firewall tables. Running any of
-it on the developer workstation (Windows) would be meaningless at best and
-destructive at worst. So, by deliberate policy:
+it *directly* on the developer workstation (Windows) would be meaningless at best
+and destructive at worst — so each script carries a **host guard** that makes
+accidental direct execution a no-op.
 
-- **Nothing in `zuup-os/` is run as part of the local build or test loop.** The
-  runnable, tested parts of ZUUP-OS are the TypeScript Edge server, the portals,
-  and the answer pipeline — see `../edge-server`, `../exam-terminal`,
-  `../centre-admin`.
-- Each shell script begins with a **host guard** that refuses to run unless it is
-  on a Linux build host with the expected toolchain, and prints what it *would*
-  do. This makes accidental execution a no-op.
-- These files are the source of truth a release engineer uses on a dedicated,
-  air-gapped Linux build server to produce the signed SquashFS image.
+To actually produce the image without that risk, use the containerised pipeline:
+
+```bash
+cd image-build
+./docker-build.sh -- --dev     # dev image; QEMU-boots to the Login Gate
+./docker-build.sh              # production image; fail-closed, no rescue path
+```
+
+Everything heavy runs inside a pinned `zuup-os-builder` container that mounts
+this repo **read-only** and writes **only** to `image-build/out/`. It never
+touches the host's disks, firmware, or bootloader, and assembles the GPT image
+**unprivileged** (no loop mounts, no root). The output, `out/zuup-os.img`, is a
+real Secure-Boot-signed UKI + dm-verity SquashFS you boot in QEMU (stage 40) or
+`dd` to a **dedicated exam terminal** — never this machine. See
+[`image-build/README.md`](image-build/README.md).
+
+The runnable, tested control plane (Edge server, portals, answer pipeline) lives
+in `../edge-server`, `../exam-terminal`, `../centre-admin`, `../system-admin`.
 
 ## Layout (maps to spec §14)
 
@@ -41,6 +51,8 @@ zuup-os/
 │   ├── initramfs/  §7.3  /init: dm-verity open → tmpfs overlays → switch_root
 │   └── attest/     §7.1  boot-time TPM quote → Edge; HALT on deny
 ├── biometric/     §8    zuup-biometricd (TF Lite face + liveness, fp SDK shim)
+├── image-build/   §11   containerised pipeline → real bootable zuup-os.img
+│                        (Dockerfile + 00→40 stages + QEMU/OVMF smoke boot)
 └── docs/          §12, §17, §18  threat model, deployment, DPDP compliance
 ```
 

@@ -17,13 +17,28 @@ The system splits cleanly into two halves:
   Postgres.
 - **The OS image** (kernel, rootfs, Secure Boot, nftables, AppArmor, seccomp,
   Tetragon, WireGuard, PXE) — INV-1,2,3 and the physical/boot attack rows — is
-  **authored as build-host artifacts in `../` and NOT executed on the developer
-  workstation** (it operates on kernels, block devices, and firewall tables;
-  running it on Windows would be meaningless or destructive). Those invariants
-  are validated on the dedicated Linux build host and on real terminal hardware
-  during commissioning.
+  **authored as build-host artifacts in `../`.** They are not run on the
+  developer workstation (they operate on kernels, block devices, and firewall
+  tables; running them directly on Windows would be meaningless or destructive).
+  They ARE now executable, reproducibly and safely, through the containerised
+  pipeline in `../image-build/`: every heavy step runs inside a pinned Docker
+  build host that mounts the repo read-only and writes only to `out/`, never
+  touching the host's disks, firmware, or bootloader. The pipeline emits a real,
+  Secure-Boot-signed `zuup-os.img` and a QEMU/OVMF+swtpm smoke boot asserts the
+  boot-chain invariants (verity open → switch_root → fail-closed session).
 
-This division is deliberate and is the project's safety boundary.
+This division is deliberate and is the project's safety boundary: the OS
+invariants are *defined* by the authored artifacts, *built* by the container
+pipeline, and *finally* validated on real terminal hardware at commissioning.
+
+### What the container pipeline proves vs. what still needs hardware
+
+| Proven by `image-build/` (Linux/Docker) | Still requires real terminal hardware |
+|---|---|
+| kernel builds with lockdown/verity/nftables, no modules, < 15 MB | measured boot into a discrete TPM 2.0 (golden PCRs) |
+| rootfs has the closed process set, no setuid, default = locked session | Secure Boot db enrolled in real UEFI; USB/tamper-mesh physical tests |
+| dm-verity squashfs seals; a flipped byte fails `veritysetup open` | fingerprint reader + UVC liveness against live spoofs (§8.3) |
+| signed UKI; QEMU boot reaches the Gate (dev) / fails closed (prod) | 100-terminal PXE boot < 30 s at a real centre (Phase 11 scale) |
 
 ## Adversaries (spec §2.1)
 
@@ -40,9 +55,9 @@ This division is deliberate and is the project's safety boundary.
 
 | Inv | Statement | Proof kind | Where |
 |---|---|---|---|
-| INV-1 | `remount,rw /` fails | authored | `boot/initramfs/init` (verity open, ro squashfs), `rootfs/overlay.fstab`, `kernel/zuup.config` |
-| INV-2 | power-off → forensic zero | authored | `boot/initramfs/init` + `rootfs/overlay.fstab` (all writes tmpfs) |
-| INV-3 | no internet from terminal/Edge | authored | `security/nftables.conf` + `security/systemd/zuup-firewall.service` (drop before link-up), `network/wireguard`, `network/pxe/dnsmasq.conf` |
+| INV-1 | `remount,rw /` fails | authored + **built** | `boot/initramfs/init` (verity open, ro squashfs), `rootfs/overlay.fstab`, `kernel/zuup.config`; sealed by `image-build/30-make-image.sh` (dm-verity squashfs) |
+| INV-2 | power-off → forensic zero | authored + **built** | `boot/initramfs/init` + `rootfs/overlay.fstab` (all writes tmpfs); `image-build/40-qemu-smoke.sh` boots with no persistent writable medium |
+| INV-3 | no internet from terminal/Edge | authored + **built** | `security/nftables.conf` + `security/systemd/zuup-firewall.service` (drop before link-up), `network/wireguard`, `network/pxe/dnsmasq.conf`; firewall+wg units enabled into the image by `image-build/20-stage-rootfs.sh` |
 | INV-4 | identity intersection (match-all) | **runnable** | `src/test/match-all.test.ts` (8 deny paths), `src/test/integration/cascade.test.ts` |
 | INV-5 | terminal binding (roll↔seat) | **runnable** | `cascade.test.ts` (foreign roll denied), `http.ts` `/candidate/login` |
 | INV-6 | centre is blind (no key) | **runnable** | `src/test/integration/rbac.test.ts`, `src/test/envelope.test.ts`, `answer-pipeline.test.ts`, `hq-vault.test.ts`, `sysadmin-vault-compat.test.ts` (portal decrypt boundary) |
@@ -76,6 +91,8 @@ This division is deliberate and is the project's safety boundary.
 | 18 | Edge offline at gate | fail-closed | **runnable (browser-verified)**: gate health-wall (INV-10) |
 | 19 | clock/time-lock spoof | paper stays sealed | authored + runnable: drand T₀ in `question-crypto.ts` |
 | 20 | double-assignment race | distinct seats | **runnable**: `db.test.ts` (`FOR UPDATE SKIP LOCKED`) |
+| 22 | tampered rootfs byte | boot HALTs at verity | **built**: `image-build/30` seals dm-verity; `boot/initramfs/init` opens with `--panic-on-corruption`; a flipped byte → I/O error → poweroff (verified by re-hashing in `image-build`'s assembly self-test) |
+| 23 | unsigned/edited UKI | UEFI refuses to boot | **built**: `boot/secureboot/sign-image.sh` sbsigns the UKI + `sbverify`; OVMF Secure Boot vars reject an unsigned image (`image-build/40` optional SB mode) |
 
 ## Residual risk
 

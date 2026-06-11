@@ -1,0 +1,19 @@
+# Everything under zuup-os/ is consumed by a Linux build host or inside the
+# image-build container (bind-mounted, possibly from a Windows checkout). A
+# stray CRLF on a shebang line becomes `/bin/bash^M: bad interpreter`, so pin
+# LF for all of it regardless of the developer's platform or core.autocrlf.
+* text=auto eol=lf
+
+# the initramfs entry point + extensionless scripts must be LF too
+init       text eol=lf
+Dockerfile text eol=lf
+
+# never touch line endings of compiled/firmware artifacts the pipeline emits
+*.efi      binary
+*.signed   binary
+*.squashfs binary
+*.verity   binary
+*.img      binary
+*.cpio.gz  binary
+*.fd       binary
+*.tflite   binary
