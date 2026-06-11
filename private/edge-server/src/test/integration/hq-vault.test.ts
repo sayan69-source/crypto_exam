@@ -57,7 +57,9 @@ async function seedAndSubmit(p: Pool, a: FastifyInstance, count: number) {
   const examId = randomUUID();
   const adminId = randomUUID();
   await p.query(`INSERT INTO centers (id, name) VALUES ($1,'C')`, [centreId]);
-  await p.query(`INSERT INTO exams (id, name, scheduled_at) VALUES ($1,'E',NOW())`, [examId]);
+  // window already closed → the §6 egress gate may open once all present
+  // candidates have submitted (which they do below).
+  await p.query(`INSERT INTO exams (id, name, scheduled_at, window_closes_at) VALUES ($1,'E',NOW() - INTERVAL '4 hours', NOW() - INTERVAL '1 hour')`, [examId]);
   await p.query(
     `INSERT INTO staff_identities (id, role, center_id, full_name, face_embedding_hash, fingerprint_template, status)
      VALUES ($1,'CENTER_ADMIN',$2,'A',$3,$3,'ACTIVE')`, [adminId, centreId, dummy]);
@@ -96,10 +98,19 @@ test("Phase 10c: export → HQ ingest → decrypt R; anchor is PII-free; re-expo
 
   const S = await seedAndSubmit(pool, app, 3);
 
-  // Centre Admin exports the signed, ciphertext-only bundle.
+  // §6 egress gate: window closed + all present candidates submitted → may open.
+  const eg = J(await app.inject({
+    method: "POST", url: "/api/admin/egress/open",
+    headers: { authorization: `Bearer ${adminToken(S.centreId, S.adminId)}` },
+    payload: { examId: S.examId },
+  }));
+  assert.equal(eg.ok, true, "egress opens after the window closes with no pending submissions");
+
+  // Centre Admin exports the signed, ciphertext-only bundle for this exam.
   const out = J(await app.inject({
     method: "POST", url: "/api/admin/ledger/export",
     headers: { authorization: `Bearer ${adminToken(S.centreId, S.adminId)}` },
+    payload: { examId: S.examId },
   }));
   assert.equal(out.exported, 3);
   const bundle = out.bundle as SyncBundle;
@@ -127,6 +138,7 @@ test("Phase 10c: export → HQ ingest → decrypt R; anchor is PII-free; re-expo
   const again = J(await app.inject({
     method: "POST", url: "/api/admin/ledger/export",
     headers: { authorization: `Bearer ${adminToken(S.centreId, S.adminId)}` },
+    payload: { examId: S.examId },
   }));
   assert.equal(again.exported, 0);
   assert.equal(again.bundle, null);
@@ -135,9 +147,15 @@ test("Phase 10c: export → HQ ingest → decrypt R; anchor is PII-free; re-expo
 test("Phase 10c: HQ rejects a tampered bundle (node sig + chain)", { skip }, async () => {
   if (!pool || !app) { await migrate(DB!); pool = makePool(DB!); app = buildApp({ pool, config }); }
   const S = await seedAndSubmit(pool, app, 2);
+  await app.inject({
+    method: "POST", url: "/api/admin/egress/open",
+    headers: { authorization: `Bearer ${adminToken(S.centreId, S.adminId)}` },
+    payload: { examId: S.examId },
+  });
   const out = J(await app.inject({
     method: "POST", url: "/api/admin/ledger/export",
     headers: { authorization: `Bearer ${adminToken(S.centreId, S.adminId)}` },
+    payload: { examId: S.examId },
   }));
   const good = out.bundle as SyncBundle;
 

@@ -10,6 +10,7 @@
  */
 import { makePool } from "./db.ts";
 import { hashDob } from "./lib/dob.ts";
+import { sealExam, deriveMasterSeed } from "./lib/question-seal.ts";
 
 export const DEMO = {
   centreId: "11111111-1111-1111-1111-111111111111",
@@ -48,7 +49,44 @@ async function main() {
       `DELETE FROM users WHERE role='CANDIDATE' AND id NOT IN (SELECT candidate_id FROM enrollments WHERE candidate_id IS NOT NULL)`,
     );
     await pool.query(`INSERT INTO centers (id, name, state, district) VALUES ($1,'DL-IITD','Delhi','New Delhi')`, [DEMO.centreId]);
-    await pool.query(`INSERT INTO exams (id, name, scheduled_at) VALUES ($1,'NEET 2026 · Slot 1', NOW() + INTERVAL '1 hour')`, [DEMO.examId]);
+    // Exam "in progress": T₀ already passed (candidates can decrypt) but the
+    // window has NOT closed yet (so the egress gate stays shut until it does).
+    await pool.query(
+      `INSERT INTO exams (id, name, scheduled_at, duration_minutes, window_closes_at)
+       VALUES ($1,'NEET 2026 · Slot 1', NOW() - INTERVAL '20 minutes', 180, NOW() + INTERVAL '160 minutes')`,
+      [DEMO.examId],
+    );
+
+    // §10.7 — stage a REAL sealed question bundle (the Edge's keyless cache of
+    // the public website's sealed paper). Sealed with a fixed public beacon so
+    // a dev candidate can decrypt it immediately; t0_at is in the past.
+    const beacon = Buffer.from("ab".repeat(32), "hex");
+    const hkdfSalt = Buffer.from("cd".repeat(16), "hex");
+    const PAPER = [
+      { id: "Q1", subject: "Physics", prompt: "A body in uniform circular motion has constant…", options: ["velocity", "speed", "acceleration vector", "momentum"], answer_index: 1, marks: 4, negative: 1 },
+      { id: "Q2", subject: "Physics", prompt: "SI unit of electric flux is…", options: ["V·m", "V/m", "C/m²", "N/C"], answer_index: 0, marks: 4, negative: 1 },
+      { id: "Q3", subject: "Chemistry", prompt: "The pH of a 0.001 M HCl solution is…", options: ["1", "2", "3", "11"], answer_index: 2, marks: 4, negative: 1 },
+      { id: "Q4", subject: "Chemistry", prompt: "Which has the highest first ionisation enthalpy?", options: ["Na", "Mg", "Al", "Si"], answer_index: 3, marks: 4, negative: 1 },
+      { id: "Q5", subject: "Biology", prompt: "The powerhouse of the cell is the…", options: ["nucleus", "ribosome", "mitochondrion", "golgi body"], answer_index: 2, marks: 4, negative: 1 },
+      { id: "Q6", subject: "Biology", prompt: "Humans typically have how many pairs of chromosomes?", options: ["21", "22", "23", "24"], answer_index: 2, marks: 4, negative: 1 },
+    ];
+    const master = await deriveMasterSeed(new Uint8Array(beacon), new Uint8Array(hkdfSalt), DEMO.examId);
+    const bundle = await sealExam(DEMO.examId, PAPER, master);
+    await pool.query(
+      `INSERT INTO exam_question_bundle
+         (exam_id, questions_root, bundle_cid, chain_tx, bundle_json, drand_round, hkdf_salt, t0_beacon, t0_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW() - INTERVAL '20 minutes')`,
+      [
+        DEMO.examId,
+        Buffer.from(bundle.questionsRoot, "hex"),
+        "ipfs://b" + bundle.questionsRoot.slice(0, 32),
+        "0xseed" + bundle.questionsRoot.slice(0, 8),
+        JSON.stringify(bundle),
+        4_100_000,
+        hkdfSalt,
+        beacon,
+      ],
+    );
 
     // ACTIVE Centre Admin bound to the admin station + a fixed LAN IP.
     await pool.query(

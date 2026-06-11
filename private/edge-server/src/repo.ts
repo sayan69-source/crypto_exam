@@ -451,14 +451,14 @@ export interface ExportRecord {
  * export. The centre is forwarding sealed envelopes it cannot open (INV-6);
  * the payload carries no key able to decrypt them.
  */
-export async function listSealedForExport(q: Q, centerId: string): Promise<ExportRecord[]> {
+export async function listSealedForExport(q: Q, centerId: string, examId?: string): Promise<ExportRecord[]> {
   const res = await q.query(
     `SELECT exam_id, seat_no, leaf_index, leaf_hash, prev_root, chain_root, node_root_sig,
             ciphertext, iv, auth_tag, wrapped_dk
        FROM answer_ledger
-      WHERE center_id=$1 AND sync_state='SEALED'
+      WHERE center_id=$1 AND sync_state='SEALED' ${examId ? "AND exam_id=$2" : ""}
       ORDER BY exam_id, leaf_index`,
-    [centerId],
+    examId ? [centerId, examId] : [centerId],
   );
   return res.rows.map((r) => ({
     examId: r.exam_id,
@@ -662,6 +662,109 @@ export async function consumeBindingAttend(client: pg.PoolClient, terminalId: st
 export async function recordHeartbeat(q: Q, terminalId: string, health: "OK" | "FAULT"): Promise<boolean> {
   const res = await q.query(`UPDATE terminals SET health=$2, last_seen=NOW() WHERE id=$1`, [terminalId, health]);
   return (res.rowCount ?? 0) > 0;
+}
+
+// ── §10.7 question delivery (Edge as the centre's keyless bundle cache) ────
+export interface QuestionBundle {
+  examId: string;
+  questionsRoot: string; // hex
+  bundleCid: string | null;
+  chainTx: string | null;
+  bundle: unknown;       // the keyless SealedBundle JSON
+  drandRound: number;
+  hkdfSalt: string;      // hex (public)
+}
+
+/** Serve the sealed, keyless bundle + its root. Safe before T₀ — no keys here. */
+export async function getQuestionBundle(q: Q, examId: string): Promise<QuestionBundle | null> {
+  const res = await q.query(
+    `SELECT questions_root, bundle_cid, chain_tx, bundle_json, drand_round, hkdf_salt
+       FROM exam_question_bundle WHERE exam_id = $1`,
+    [examId],
+  );
+  if (!res.rowCount) return null;
+  const r = res.rows[0];
+  return {
+    examId,
+    questionsRoot: toHex(bytes(r.questions_root)),
+    bundleCid: r.bundle_cid ?? null,
+    chainTx: r.chain_tx ?? null,
+    bundle: r.bundle_json,
+    drandRound: Number(r.drand_round),
+    hkdfSalt: toHex(bytes(r.hkdf_salt)),
+  };
+}
+
+/**
+ * Release the T₀ beacon for an exam — but ONLY at/after t0_at (§10.7). Before
+ * T₀ this returns null and the terminal cannot derive any question key, so a
+ * pre-staged bundle stays undecryptable until the whole hall unlocks together.
+ */
+export async function getBeaconIfReleased(
+  q: Q,
+  examId: string,
+  now: number,
+): Promise<{ beacon: string; hkdfSalt: string; t0At: number } | null> {
+  const res = await q.query(
+    `SELECT t0_beacon, hkdf_salt, t0_at FROM exam_question_bundle WHERE exam_id = $1`,
+    [examId],
+  );
+  if (!res.rowCount) return null;
+  const r = res.rows[0];
+  const t0 = new Date(r.t0_at as string).getTime();
+  if (now < t0 || r.t0_beacon == null) return null; // locked until T₀
+  return { beacon: toHex(bytes(r.t0_beacon)), hkdfSalt: toHex(bytes(r.hkdf_salt)), t0At: t0 };
+}
+
+// ── post-exam egress gate (§6) — internet for the Centre Admin opens ONLY
+//    after the window closes AND every present candidate has submitted ───────
+export interface EgressStatus {
+  examId: string;
+  windowClosed: boolean;
+  presentCount: number;
+  submittedCount: number;
+  pendingCount: number;       // present-but-not-yet-submitted
+  egressOpenedAt: number | null;
+  mayOpen: boolean;           // window closed AND nothing pending
+}
+
+export async function egressStatus(q: Q, centerId: string, examId: string, now: number): Promise<EgressStatus | null> {
+  const ex = await q.query(`SELECT window_closes_at, egress_opened_at FROM exams WHERE id = $1`, [examId]);
+  if (!ex.rowCount) return null;
+  const closesAt = ex.rows[0].window_closes_at ? new Date(ex.rows[0].window_closes_at as string).getTime() : null;
+  const windowClosed = closesAt != null && now >= closesAt;
+
+  // present = checked-in candidates (enrollment_status has no SUBMITTED — a
+  // candidate stays PRESENT; "submitted" is a property of the answer ledger).
+  const present = await q.query(
+    `SELECT count(*) n FROM enrollments WHERE center_id=$1 AND exam_id=$2 AND status = 'PRESENT'`,
+    [centerId, examId],
+  );
+  const submitted = await q.query(
+    `SELECT count(*) n FROM answer_ledger WHERE center_id=$1 AND exam_id=$2`,
+    [centerId, examId],
+  );
+  const presentCount = Number(present.rows[0].n);
+  const submittedCount = Number(submitted.rows[0].n);
+  const pendingCount = Math.max(0, presentCount - submittedCount);
+  return {
+    examId,
+    windowClosed,
+    presentCount,
+    submittedCount,
+    pendingCount,
+    egressOpenedAt: ex.rows[0].egress_opened_at ? new Date(ex.rows[0].egress_opened_at as string).getTime() : null,
+    mayOpen: windowClosed && pendingCount === 0,
+  };
+}
+
+/** Record that egress was opened (idempotent). Caller must have verified mayOpen. */
+export async function openEgress(client: pg.PoolClient, examId: string, byId: string): Promise<void> {
+  await client.query(
+    `UPDATE exams SET egress_opened_at = COALESCE(egress_opened_at, NOW()), egress_opened_by = COALESCE(egress_opened_by, $2)
+      WHERE id = $1`,
+    [examId, byId],
+  );
 }
 
 /**

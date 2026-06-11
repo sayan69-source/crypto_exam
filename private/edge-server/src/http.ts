@@ -405,13 +405,58 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { ok: true };
   });
 
+  // §6 egress gate — the centre's internet for HQ sync opens ONLY after the
+  // exam window has closed AND every present candidate has submitted. The
+  // Centre Admin sees the live status (how many submissions are still pending).
+  app.get("/api/admin/egress/status", async (req, reply) => {
+    const claims = auth(req);
+    if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
+    const examId = (req.query as { examId?: string }).examId;
+    if (!examId) return deny(reply, 400, "MISSING_EXAM");
+    const status = await repo.egressStatus(pool, claims.centre, examId, now());
+    if (!status) return deny(reply, 404, "UNKNOWN_EXAM");
+    return status;
+  });
+
+  // §6 — authorise opening the HQ uplink. Refused (409) while any present
+  // candidate has not submitted, or before the window closes — this is what
+  // keeps the centre internet-free for the entire duration of the exam.
+  app.post("/api/admin/egress/open", async (req, reply) => {
+    const claims = auth(req);
+    if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
+    const examId = (req.body as { examId?: string })?.examId;
+    if (!examId) return deny(reply, 400, "MISSING_EXAM");
+    const status = await repo.egressStatus(pool, claims.centre, examId, now());
+    if (!status) return deny(reply, 404, "UNKNOWN_EXAM");
+    if (!status.mayOpen) {
+      await withTx(pool, (c) =>
+        appendAudit(c, { centerId: claims.centre, actorId: claims.sub, action: "EGRESS_OPEN_DENIED", target: examId, details: { windowClosed: status.windowClosed, pending: status.pendingCount } }),
+      );
+      return reply.code(409).send({ ok: false, reason: status.windowClosed ? "SUBMISSIONS_PENDING" : "EXAM_WINDOW_OPEN", pending: status.pendingCount });
+    }
+    await withTx(pool, async (c) => {
+      await repo.openEgress(c, examId, claims.sub);
+      await appendAudit(c, { centerId: claims.centre, actorId: claims.sub, action: "EGRESS_OPENED", target: examId, details: { submitted: status.submittedCount } });
+    });
+    return { ok: true, status: { ...status, egressOpenedAt: now() } };
+  });
+
   // §13.4 — produce a signed, ciphertext-only sync bundle for HQ (§11 egress).
   // The Centre Admin is a courier: it forwards sealed envelopes it cannot open
-  // and node-signs the manifest so HQ can detect any tamper in transit.
+  // and node-signs the manifest so HQ can detect any tamper in transit. GATED:
+  // refuses until egress has been authorised for this exam (window closed + all
+  // present candidates submitted), so answers cannot leak mid-exam (§6, INV-3).
   app.post("/api/admin/ledger/export", async (req, reply) => {
     const claims = auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
-    const records = await repo.listSealedForExport(pool, claims.centre);
+    const examId = (req.body as { examId?: string })?.examId;
+    if (!examId) return deny(reply, 400, "MISSING_EXAM");
+    const status = await repo.egressStatus(pool, claims.centre, examId, now());
+    if (!status) return deny(reply, 404, "UNKNOWN_EXAM");
+    if (!status.egressOpenedAt && !status.mayOpen) {
+      return reply.code(409).send({ ok: false, reason: "EGRESS_NOT_OPEN", pending: status.pendingCount });
+    }
+    const records = await repo.listSealedForExport(pool, claims.centre, examId);
     if (records.length === 0) return { ok: true, bundle: null, exported: 0 };
 
     const manifest = {
@@ -532,8 +577,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const { id } = req.params as { id: string };
     const state = await repo.seatState(pool, id);
     if (!state) return deny(reply, 404, "UNKNOWN_TERMINAL");
-    let binding = null;
+    // ASSIGNED → the live (unconsumed) binding the candidate will log in against.
+    // ATTENDED/IN_EXAM/SUBMITTED → the binding is consumed, but the seat still
+    // needs to know WHICH exam it serves (so a page reload mid-exam fetches the
+    // right paper); expose the latest binding's exam id then (no roll/PII).
+    let binding: { candidateRoll: string; examId: string } | { examId: string } | null = null;
     if (state === "ASSIGNED") binding = await repo.getActiveBinding(pool, id);
+    else if (state === "ATTENDED" || state === "IN_EXAM" || state === "SUBMITTED") {
+      const latest = await repo.getLatestBinding(pool, id);
+      if (latest) binding = { examId: latest.examId }; // exam only, not the roll
+    }
     return { state, binding };
   });
 
@@ -585,6 +638,36 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.get("/api/exam/sealing-key", async (_req, reply) => {
     if (!config.systemAdminPublicKeyPem) return deny(reply, 503, "SEALING_KEY_NOT_PROVISIONED");
     return { pem: config.systemAdminPublicKeyPem, nodePubkey: toHex(nodeSigner.publicKey) };
+  });
+
+  // §10.7 — serve the SEALED, KEYLESS question bundle for an exam. The Edge is
+  // the centre's pre-staged cache of the public website's sealed paper; this
+  // payload is ciphertext + Merkle proofs only, so it is safe to serve before
+  // T₀. The terminal verifies it against questionsRoot and refuses any question
+  // not committed to that root (question-crypto.ts). A seat must have a live
+  // binding to this exam (a checked-in candidate) before it can pull the bundle.
+  app.get("/api/exam/:examId/bundle", async (req, reply) => {
+    const { examId } = req.params as { examId: string };
+    const terminalId = (req.query as { terminalId?: string }).terminalId;
+    if (!terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    const binding = await repo.getLatestBinding(pool, terminalId);
+    if (!binding || binding.examId !== examId) return deny(reply, 403, "SEAT_NOT_BOUND_TO_EXAM");
+    const bundle = await repo.getQuestionBundle(pool, examId);
+    if (!bundle) return deny(reply, 404, "NO_BUNDLE_STAGED");
+    return { questionsRoot: bundle.questionsRoot, bundleCid: bundle.bundleCid, chainTx: bundle.chainTx, bundle: bundle.bundle };
+  });
+
+  // §10.7 — release the T₀ beacon. Returns 425 (locked) until t0_at, so the
+  // pre-staged ciphertext is undecryptable until the whole hall unlocks at once.
+  app.get("/api/exam/:examId/beacon", async (req, reply) => {
+    const { examId } = req.params as { examId: string };
+    const terminalId = (req.query as { terminalId?: string }).terminalId;
+    if (!terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    const binding = await repo.getLatestBinding(pool, terminalId);
+    if (!binding || binding.examId !== examId) return deny(reply, 403, "SEAT_NOT_BOUND_TO_EXAM");
+    const released = await repo.getBeaconIfReleased(pool, examId, now());
+    if (!released) return reply.code(425).send({ ok: false, reason: "BEFORE_T0" }); // 425 Too Early
+    return { ok: true, beacon: released.beacon, hkdfSalt: released.hkdfSalt, t0At: released.t0At };
   });
 
   // §13.3 — push one sealed envelope; append to the centre hash-chain (§11.3).
