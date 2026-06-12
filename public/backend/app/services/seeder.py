@@ -151,7 +151,7 @@ async def _seed_users(db: AsyncSession) -> list[User]:
 
     # Admin
     admin = User(
-        id=uuid4(),
+        id=str(uuid4()),
         email="admin@cryptoexam.dev",
         full_name="CryptoExam Admin",
         name_hi="क्रिप्टोएक्ज़ाम एडमिन",
@@ -174,7 +174,7 @@ async def _seed_users(db: AsyncSession) -> list[User]:
     ]
     for name, name_hi, email, inst, state in setters_data:
         setter = User(
-            id=uuid4(),
+            id=str(uuid4()),
             email=email,
             full_name=name,
             name_hi=name_hi,
@@ -210,7 +210,7 @@ async def _seed_users(db: AsyncSession) -> list[User]:
     ]
     for i, (name, name_hi, state) in enumerate(candidate_names):
         candidate = User(
-            id=uuid4(),
+            id=str(uuid4()),
             email=f"candidate{i+1}@cryptoexam.dev",
             full_name=name,
             name_hi=name_hi,
@@ -237,7 +237,7 @@ async def _seed_centers(db: AsyncSession) -> list[Center]:
 
     for i, (state, city, lat, lng) in enumerate(INDIA_STATES):
         center = Center(
-            id=uuid4(),
+            id=str(uuid4()),
             name=f"CryptoExam Center {city}",
             state=state,
             city=city,
@@ -263,7 +263,7 @@ async def _seed_hardware_nodes(db: AsyncSession, centers: list[Center]) -> list[
 
     for i, center in enumerate(centers):
         node = HardwareNode(
-            id=uuid4(),
+            id=str(uuid4()),
             center_id=center.id,
             serial_number=f"CEX-{center.state[:3].upper()}-{i+1:03d}",
             tpm_ek_cert_hash=hashlib.sha256(f"TPM-EK-{center.id}".encode()).digest(),
@@ -378,7 +378,7 @@ async def _seed_exams(db: AsyncSession, users: list[User]) -> list[Exam]:
             merkle_root = hashlib.sha256(f"merkle-{ed['name']}".encode()).digest()
 
         exam = Exam(
-            id=uuid4(),
+            id=str(uuid4()),
             name=ed["name"],
             name_hi=ed["name_hi"],
             exam_body=ed["body"],
@@ -486,7 +486,7 @@ async def _seed_questions(db: AsyncSession, exams: list[Exam]) -> int:
         for i, sq in enumerate(sample_questions):
             for set_label in ["A", "B", "C", "D"]:
                 question = Question(
-                    id=uuid4(),
+                    id=str(uuid4()),
                     exam_id=exam.id,
                     set_label=set_label,
                     sequence_number=i + 1,
@@ -527,7 +527,7 @@ async def _seed_invigilator_biometrics(
     count = 0
 
     invig = User(
-        id=uuid4(),
+        id=str(uuid4()),
         email="invigilator@cryptoexam.dev",
         full_name="Smt. Lakshmi Bora",
         name_hi="श्रीमती लक्ष्मी बोरा",
@@ -543,7 +543,7 @@ async def _seed_invigilator_biometrics(
     db.add(invig)
 
     db.add(BiometricEnrollment(
-        id=uuid4(),
+        id=str(uuid4()),
         user_id=invig.id,
         center_id=centers[0].id if centers else None,
         face_embedding=_synthetic_embedding(f"invig-{invig.email}"),
@@ -558,7 +558,7 @@ async def _seed_invigilator_biometrics(
     candidates = [u for u in users if u.role == UserRole.CANDIDATE][:8]
     for c in candidates:
         db.add(BiometricEnrollment(
-            id=uuid4(),
+            id=str(uuid4()),
             user_id=c.id,
             center_id=centers[0].id if centers else None,
             face_embedding=_synthetic_embedding(f"cand-{c.email}"),
@@ -588,7 +588,7 @@ async def _seed_enrollments(
 
         for i, candidate in enumerate(candidates):
             enrollment = Enrollment(
-                id=uuid4(),
+                id=str(uuid4()),
                 candidate_id=candidate.id,
                 exam_id=exam.id,
                 center_id=centers[i % len(centers)].id,

@@ -20,10 +20,10 @@ from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
+import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
 
 from app.config import get_settings
 from app.database import get_db, AsyncSession
@@ -31,9 +31,6 @@ from app.models import User, UserRole
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-
-# ── Password Hashing ──
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── JWT Bearer ──
 security = HTTPBearer()
@@ -172,12 +169,12 @@ def verify_token(token: str) -> dict:
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify a password against its bcrypt hash."""
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 # ═══════════════════════════════════════════════════════
