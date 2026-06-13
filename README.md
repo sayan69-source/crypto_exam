@@ -127,25 +127,25 @@ python -m app.agents.test_pipeline
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                        CRYPTOEXAM CORE PLATFORM                              │
 │                                                                              │
-│  ┌──────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐   │
-│  │  INTERFACE  A     │  │    INTERFACE  B       │  │     INTERFACE  C     │   │
-│  │  CANDIDATE        │  │  QUESTION SETTER      │  │  ADMIN CONTROL       │   │
-│  │  EXAM PORTAL      │  │  WORKBENCH            │  │  CENTRE              │   │
-│  │  Next.js 16       │  │  Next.js 16           │  │  Next.js 16          │   │
-│  │  /exam/*          │  │  /setter/*            │  │  /admin/*            │   │
-│  └──────────────────┘  └──────────────────────┘  └──────────────────────┘   │
+│  ┌──────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐    │
+│  │  INTERFACE  A    │  │    INTERFACE  B      │  │     INTERFACE  C     │    │
+│  │  CANDIDATE       │  │  QUESTION SETTER     │  │  ADMIN CONTROL       │    │ 
+│  │  EXAM PORTAL     │  │  WORKBENCH           │  │  CENTRE              │    │
+│  │  Next.js 16      │  │  Next.js 16          │  │  Next.js 16          │    │
+│  │  /exam/*         │  │  /setter/*           │  │  /admin/*            │    │
+│  └──────────────────┘  └──────────────────────┘  └──────────────────────┘    │
 │           │                      │                         │                 │
 │                          ▼ REST + WebSocket                                  │
 │  ┌──────────────────────────────────────────────────────────────────────────┐│
-│  │                  FASTAPI BACKEND (Python 3.12)                          ││
-│  │   Auth · ExamMgmt · QuestionEngine · CryptoService · AgentOrchestrator ││
-│  │   BlockchainService · NodeOrchestrator · AadhaarBridge                  ││
+│  │                  FASTAPI BACKEND (Python 3.12)                           ││
+│  │   Auth · ExamMgmt · QuestionEngine · CryptoService · AgentOrchestrator   ││
+│  │   BlockchainService · NodeOrchestrator · AadhaarBridge                   ││
 │  └──────────────────────────────────────────────────────────────────────────┘│
 │      │              │             │             │            │               │
-│  ┌────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  ┌────────────────┐   │
-│  │Postgres│  │Redis     │  │AI Agents │  │  IPFS   │  │ Polygon PoS    │   │
-│  │primary │  │+Celery   │  │IRT+LLM   │  │ Storage │  │ + CIRCOM ZK    │   │
-│  └────────┘  └──────────┘  └──────────┘  └─────────┘  └────────────────┘   │
+│  ┌────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  ┌────────────────┐     │
+│  │Postgres│  │Redis     │  │AI Agents │  │  IPFS   │  │ Polygon PoS    │     │
+│  │primary │  │+Celery   │  │IRT+LLM   │  │ Storage │  │ + CIRCOM ZK    │     │
+│  └────────┘  └──────────┘  └──────────┘  └─────────┘  └────────────────┘     │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -172,16 +172,16 @@ python -m app.agents.test_pipeline
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Generator   │────▶│  IRT Scorer  │────▶│   Bloom's    │────▶│  Validator   │
+│  Generator   │────▶│  IRT Scorer │────▶│   Bloom's    │────▶│  Validator  │
 │  Agent       │     │  Agent       │     │   Agent      │     │  Agent       │
 │              │     │              │     │              │     │              │
 │ Instructor + │     │ 3PL params   │     │ L1-6 keyword │     │ Accept if    │
 │ OpenAI/Mock  │     │ b/a/c        │     │ EN + HI      │     │ IRT ∈ range  │
 └──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
                                                                       │
-                                                              ┌───────▼───────┐
-                                                              │   Balancer    │
-                                                              │   Agent       │
+                                                              ┌───────▼──────┐
+                                                              │   Balancer   │
+                                                              │   Agent      │
                                                               │              │
                                                               │ Set A/B/C/D  │
                                                               │ equivalence  │
