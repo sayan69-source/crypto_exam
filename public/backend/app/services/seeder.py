@@ -156,6 +156,7 @@ async def _seed_users(db: AsyncSession) -> list[User]:
         full_name="CryptoExam Admin",
         name_hi="क्रिप्टोएक्ज़ाम एडमिन",
         role=UserRole.ADMIN,
+        phone="+91 90000 00001",
         password_hash=hash_password("CryptoExam2025!"),
         dpdp_consent=True,
         dpdp_consent_at=now,
@@ -172,13 +173,14 @@ async def _seed_users(db: AsyncSession) -> list[User]:
         ("Prof. Anand Kumar", "प्रो. आनंद कुमार", "anand@cryptoexam.dev", "IIT Bombay", "Maharashtra"),
         ("Dr. Meera Iyer", "डॉ. मीरा अय्यर", "meera@cryptoexam.dev", "IISc Bangalore", "Karnataka"),
     ]
-    for name, name_hi, email, inst, state in setters_data:
+    for si, (name, name_hi, email, inst, state) in enumerate(setters_data):
         setter = User(
             id=str(uuid4()),
             email=email,
             full_name=name,
             name_hi=name_hi,
             role=UserRole.SETTER,
+            phone=f"+91 90000 1{si:04d}"[:14],
             password_hash=hash_password("CryptoExam2025!"),
             institution=inst,
             dpdp_consent=True,
@@ -209,6 +211,10 @@ async def _seed_users(db: AsyncSession) -> list[User]:
         ("Manish Jha", "मनीष झा", "Jharkhand"),
     ]
     for i, (name, name_hi, state) in enumerate(candidate_names):
+        # A real, varied DOB per candidate. It is BOTH the public candidate login
+        # factor (roll number + DOB) AND what gets provisioned to the centre Edge,
+        # so the same credential works online and offline.
+        dob = f"{2004 + (i % 4)}-{(i % 12) + 1:02d}-{(i % 27) + 1:02d}"  # YYYY-MM-DD
         candidate = User(
             id=str(uuid4()),
             email=f"candidate{i+1}@cryptoexam.dev",
@@ -216,7 +222,8 @@ async def _seed_users(db: AsyncSession) -> list[User]:
             name_hi=name_hi,
             role=UserRole.CANDIDATE,
             phone=f"+91 9{(700000000 + i):09d}"[:14],
-            password_hash=hash_password("CryptoExam2025!"),
+            date_of_birth=dob,
+            password_hash=hash_password(dob),   # candidate "password" == DOB
             dpdp_consent=True,
             dpdp_consent_at=now,
             dpdp_consent_version="1.0",

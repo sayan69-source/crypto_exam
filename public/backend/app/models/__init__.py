@@ -139,6 +139,7 @@ class User(Base):
     district = Column(String(100), nullable=True)
     pincode = Column(String(10), nullable=True)
     enrolled_photo_hash = Column(LargeBinary, nullable=True)
+    date_of_birth = Column(String(10), nullable=True)   # YYYY-MM-DD; candidate login factor + provisioned to the centre Edge
     dpdp_consent = Column(Boolean, default=False)
     dpdp_consent_at = Column(DateTime(timezone=True), nullable=True)
     dpdp_consent_ip = Column(String(45), nullable=True)

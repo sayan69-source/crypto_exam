@@ -25,6 +25,7 @@ const skip = DB ? false : "set DATABASE_URL to run the system-admin test";
 const FAST_ARGON = { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 };
 const config: EdgeConfig = {
   host: "127.0.0.1", port: 0, databaseUrl: DB ?? "", centreId: "test",
+  provisioningKey: null,
   systemAdminPublicKeyPem: null,
   argon: FAST_ARGON,
   tokenSecret: new Uint8Array(32).fill(1),

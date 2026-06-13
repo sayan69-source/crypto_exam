@@ -27,6 +27,7 @@ const config: EdgeConfig = {
   port: 0,
   databaseUrl: DB ?? "",
   centreId: "test",
+  provisioningKey: null,
   systemAdminPublicKeyPem: null,
   argon: FAST_ARGON,
   tokenSecret: new Uint8Array(32).fill(1),
