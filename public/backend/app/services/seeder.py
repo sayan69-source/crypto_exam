@@ -18,6 +18,7 @@ All data is DPDP Act 2023 compliant:
 
 import hashlib
 import logging
+import os
 import random
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -156,8 +157,9 @@ async def _seed_users(db: AsyncSession) -> list[User]:
         full_name="CryptoExam Admin",
         name_hi="क्रिप्टोएक्ज़ाम एडमिन",
         role=UserRole.ADMIN,
-        phone="+91 90000 00001",
-        password_hash=hash_password("CryptoExam2025!"),
+        phone=os.getenv("SEED_ADMIN_PHONE", "+91 90000 00001"),
+        # Override in production so the public demo password is never live.
+        password_hash=hash_password(os.getenv("SEED_ADMIN_PASSWORD", "CryptoExam2025!")),
         dpdp_consent=True,
         dpdp_consent_at=now,
         dpdp_consent_version="1.0",

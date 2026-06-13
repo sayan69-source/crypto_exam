@@ -91,9 +91,14 @@ app = FastAPI(
 )
 
 # ── CORS ──
+# Production hosts set CORS_ALLOW_ORIGINS to the deployed frontend URL(s),
+# comma-separated; it is merged with the local dev defaults.
+import os as _os
+_extra_origins = [o.strip() for o in _os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+_allow_origins = list(dict.fromkeys([*settings.CORS_ORIGINS, *_extra_origins]))
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -14,14 +14,32 @@ from app.config import get_settings
 
 settings = get_settings()
 
+
+def _normalise_db_url(url: str) -> str:
+    """Managed Postgres hosts (Render, Heroku, Supabase) hand out
+    `postgres://` / `postgresql://` URLs, but SQLAlchemy's async engine needs
+    the asyncpg driver. Rewrite the scheme so DATABASE_URL works as-is."""
+    if url.startswith("postgres://"):
+        url = "postgresql+asyncpg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+    # asyncpg rejects libpq's ?sslmode= query arg; strip it (TLS is negotiated).
+    if "+asyncpg" in url and "sslmode=" in url:
+        import re
+        url = re.sub(r"[?&]sslmode=[^&]+", "", url)
+    return url
+
+
+DATABASE_URL = _normalise_db_url(settings.DATABASE_URL)
+
 _engine_kwargs = {
     "echo": settings.DEBUG,
 }
-if "sqlite" not in settings.DATABASE_URL:
+if "sqlite" not in DATABASE_URL:
     _engine_kwargs.update(pool_size=20, max_overflow=10, pool_pre_ping=True)
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    DATABASE_URL,
     **_engine_kwargs,
 )
 

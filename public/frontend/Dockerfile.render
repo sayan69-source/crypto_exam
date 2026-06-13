@@ -1,0 +1,23 @@
+# Production image for the public website (Render / any Docker host).
+# Builds the app (NEXT_PUBLIC_* are inlined at build time) and serves it.
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+COPY . .
+
+# NEXT_PUBLIC_* must be present at BUILD time — Next inlines them into the
+# client bundle. Set NEXT_PUBLIC_API_URL to the deployed backend's URL.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_USE_MOCK=false
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_USE_MOCK=${NEXT_PUBLIC_USE_MOCK}
+
+RUN npm run build
+
+ENV NODE_ENV=production
+# Render injects $PORT; default to 3000 locally.
+CMD ["sh", "-c", "npm run start -- -p ${PORT:-3000}"]
