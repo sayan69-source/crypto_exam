@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { api } from '@/lib/api/client';
 import styles from './login.module.css';
 
 export default function CandidateLoginPage() {
@@ -15,6 +16,7 @@ export default function CandidateLoginPage() {
   const [password, setPassword] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
+  const [authToken, setAuthTokenState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentExpanded, setConsentExpanded] = useState(false);
@@ -33,12 +35,12 @@ export default function CandidateLoginPage() {
 
   const validateForm = () => {
     setError(null);
-    if (!/^([A-Z]{3,4}-\d{4}-[A-Z]{2,3}-\d{5,9})$/.test(identifier)) {
-      setError('Invalid roll number format. Example: NEET-2026-BIH-0847291');
+    if (!identifier.trim()) {
+      setError('Enter your exam roll number.');
       return false;
     }
-    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(password)) {
-      setError('Invalid DOB format. Use DD/MM/YYYY');
+    if (password.length < 4) {
+      setError('Enter your password.');
       return false;
     }
     return true;
@@ -52,23 +54,29 @@ export default function CandidateLoginPage() {
     }
     if (!validateForm()) return;
 
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-
+    // Step 1 — verify roll number + password against the real backend.
     if (!showOtp) {
-      setShowOtp(true);
-      setLoading(false);
+      setLoading(true);
+      try {
+        const res = await api.login({ identifier: identifier.trim(), password, role: 'CANDIDATE' });
+        setAuthTokenState(res.access_token);
+        setShowOtp(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Login failed. Check your roll number and password.');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
+    // Step 2 — confirm OTP, finalise session with the real JWT.
     if (otp.length < 6) {
       setError('Please enter a valid 6-digit OTP.');
-      setLoading(false);
       return;
     }
-
+    setLoading(true);
     try {
-      await login('candidate', identifier);
+      await login('candidate', identifier, undefined, authToken ?? undefined);
       window.location.href = '/exam/system-check';
     } catch {
       setError('Login failed. Please check your credentials.');
@@ -132,16 +140,16 @@ export default function CandidateLoginPage() {
           </div>
 
           <div className={styles.field}>
-            <label htmlFor="password" className={styles.label}>Date of Birth (DD/MM/YYYY)</label>
+            <label htmlFor="password" className={styles.label}>Password</label>
             <input
               id="password"
-              type="text"
+              type="password"
               className={styles.input}
-              placeholder="DD/MM/YYYY"
+              placeholder="••••••••"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              autoComplete="bday"
+              autoComplete="current-password"
             />
           </div>
 

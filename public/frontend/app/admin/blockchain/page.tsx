@@ -1,50 +1,78 @@
 /**
- * CryptoExam Core — Admin Blockchain Page
+ * CryptoExam Core — Admin Blockchain Audit
+ * Live Polygon connection status from /blockchain/status. Per-exam on-chain
+ * commitments appear once a contract is deployed and exams are anchored — until
+ * then this shows the real chain state, not fabricated transactions.
  */
 'use client';
 
-import { mockBlockchainEvents, mockIntegrityReport, mockExams } from '@/lib/api/mock-data';
-import BlockchainTxCard from '@/components/crypto/BlockchainTxCard';
+import { useEffect, useState } from 'react';
+import { adminApi, type BlockchainStatus } from '@/lib/api/admin';
 
 export default function AdminBlockchainPage() {
-  const report = mockIntegrityReport;
+  const [status, setStatus] = useState<BlockchainStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    adminApi.blockchainStatus()
+      .then((s) => { if (alive) setStatus(s); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : 'Failed to reach chain'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  const contractDeployed = !!status?.contractAddress;
 
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 8 }}>Blockchain Audit</h1>
-      <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 32 }}>Polygon Amoy PoS — All events decoded and verified</p>
+      <h1 style={{ fontSize: 22, color: 'var(--color-navy-900)', marginBottom: 8 }}>Blockchain Audit</h1>
+      <p style={{ fontSize: 13, color: 'var(--color-navy-500)', marginBottom: 24 }}>
+        {loading ? 'Querying the chain…' : status?.connected ? 'Live connection to Polygon.' : 'Chain not reachable.'}
+      </p>
 
-      {/* Integrity Check */}
-      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--color-navy-700)', borderRadius: 16, padding: 24, marginBottom: 32 }}>
-        <h2 style={{ fontSize: 16, color: 'var(--color-navy-200)', marginBottom: 16 }}>Integrity Verification — {mockExams[0].name}</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {report.details.map((check, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, borderLeft: `3px solid ${check.passed ? '#4ade80' : '#f87171'}` }}>
-              <span style={{ fontSize: 16 }}>{check.passed ? '✓' : '✗'}</span>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-navy-200)', fontWeight: 500, display: 'block' }}>{check.label}</span>
-                {check.detail && <span style={{ fontSize: 11, color: 'var(--color-navy-400)' }}>{check.detail}</span>}
-              </div>
-              {check.tx_hash && (
-                <code style={{ fontSize: 11, color: 'var(--color-navy-400)', background: 'none', padding: 0 }}>{check.tx_hash}</code>
-              )}
+      {error && (
+        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
+      )}
+
+      {status && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 28 }}>
+          {[
+            { label: 'Connection', value: status.connected ? 'CONNECTED' : 'OFFLINE', color: status.connected ? 'var(--color-success)' : 'var(--color-danger)' },
+            { label: 'Chain ID', value: status.chainId != null ? `${status.chainId}${status.chainId === 80002 ? ' (Amoy)' : ''}` : '—' },
+            { label: 'Latest Block', value: status.latestBlock != null ? `#${status.latestBlock.toLocaleString()}` : '—' },
+            { label: 'Contract', value: contractDeployed ? `${status.contractAddress!.slice(0, 10)}…` : 'Not deployed' },
+          ].map((s) => (
+            <div key={s.label} style={card}>
+              <span style={cardLabel}>{s.label}</span>
+              <span style={{ ...cardValue, color: s.color ?? 'var(--color-navy-900)' }}>{s.value}</span>
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 12, background: report.overall_verdict === 'INTEGRITY_VERIFIED' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)', textAlign: 'center' }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: report.overall_verdict === 'INTEGRITY_VERIFIED' ? '#4ade80' : '#f87171' }}>
-            {report.overall_verdict === 'INTEGRITY_VERIFIED' ? '✓ INTEGRITY VERIFIED' : '✗ INTEGRITY FAILURE'}
-          </span>
-        </div>
-      </div>
+      )}
 
-      {/* Transaction Feed */}
-      <h2 style={{ fontSize: 16, color: 'var(--color-navy-200)', marginBottom: 16 }}>Transaction Feed</h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {mockBlockchainEvents.map(event => (
-          <BlockchainTxCard key={event.tx_hash} event={event} />
-        ))}
+      <h2 style={{ fontSize: 16, color: 'var(--color-navy-800)', marginBottom: 12 }}>On-chain Exam Commitments</h2>
+      <div style={{ ...card }}>
+        {contractDeployed ? (
+          <p style={{ color: 'var(--color-navy-600)', fontSize: 13 }}>
+            Contract <code>{status?.contractAddress}</code> is live. Per-exam Merkle roots and ZK
+            proofs are verifiable on Polygonscan as exams are anchored.
+          </p>
+        ) : (
+          <p style={{ color: 'var(--color-navy-600)', fontSize: 13, lineHeight: 1.7 }}>
+            The chain is {status?.connected ? 'reachable' : 'unreachable'}, but the CryptoExam contract
+            is not deployed in this environment, so there are no exam commitments to show yet. Once a
+            contract address + deployer key are configured and an exam is sealed, its{' '}
+            <strong>ExamCreated → PaperLocked → AnswerRootCommitted</strong> events appear here, each
+            linking to Polygonscan. No transactions are fabricated.
+          </p>
+        )}
       </div>
     </div>
   );
 }
+
+const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20 };
+const cardLabel: React.CSSProperties = { fontSize: 12, color: 'var(--color-navy-500)', display: 'block' };
+const cardValue: React.CSSProperties = { fontSize: 22, fontWeight: 700, color: 'var(--color-navy-900)', fontFamily: 'var(--font-mono)', display: 'block', marginTop: 4 };

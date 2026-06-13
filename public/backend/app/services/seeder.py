@@ -215,6 +215,7 @@ async def _seed_users(db: AsyncSession) -> list[User]:
             full_name=name,
             name_hi=name_hi,
             role=UserRole.CANDIDATE,
+            password_hash=hash_password("CryptoExam2025!"),
             dpdp_consent=True,
             dpdp_consent_at=now,
             dpdp_consent_version="1.0",

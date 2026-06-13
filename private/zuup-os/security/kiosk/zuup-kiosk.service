@@ -19,6 +19,11 @@ Type=simple
 # picks the URL from this terminal's Edge-reported capability (§7.6) so the
 # ADMIN_STATION opens the Centre Admin portal, an INVIGILATOR_STATION/
 # CANDIDATE_SEAT opens the exam-terminal Gate, and anything else fails closed.
+# Cage needs an XDG_RUNTIME_DIR seat and Firefox a writable HOME — both RAM-only
+# (INV-2): /run/firefox via RuntimeDirectory, the profile under PrivateTmp's /tmp.
+Environment=XDG_RUNTIME_DIR=/run/firefox
+Environment=HOME=/tmp/firefox
+ExecStartPre=/bin/mkdir -p /tmp/firefox
 ExecStart=/usr/lib/zuup/zuup-kiosk-launch.sh
 Restart=always
 RestartSec=1
@@ -41,8 +46,14 @@ SystemCallArchitectures=native
 SystemCallErrorNumber=EPERM
 # seccomp allow-list (the explicit kill-list complement, §7.5)
 SystemCallFilter=~@debug @mount @reboot @swap @obsolete
-# writable surfaces are tmpfs only (RAM; INV-2)
-ReadWritePaths=/run/firefox /tmp/firefox
+# Writable surfaces are tmpfs only (RAM; INV-2). RuntimeDirectory creates
+# /run/firefox at start (0700, auto-removed on stop); PrivateTmp gives a fresh
+# private /tmp tmpfs for the Firefox profile. These EXIST before the sandbox is
+# wired, unlike a ReadWritePaths bind of a not-yet-created /tmp/firefox — which
+# is what made systemd fail at 226/NAMESPACE and crash-loop the kiosk.
+RuntimeDirectory=firefox
+RuntimeDirectoryMode=0700
+PrivateTmp=yes
 # VT switching is disabled at logind; Cage takes the only seat.
 TTYVTDisallocate=yes
 

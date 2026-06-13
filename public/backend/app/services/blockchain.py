@@ -40,6 +40,14 @@ class BlockchainService:
     def __init__(self):
         settings = get_settings()
         self.w3 = AsyncWeb3(AsyncHTTPProvider(settings.POLYGON_RPC_URL))
+        # Polygon is a POA chain — without this middleware get_block() raises on
+        # the 97-byte extraData field ("should be 32 bytes") and status reports
+        # connected=false even though the RPC is reachable.
+        try:
+            from web3.middleware import ExtraDataToPOAMiddleware
+            self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+        except Exception as exc:  # never block startup on middleware wiring
+            logger.warning("Could not inject POA middleware: %s", exc)
         self.chain_id = settings.POLYGON_CHAIN_ID
         self.contract_address = settings.CRYPTOEXAM_CONTRACT_ADDRESS
 

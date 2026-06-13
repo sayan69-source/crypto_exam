@@ -101,10 +101,74 @@ async function post<T>(path: string): Promise<T> {
   return res.json();
 }
 
+export interface DpdpLog {
+  id: string;
+  user_id: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+export interface DpdpResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  items: DpdpLog[];
+}
+
+export interface AdminCandidate {
+  id: string;
+  name: string;
+  state: string | null;
+  rollNumber: string | null;
+  setLabel: string | null;
+  enrollmentStatus: string | null;
+  centreName: string | null;
+  isActive: boolean;
+}
+export interface AdminCandidatesResponse { total: number; page: number; per_page: number; items: AdminCandidate[] }
+
+export interface AdminCenter {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  capacity: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  connectivity: string | null;
+  invigilatorName: string | null;
+  invigilatorPhone: string | null;
+  nodesOnline: number;
+  nodesTotal: number;
+  status: string;
+}
+export interface AdminCentersResponse { total: number; centers: AdminCenter[] }
+
+export interface AdminRole { role: string; users: number; permissions: string }
+
+export interface BlockchainStatus {
+  chainId: number | null;
+  latestBlock: number | null;
+  contractAddress: string | null;
+  deployerAddress: string | null;
+  deployerBalance: string | null;
+  connected: boolean;
+  error?: string;
+}
+
 export const adminApi = {
   dashboard: () => get<AdminDashboard>('/admin/dashboard'),
   nodes: () => get<AdminNodesResponse>('/admin/nodes'),
   exams: (page = 1, perPage = 50) => get<AdminExamsResponse>(`/exams/?page=${page}&per_page=${perPage}`),
+  dpdpAudit: (page = 1, perPage = 50) => get<DpdpResponse>(`/admin/audit/dpdp?page=${page}&per_page=${perPage}`),
+  candidates: () => get<AdminCandidatesResponse>('/admin/candidates'),
+  centers: () => get<AdminCentersResponse>('/admin/centers'),
+  roles: () => get<{ roles: AdminRole[] }>('/admin/roles'),
+  blockchainStatus: () => get<BlockchainStatus>('/blockchain/status'),
   // Centre-staff approvals (real, DB-backed)
   staffApprovals: (role = 'CENTER_ADMIN', includeResolved = false) =>
     get<{ pending: StaffApproval[] }>(`/admin/staff-approvals?role=${role}&include_resolved=${includeResolved}`),

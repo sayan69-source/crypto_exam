@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import (
     User, UserRole, Exam, ExamStatus, Session, Enrollment,
-    DPDPAuditLog, HardwareNode,
+    DPDPAuditLog, HardwareNode, Center,
     StaffRegistrationRequest, StaffApprovalStatus,
 )
 from app.services.auth import require_role
@@ -414,3 +414,114 @@ async def authorise_staff_fp(
     r.fingerprint_authorised = True
     await db.commit()
     return {"ok": True}
+
+
+# ═══════════════════ Roster / Centres / Roles (real, read-only) ══════════════
+
+@router.get("/candidates", summary="Candidate roster")
+async def list_candidates(
+    page: int = 1,
+    per_page: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Real candidate roster: each candidate joined to their enrollment + centre."""
+    total = (await db.execute(
+        select(func.count()).where(User.role == UserRole.CANDIDATE)
+    )).scalar() or 0
+
+    stmt = (
+        select(User, Enrollment, Center)
+        .where(User.role == UserRole.CANDIDATE)
+        .outerjoin(Enrollment, Enrollment.candidate_id == User.id)
+        .outerjoin(Center, Center.id == Enrollment.center_id)
+        .order_by(User.full_name)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    rows = (await db.execute(stmt)).all()
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "items": [
+            {
+                "id": u.id,
+                "name": u.full_name,
+                "state": u.state,
+                "rollNumber": e.roll_number if e else None,
+                "setLabel": e.set_label if e else None,
+                "enrollmentStatus": (e.status.value if e and e.status else None),
+                "centreName": c.name if c else None,
+                "isActive": bool(u.is_active),
+            }
+            for (u, e, c) in rows
+        ],
+    }
+
+
+@router.get("/centers", summary="Exam centres with live node health")
+async def list_centers(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Real centre list + per-centre node counts (used to derive a health status)."""
+    centres = (await db.execute(select(Center).order_by(Center.name))).scalars().all()
+    nodes = (await db.execute(select(HardwareNode))).scalars().all()
+
+    by_centre: dict[str, list] = {}
+    for n in nodes:
+        by_centre.setdefault(n.center_id, []).append(n)
+
+    items = []
+    for c in centres:
+        cn = by_centre.get(c.id, [])
+        total = len(cn)
+        online = sum(1 for n in cn if n.is_online)
+        if total == 0:
+            health = "unknown"
+        elif online == total:
+            health = "healthy"
+        elif online == 0:
+            health = "offline"
+        else:
+            health = "degraded"
+        items.append({
+            "id": c.id,
+            "name": c.name,
+            "city": c.city,
+            "state": c.state,
+            "capacity": c.capacity,
+            "latitude": float(c.latitude) if c.latitude is not None else None,
+            "longitude": float(c.longitude) if c.longitude is not None else None,
+            "connectivity": c.connectivity.value if c.connectivity else None,
+            "invigilatorName": c.invigilator_name,
+            "invigilatorPhone": c.invigilator_phone,
+            "nodesOnline": online,
+            "nodesTotal": total,
+            "status": health,
+        })
+    return {"total": len(items), "centers": items}
+
+
+@router.get("/roles", summary="RBAC roles with live user counts")
+async def list_roles(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """The real platform roles (UserRole) with live assigned-user counts."""
+    perms = {
+        UserRole.ADMIN: "Full platform control - dashboard, emergency dual-control, approvals, audit",
+        UserRole.SETTER: "Author papers, generate ZK difficulty proofs, lock question banks",
+        UserRole.INVIGILATOR: "Biometric candidate verification, roster, incident alerts (centre only)",
+        UserRole.CANDIDATE: "Sit exams on centre terminals; read own receipts",
+    }
+    items = []
+    for role in UserRole:
+        count = (await db.execute(select(func.count()).where(User.role == role))).scalar() or 0
+        items.append({
+            "role": role.value,
+            "users": count,
+            "permissions": perms.get(role, ""),
+        })
+    return {"roles": items}

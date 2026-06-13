@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, UserRole
+from app.models import User, UserRole, Enrollment
 from app.schemas import (
     LoginRequest, TokenResponse, UserProfile, ErrorResponse,
 )
@@ -52,12 +52,23 @@ async def login(
     Candidate: identifier=roll_number, dob=YYYY-MM-DD
     Setter/Admin: identifier=email, password=<password>
     """
-    # Find user by email or roll number
+    # Find user by email or full name
     stmt = select(User).where(
         (User.email == request.identifier) | (User.full_name == request.identifier)
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
+
+    # Candidate identity is their enrolment roll number — resolve it to the user.
+    # Roll numbers are not guaranteed unique across enrolments, so take the first.
+    if not user:
+        enr = (await db.execute(
+            select(Enrollment).where(Enrollment.roll_number == request.identifier).limit(1)
+        )).scalars().first()
+        if enr and enr.candidate_id:
+            user = (await db.execute(
+                select(User).where(User.id == enr.candidate_id)
+            )).scalar_one_or_none()
 
     if not user:
         raise HTTPException(
@@ -81,14 +92,18 @@ async def login(
 
     # Role-specific authentication
     if user.role == UserRole.CANDIDATE:
-        # Candidate: verify DOB
-        if not request.dob:
+        # Candidate: verify their account password (real). The legacy DOB-only
+        # path is gone — a roll number alone can no longer authenticate.
+        if not request.password or not user.password_hash:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Date of birth required for candidate login",
+                detail="Password required for candidate login",
             )
-        # DOB verification would check against the enrollment record
-        # For now, accept any DOB for registered candidates
+        if not verify_password(request.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials",
+            )
 
     else:
         # Setter/Admin: verify password

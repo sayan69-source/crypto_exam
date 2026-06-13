@@ -19,7 +19,25 @@ set -eu
 EDGE="${ZUUP_EDGE_URL:-https://edge.local}"
 ID_FILE="/etc/zuup/terminal-id"
 FIREFOX="${ZUUP_FIREFOX:-/usr/lib/firefox/firefox}"
-launch() { exec /usr/bin/cage -d -- "$FIREFOX" --kiosk "$1"; }
+
+# A RAM-only Firefox profile. MemoryDenyWriteExecute=yes (W^X, §7.5) forbids the
+# JIT's writable-executable pages, so the JS/WASM JITs are turned off here — the
+# Gate then runs on the interpreter, under the kiosk's full seccomp/MDWX cage,
+# with no first-run, update, or telemetry surface.
+PROFILE="${HOME:-/tmp/firefox}/profile"
+mkdir -p "$PROFILE"
+cat > "$PROFILE/user.js" <<'EOF'
+user_pref("javascript.options.baselinejit", false);
+user_pref("javascript.options.ion", false);
+user_pref("javascript.options.native_regexp", false);
+user_pref("javascript.options.wasm", false);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("app.update.enabled", false);
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("toolkit.telemetry.enabled", false);
+EOF
+
+launch() { exec /usr/bin/cage -d -- "$FIREFOX" --kiosk --profile "$PROFILE" "$1"; }
 
 # No identity baked in → fail closed, never guess a role.
 [ -r "$ID_FILE" ] || { echo "zuup-kiosk: no terminal id" >/dev/kmsg 2>/dev/null || true; launch "$EDGE/locked"; }
