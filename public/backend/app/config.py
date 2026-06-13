@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "RS256"
     JWT_EXPIRY_HOURS: int = 4
 
+    # ── OTP / SMS (login second factor) ──
+    OTP_TTL_SECONDS: int = 300          # 5 minutes
+    OTP_MAX_ATTEMPTS: int = 5
+    # Twilio SMS gateway — set these in the environment to deliver real SMS.
+    # Leave blank in dev: the OTP is then returned in the API response + logged
+    # (clearly flagged delivery="dev") so the flow is testable without a gateway.
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""
+
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
     POLYGON_CHAIN_ID: int = 80002

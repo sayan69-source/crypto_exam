@@ -562,3 +562,20 @@ class StaffRegistrationRequest(Base):
 
     # Relationships
     center = relationship("Center")
+
+
+class OtpChallenge(Base):
+    """A real, single-use, time-boxed OTP issued after password auth and sent to
+    the user's registered phone. The cleartext code is never stored — only its
+    SHA-256 hash — and a challenge is consumed on first successful verify."""
+    __tablename__ = "otp_challenges"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False)
+    phone = Column(String(20), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed = Column(Boolean, default=False)
+    attempts = Column(Integer, default=0)
+    delivery = Column(String(20), default="sms")   # sms | dev
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

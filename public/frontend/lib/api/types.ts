@@ -359,3 +359,12 @@ export interface AuthResponse {
   role: string;
   user_id: string;
 }
+
+export interface OtpChallengeResponse {
+  otp_required: boolean;
+  challenge_id: string;
+  phone_masked: string;
+  delivery: 'sms' | 'dev';
+  ttl_seconds: number;
+  dev_code?: string; // only present in dev (no SMS gateway configured)
+}

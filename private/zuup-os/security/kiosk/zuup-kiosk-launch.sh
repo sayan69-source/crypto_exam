@@ -18,7 +18,15 @@ set -eu
 
 EDGE="${ZUUP_EDGE_URL:-https://edge.local}"
 ID_FILE="/etc/zuup/terminal-id"
-FIREFOX="${ZUUP_FIREFOX:-/usr/lib/firefox/firefox}"
+# The image bakes in firefox-esr (apt), whose binary is /usr/bin/firefox-esr.
+# Fall back across the common locations so the kiosk always finds the browser.
+FIREFOX="${ZUUP_FIREFOX:-}"
+if [ -z "$FIREFOX" ]; then
+  for c in /usr/bin/firefox-esr /usr/lib/firefox-esr/firefox-esr /usr/bin/firefox /usr/lib/firefox/firefox; do
+    [ -x "$c" ] && { FIREFOX="$c"; break; }
+  done
+  [ -z "$FIREFOX" ] && FIREFOX=/usr/bin/firefox-esr
+fi
 
 # A RAM-only Firefox profile. MemoryDenyWriteExecute=yes (W^X, §7.5) forbids the
 # JIT's writable-executable pages, so the JS/WASM JITs are turned off here — the

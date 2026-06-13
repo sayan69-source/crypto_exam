@@ -19,7 +19,9 @@ export default function AdminLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [consentExpanded, setConsentExpanded] = useState(false);
-  const [authToken, setAuthTokenState] = useState<string | null>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +30,15 @@ export default function AdminLoginPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminId)) { setError('Invalid admin email format.'); return; }
     if (password.length < 4) { setError('Password is too short.'); return; }
 
-    // Step 1 — verify credentials against the real backend, then surface the
-    // hardware-token (OTP) step. The token is held until OTP is confirmed.
+    // Step 1 — verify the password; the backend then sends a real OTP to the
+    // registered phone and returns a challenge to complete.
     if (!showOtp) {
       setLoading(true);
       try {
         const res = await api.login({ identifier: adminId, password, role: 'ADMIN' });
-        setAuthTokenState(res.access_token);
+        setChallengeId(res.challenge_id);
+        setPhoneMasked(res.phone_masked);
+        setDevCode(res.dev_code ?? null);
         setShowOtp(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
@@ -44,14 +48,15 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Step 2 — confirm the OTP and finalise the session with the real JWT.
-    if (otp.length < 6) { setError('Please enter a valid 6-digit OTP.'); return; }
+    // Step 2 — verify the OTP; the backend returns the real JWT.
+    if (otp.length < 6) { setError('Please enter the 6-digit code sent to your phone.'); return; }
     setLoading(true);
     try {
-      await login('admin', adminId, undefined, authToken ?? undefined);
+      const auth = await api.verifyOtp({ challenge_id: challengeId!, code: otp });
+      await login('admin', adminId, undefined, auth.access_token);
       window.location.href = '/admin/dashboard';
-    } catch {
-      setError('Login failed. Please check your credentials.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Incorrect code. Please try again.');
       setLoading(false);
     }
   };
@@ -82,8 +87,9 @@ export default function AdminLoginPage() {
 
           {showOtp && (
             <div className={`${styles.field} ${styles.otpField}`}>
-              <label htmlFor="otp" className={styles.label}>OTP (Hardware Token)</label>
+              <label htmlFor="otp" className={styles.label}>OTP sent to {phoneMasked ?? 'your phone'}</label>
               <input id="otp" type="text" inputMode="numeric" maxLength={6} className={`${styles.input} ${styles.otpInput}`} placeholder="● ● ● ● ● ●" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} autoFocus />
+              {devCode && <p style={{ fontSize: 11, color: '#92400e', marginTop: 6 }}>Dev mode (no SMS gateway configured): code is <b>{devCode}</b></p>}
             </div>
           )}
 

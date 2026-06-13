@@ -3,7 +3,7 @@
  * Centralized HTTP client with JWT auth, mock data fallback
  */
 
-import type { ApiResponse, AuthResponse, PaginatedResponse } from './types';
+import type { ApiResponse, AuthResponse, OtpChallengeResponse, PaginatedResponse } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== 'false'; // default: mock enabled
@@ -59,9 +59,12 @@ async function request<T>(
 // ── API Methods ──
 
 export const api = {
-  // Auth
+  // Auth — step 1 (password) returns an OTP challenge; step 2 verifies it.
   login: (credentials: { identifier: string; password: string; role?: string }) =>
-    request<AuthResponse>('POST', '/auth/login', credentials, { noAuth: true }),
+    request<OtpChallengeResponse>('POST', '/auth/login', credentials, { noAuth: true }),
+
+  verifyOtp: (data: { challenge_id: string; code: string }) =>
+    request<AuthResponse>('POST', '/auth/verify-otp', data, { noAuth: true }),
 
   me: () => request<ApiResponse<import('./types').User>>('GET', '/auth/me'),
 

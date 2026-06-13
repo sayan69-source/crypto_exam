@@ -8,16 +8,20 @@ GET  /api/v1/auth/me          — Get current user profile
 POST /api/v1/auth/refresh     — Refresh JWT token
 """
 
+import hashlib
 import logging
-from datetime import datetime, timezone
-from uuid import UUID
+import secrets
+from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
-from app.models import User, UserRole, Enrollment
+from app.models import User, UserRole, Enrollment, OtpChallenge
 from app.schemas import (
     LoginRequest, TokenResponse, UserProfile, ErrorResponse,
 )
@@ -25,6 +29,12 @@ from app.services.auth import (
     create_access_token, hash_password, verify_password,
     get_current_user, require_role,
 )
+from app.services.sms import sms_configured, send_sms, mask_phone
+
+
+class VerifyOtpRequest(BaseModel):
+    challenge_id: str
+    code: str
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +43,12 @@ router = APIRouter()
 
 @router.post(
     "/login",
-    response_model=TokenResponse,
     responses={401: {"model": ErrorResponse}},
-    summary="Unified Login",
+    summary="Step 1 — password, then issue an OTP to the registered phone",
     description=(
-        "Authenticate as candidate (roll number + DOB), "
-        "setter (email + password), or admin (email + password + TOTP)."
+        "Verify credentials (candidate = roll number + password; setter/admin = "
+        "email + password), then send a one-time code to the user's registered "
+        "phone. Returns a challenge_id; complete the login at /auth/verify-otp."
     ),
 )
 async def login(
@@ -119,22 +129,107 @@ async def login(
                 detail="Invalid credentials",
             )
 
-    # Create JWT token
-    token, expires = create_access_token(
+    # Password verified — now issue a REAL one-time code to the registered phone.
+    # No JWT is returned here; the caller must complete /auth/verify-otp.
+    settings = get_settings()
+    if not user.phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No phone number registered on this account. An OTP cannot be sent.",
+        )
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    challenge = OtpChallenge(
+        id=str(uuid4()),
         user_id=user.id,
-        role=user.role,
-        email=user.email,
+        code_hash=hashlib.sha256(code.encode()).hexdigest(),
+        phone=user.phone,
+        expires_at=datetime.now(timezone.utc) + timedelta(seconds=settings.OTP_TTL_SECONDS),
+        delivery="sms" if sms_configured() else "dev",
     )
+    db.add(challenge)
+    await db.commit()
+
+    delivered = "dev"
+    if sms_configured():
+        try:
+            await send_sms(user.phone, f"Your CryptoExam login code is {code}. Valid for 5 minutes.")
+            delivered = "sms"
+        except Exception as exc:  # gateway hiccup — surface it, don't fake success
+            logger.warning("OTP SMS delivery failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not deliver the OTP SMS. Please try again.",
+            )
 
     logger.info(
-        f"Login successful: user={str(user.id)[:8]}..., "
-        f"role={user.role.value}, ip={req.client.host}"
+        f"OTP issued: user={str(user.id)[:8]}..., role={user.role.value}, "
+        f"delivery={delivered}, phone={mask_phone(user.phone)}, ip={req.client.host}"
     )
 
+    resp: dict = {
+        "otp_required": True,
+        "challenge_id": challenge.id,
+        "phone_masked": mask_phone(user.phone),
+        "delivery": delivered,
+        "ttl_seconds": settings.OTP_TTL_SECONDS,
+    }
+    # Dev convenience ONLY: with no SMS gateway configured AND DEBUG on, return the
+    # code so the flow is testable. Never happens once Twilio creds are set.
+    if delivered == "dev" and settings.DEBUG:
+        resp["dev_code"] = code
+    return resp
+
+
+@router.post(
+    "/verify-otp",
+    response_model=TokenResponse,
+    responses={401: {"model": ErrorResponse}},
+    summary="Verify login OTP",
+    description="Confirm the one-time code sent to the registered phone and receive a JWT.",
+)
+async def verify_otp(
+    body: VerifyOtpRequest,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    settings = get_settings()
+    challenge = (await db.execute(
+        select(OtpChallenge).where(OtpChallenge.id == body.challenge_id)
+    )).scalar_one_or_none()
+
+    if not challenge or challenge.consumed:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or used code")
+
+    now = datetime.now(timezone.utc)
+    expires = challenge.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if now > expires:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Code expired — request a new one")
+
+    if challenge.attempts >= settings.OTP_MAX_ATTEMPTS:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many attempts — request a new code")
+
+    challenge.attempts += 1
+    if hashlib.sha256(body.code.strip().encode()).hexdigest() != challenge.code_hash:
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect code")
+
+    challenge.consumed = True
+    user = (await db.execute(select(User).where(User.id == challenge.user_id))).scalar_one_or_none()
+    if not user:
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account not found")
+
+    token, token_expires = create_access_token(user_id=user.id, role=user.role, email=user.email)
+    await db.commit()
+
+    logger.info(f"OTP verified, login complete: user={str(user.id)[:8]}..., role={user.role.value}")
     return TokenResponse(
         access_token=token,
         token_type="bearer",
-        expires_at=expires,
+        expires_at=token_expires,
         role=user.role,
         user_id=user.id,
     )

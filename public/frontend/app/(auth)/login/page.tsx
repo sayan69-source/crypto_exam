@@ -16,7 +16,9 @@ export default function CandidateLoginPage() {
   const [password, setPassword] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
-  const [authToken, setAuthTokenState] = useState<string | null>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentExpanded, setConsentExpanded] = useState(false);
@@ -54,12 +56,15 @@ export default function CandidateLoginPage() {
     }
     if (!validateForm()) return;
 
-    // Step 1 — verify roll number + password against the real backend.
+    // Step 1 — verify roll number + password; backend sends a real OTP to the
+    // candidate's registered phone.
     if (!showOtp) {
       setLoading(true);
       try {
         const res = await api.login({ identifier: identifier.trim(), password, role: 'CANDIDATE' });
-        setAuthTokenState(res.access_token);
+        setChallengeId(res.challenge_id);
+        setPhoneMasked(res.phone_masked);
+        setDevCode(res.dev_code ?? null);
         setShowOtp(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Login failed. Check your roll number and password.');
@@ -69,17 +74,18 @@ export default function CandidateLoginPage() {
       return;
     }
 
-    // Step 2 — confirm OTP, finalise session with the real JWT.
+    // Step 2 — verify OTP; backend returns the real JWT.
     if (otp.length < 6) {
-      setError('Please enter a valid 6-digit OTP.');
+      setError('Please enter the 6-digit code sent to your phone.');
       return;
     }
     setLoading(true);
     try {
-      await login('candidate', identifier, undefined, authToken ?? undefined);
+      const auth = await api.verifyOtp({ challenge_id: challengeId!, code: otp });
+      await login('candidate', identifier, undefined, auth.access_token);
       window.location.href = '/exam/system-check';
-    } catch {
-      setError('Login failed. Please check your credentials.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Incorrect code. Please try again.');
       setLoading(false);
     }
   };
@@ -156,7 +162,7 @@ export default function CandidateLoginPage() {
           {/* OTP Field */}
           {showOtp && (
             <div className={`${styles.field} ${styles.otpField}`}>
-              <label htmlFor="otp" className={styles.label}>OTP (sent to registered mobile)</label>
+              <label htmlFor="otp" className={styles.label}>OTP sent to {phoneMasked ?? 'your registered mobile'}</label>
               <input
                 id="otp"
                 type="text"
@@ -168,9 +174,7 @@ export default function CandidateLoginPage() {
                 onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
                 autoFocus
               />
-              <button type="button" className={styles.resendBtn} disabled>
-                Resend OTP (60s)
-              </button>
+              {devCode && <p style={{ fontSize: 11, color: '#92400e', marginTop: 6 }}>Dev mode (no SMS gateway configured): code is <b>{devCode}</b></p>}
             </div>
           )}
 
