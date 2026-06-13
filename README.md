@@ -94,29 +94,44 @@ docker compose up -d
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
-### Manual Setup
+### Manual Setup — runs **fully locally on SQLite** (no Postgres/Redis required)
+
+The public website now talks to a **real** FastAPI backend. The backend
+auto-creates and seeds a SQLite DB on first start; the frontend points at it
+with `NEXT_PUBLIC_USE_MOCK=false`.
 
 ```bash
-# Backend (public website API)
+# 1) Backend (FastAPI + SQLite) — the light dependency set is enough
 cd public/backend
-python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+python -m venv .venv && source .venv/Scripts/activate   # Windows Git-Bash
+pip install "fastapi" "uvicorn[standard]" "sqlalchemy[asyncio]" aiosqlite \
+            "pyjwt[crypto]" bcrypt cryptography pycryptodome \
+            pydantic pydantic-settings httpx web3 pyotp email-validator numpy pillow
+uvicorn app.main:app --host 127.0.0.1 --port 8000     # auto-seeds cryptoexam.db
 
-# Frontend (the public website)
+# 2) Frontend (the public website)
 cd public/frontend
-npm install && npm run dev
+printf 'NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1\nNEXT_PUBLIC_USE_MOCK=false\n' > .env.local
+npm install && npm run dev                            # http://localhost:3000
+```
 
-# Smart Contracts (the public↔private blockchain bridge)
-cd public/contracts
-npm install
-npx hardhat compile
-npx hardhat test
+**Seeded logins** (every portal authenticates for real, then sends a one-time
+code to the account's registered phone — *step 2 OTP*):
 
-# AI Pipeline Test
-cd public/backend
-python -m app.agents.test_pipeline
+| Portal | URL | Credentials |
+|--------|-----|-------------|
+| Admin | `/admin/login` | `admin@cryptoexam.dev` / `CryptoExam2025!` |
+| Setter | `/setter/login` | `setter@cryptoexam.dev` / `CryptoExam2025!` |
+| Candidate | `/login` | seeded roll number + DOB |
 
+> **Real OTP delivery:** set `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` /
+> `TWILIO_FROM_NUMBER` in the backend environment and a real phone on the
+> account, and the code is sent by SMS. Without a gateway (dev), the OTP is
+> returned in the API response and the login UI shows it — clearly flagged.
+
+```bash
+# Optional — Smart Contracts (the public↔private blockchain bridge)
+cd public/contracts && npm install && npx hardhat compile && npx hardhat test
 ```
 
 ---
@@ -258,7 +273,14 @@ Japan_Zuup/
 │   └── nginx.conf             # Reverse proxy with SSL termination
 │
 └── private/                   # PRIVATE — the centre-only stack (never web-reachable)
-    └── exam-terminal/         # Candidate + invigilator portals; future OS + hardened Firefox
+    ├── zuup-os/               # The bootable, air-gapped exam OS (kernel + rootfs +
+    │   │                      #   dm-verity + Secure-Boot UKI + kiosk Firefox)
+    │   └── image-build/       #   docker-build.sh → out/zuup-os.img (flash to USB)
+    ├── exam-terminal/         # Candidate exam UI that runs inside ZUUP-OS (kiosk)
+    ├── edge-server/           # Per-centre LAN server: holds enrolled identities,
+    │                          #   approvals, sealed bundles — the offline source of truth
+    ├── centre-admin/          # Centre Admin LAN portal (approves invigilators, runs the day)
+    └── system-admin/          # HQ (tier-0) console: approves Centre Admins, answer vault
 ```
 
 ### The boundary
@@ -271,6 +293,60 @@ from a public content store, and verifies every question against the on-chain
 root before decrypting it at T₀. No shared database, no shared secret, no
 private API — the blockchain is the entire trust channel. See
 `private/exam-terminal/lib/chain-bridge.ts` and `public/backend/app/api/v1/delivery.py`.
+
+---
+
+## ZUUP-OS — the bootable, air-gapped exam terminal
+
+Exam-centre computers don't run a normal OS. They boot **ZUUP-OS**: a minimal,
+hardened Linux image (custom 6.6 kernel, read-only **dm-verity** root,
+**Secure-Boot**-signed Unified Kernel Image) that comes up straight into a
+**locked kiosk Firefox** — no desktop, no shell, no USB storage, no way out.
+
+### Build the bootable image (works from Windows via Docker Desktop)
+
+```bash
+cd private/zuup-os/image-build
+./docker-build.sh          # builds kernel + rootfs (incl. firefox-esr) → out/zuup-os.img
+```
+
+The artifact is a **disk image** (`out/zuup-os.img`, ~509 MB) — **not** a `.exe`.
+Write it to a USB stick and boot the laptop from it:
+
+- **Windows:** flash `zuup-os.img` with [Rufus](https://rufus.ie) or
+  [balenaEtcher](https://etcher.balena.io).
+- **Linux:** `dd if=out/zuup-os.img of=/dev/sdX bs=4M oflag=direct`
+- **Try it in a VM first:** `./40-qemu-smoke.sh` (QEMU + OVMF + swtpm).
+
+> On the laptop, boot from the USB (one-time boot menu). Real terminals enrol
+> the Secure-Boot keys in firmware; for a test laptop, disable Secure Boot or
+> boot the dev-signed image.
+
+### Offline-first: everything is verified **locally**, with no internet during the exam
+
+The centre LAN is **air-gapped** the entire exam. Here is the data flow:
+
+```
+BEFORE EXAM DAY (online, at HQ → centre):
+  Public website registration (candidates + centre staff, with face/biometric
+  hashes) ──sync──▶ that centre's Edge DB.  The enrolment data is pre-positioned
+  on the centre's own server so it is present locally before the doors open.
+
+DURING THE EXAM (fully offline — NO internet for anyone, incl. the Centre Admin):
+  Terminal boots ZUUP-OS ▶ Centre Admin / Invigilator log in  ▶ candidate
+  face + fingerprint check  — all verified LOCALLY against the centre Edge DB.
+  Network egress is blocked at the kernel; the only reachable host is the Edge.
+
+AFTER THE EXAM (Centre Admin re-enables the uplink):
+  Centre nodes upload sealed answer-root bundles — Merkle roots + per-student
+  hashes, never names/rolls/answers — to the System Admin's Answer Vault, keyed
+  by student id. HQ verifies the chain, anchors the root on Polygon, and only
+  then HSM-decrypts. A compromised centre yields ciphertext only (INV-6).
+```
+
+This is why registration is captured on the public site but **activation and all
+exam-time verification happen in person, locally**: a stolen web session is
+worthless, and the network being down cannot stop an exam.
 
 ---
 
@@ -295,7 +371,7 @@ private API — the blockchain is the entire trust channel. See
 
 | We Built | Others Build |
 |----------|-------------|
-| 3 production interfaces with distinct UX personalities | 1 MVP screen |
+| 4 real portals (candidate · setter · admin · invigilator) wired to a live backend | 1 MVP screen |
 | ZK-SNARK (Groth16) + drand beacon + Shamir SSS | "We used blockchain" |
 | 6-agent AI pipeline with IRT scoring + Bloom's classification | Basic LLM API call |
 | DPDP Act 2023 compliant from schema level | Not mentioned |
