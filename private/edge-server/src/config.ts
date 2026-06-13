@@ -14,6 +14,12 @@ export interface EdgeConfig {
   /** This centre's id (UUID). Every query is scoped to it. */
   centreId: string;
   /**
+   * Shared secret for the HQ→Edge pre-exam provisioning link (§12). HQ presents
+   * it as `x-provisioning-key` when pushing the centre's enrolment bundle BEFORE
+   * exam day. Null disables the ingest endpoint (fail-closed).
+   */
+  provisioningKey: string | null;
+  /**
    * System Admin answer-sealing PUBLIC key (PEM, SPKI). Ships in the signed
    * image / Edge config so terminals can seal to it. The matching PRIVATE key
    * lives ONLY in the HQ HSM (INV-6). The Edge never holds a private key.
@@ -60,6 +66,7 @@ export function loadConfig(): EdgeConfig {
       "postgres://zuup:zuup@127.0.0.1:5433/zuup_edge",
     ),
     centreId: env("CENTRE_ID", "00000000-0000-0000-0000-000000000000"),
+    provisioningKey: process.env.EDGE_PROVISIONING_KEY ?? null,
     systemAdminPublicKeyPem: process.env.SYSTEM_ADMIN_PUBLIC_KEY_PEM ?? null,
     argon: {
       timeCost: Number(env("ARGON_TIME_COST", "3")),

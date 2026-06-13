@@ -27,6 +27,7 @@ import { GENESIS, nextRoot } from "./lib/merkle-chain.ts";
 import { makeNodeSigner } from "./lib/node-sign.ts";
 import { sha256, toHex, constantTimeEqual, utf8, canonicalJson } from "./lib/crypto.ts";
 import * as repo from "./repo.ts";
+import { ingestBundle, type ProvisioningBundle } from "./services/provisioning.ts";
 
 const hex = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, "hex"));
 
@@ -55,6 +56,32 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // ════════════════════════ §13.1 identity / gate ════════════════════════
   // Fail-closed liveness for the Login Gate (INV-10). LAN, no auth.
   app.get("/api/health", async () => ({ ok: true, service: "edge", ts: now() }));
+
+  // §12 — HQ→Edge pre-exam provisioning ingest. The ONLY write path that fills
+  // the local DB with the public website's registrations before exam day, so
+  // every login + biometric check can then be answered OFFLINE. Guarded by the
+  // provisioning shared secret; disabled entirely when none is configured.
+  app.post("/api/provisioning/ingest", async (req, reply) => {
+    if (!config.provisioningKey) return deny(reply, 503, "PROVISIONING_NOT_CONFIGURED");
+    const presented = req.headers["x-provisioning-key"];
+    if (typeof presented !== "string" || !constantTimeEqual(utf8.encode(presented), utf8.encode(config.provisioningKey))) {
+      return deny(reply, 401, "BAD_PROVISIONING_KEY");
+    }
+    const body = req.body as ProvisioningBundle;
+    if (!body?.centre?.id || !body?.centre?.name) return deny(reply, 400, "MISSING_CENTRE");
+    try {
+      const counts = await ingestBundle(pool, config, body);
+      await withTx(pool, (c) =>
+        appendAudit(c, {
+          centerId: body.centre.id, actorId: null, action: "PROVISIONING_INGEST",
+          target: body.centre.id, details: counts,
+        }),
+      );
+      return { ok: true, ...counts };
+    } catch (e) {
+      return deny(reply, 400, `INGEST_FAILED:${(e as Error).message}`);
+    }
+  });
 
   app.get("/api/terminal/:id/capability", async (req, reply) => {
     const { id } = req.params as { id: string };

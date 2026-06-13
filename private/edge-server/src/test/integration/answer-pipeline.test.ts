@@ -34,6 +34,7 @@ const hq = generateKeyPairSync("rsa", {
 
 const config: EdgeConfig = {
   host: "127.0.0.1", port: 0, databaseUrl: DB ?? "", centreId: "test",
+  provisioningKey: null,
   systemAdminPublicKeyPem: hq.publicKey,
   argon: { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 },
   tokenSecret: new Uint8Array(32).fill(1),

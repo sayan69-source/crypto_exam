@@ -188,7 +188,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 
@@ -211,5 +211,6 @@ app.include_router(generation_router, prefix="/api/v1/generation", tags=["AI Gen
 app.include_router(lifecycle_router, prefix="/api/v1/lifecycle", tags=["Exam Lifecycle"])
 app.include_router(sys_ledger.router, prefix="/api/v1/sys", tags=["System Admin Answer Ledger (ZUUP-OS §13.5)"])
 app.include_router(staff_reg.router, prefix="/api/v1/staff", tags=["Centre Staff Registration (public → Edge relay)"])
+app.include_router(provisioning.router, prefix="/api/v1/provisioning", tags=["HQ→Edge Pre-Exam Provisioning (§12)"])
 
 
