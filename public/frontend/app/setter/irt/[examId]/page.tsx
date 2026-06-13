@@ -7,7 +7,7 @@ export default function SetterIRTPage() {
 
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 24, color: 'white', marginBottom: 8 }}>📈 IRT Parameter Editor</h1>
+      <h1 style={{ fontSize: 24, color: 'white', marginBottom: 8 }}>IRT Parameter Editor</h1>
       <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 24 }}>Item Response Theory analysis for NEET UG 2026</p>
 
       {/* Validation bar */}
@@ -19,7 +19,7 @@ export default function SetterIRTPage() {
           { label: 'All c ≤ 0.25', ok: false },
         ].map(v => (
           <div key={v.label} style={{ padding: '8px 16px', borderRadius: 12, background: v.ok ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)', border: `1px solid ${v.ok ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`, fontSize: 12, fontWeight: 500, color: v.ok ? '#4ade80' : '#f87171' }}>
-            {v.ok ? '✅' : '❌'} {v.label}
+            {v.ok ? '✓' : '✗'} {v.label}
           </div>
         ))}
       </div>

@@ -39,7 +39,7 @@ export default function HashDisplay({ hash, label, polygonscanUrl, variant = 'li
         <code className={styles.hash} title={hash}>{truncated}</code>
         <div className={styles.actions}>
           <button className={styles.btn} onClick={handleCopy} title="Copy full hash" aria-label="Copy hash">
-            {copied ? '✓' : '📋'}
+            {copied ? '✓' : ''}
           </button>
           {scanUrl && (
             <a className={styles.btn} href={scanUrl} target="_blank" rel="noopener noreferrer" title="View on Polygonscan" aria-label="View on Polygonscan">

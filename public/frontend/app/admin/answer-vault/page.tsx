@@ -69,7 +69,7 @@ export default function AnswerVaultPage() {
 
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 8 }}>🔐 Answer Vault</h1>
+      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 8 }}>Answer Vault</h1>
       <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 6 }}>
         The only tier that can decrypt. Verify the chain → anchor the root → HSM-decrypt (§11.4).
       </p>

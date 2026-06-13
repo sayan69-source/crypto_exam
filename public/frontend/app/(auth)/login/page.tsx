@@ -103,14 +103,14 @@ export default function CandidateLoginPage() {
       <div className={styles.card}>
         {/* Logo */}
         <div className={styles.logoArea}>
-          <span className={styles.logoIcon}>🔐</span>
+          <span className={styles.logoIcon}></span>
           <h1 className={styles.logoTitle}>CryptoExam Core</h1>
           <p className={styles.tagline}>{taglines[language] || taglines.en}</p>
         </div>
 
         {/* Role Badge */}
         <div className={styles.roleBadge}>
-          📝 Candidate Examination Portal
+          Candidate Examination Portal
         </div>
 
         {/* Login Form */}
@@ -168,7 +168,7 @@ export default function CandidateLoginPage() {
 
           {error && (
             <div className={styles.errorMessage}>
-              ⚠️ {error}
+              {error}
             </div>
           )}
 
@@ -179,7 +179,7 @@ export default function CandidateLoginPage() {
               className={styles.accordionToggle}
               onClick={() => setConsentExpanded(!consentExpanded)}
             >
-              <span>🔒 DPDP Act 2023 Data Consent</span>
+              <span>DPDP Act 2023 Data Consent</span>
               <span>{consentExpanded ? '▲' : '▼'}</span>
             </button>
             {consentExpanded && (
@@ -221,7 +221,7 @@ export default function CandidateLoginPage() {
             className={styles.accordionToggle}
             onClick={() => setWhatIsExpanded(!whatIsExpanded)}
           >
-            <span>❓ What is CryptoExam Core?</span>
+            <span>What is CryptoExam Core?</span>
             <span>{whatIsExpanded ? '▲' : '▼'}</span>
           </button>
           {whatIsExpanded && (
@@ -235,7 +235,7 @@ export default function CandidateLoginPage() {
 
         <div className={styles.footer}>
           <Link href="/exam/audit" className={styles.auditLink}>
-            🔍 Public Audit Portal — Verify any exam (No Login Required)
+            Public Audit Portal — Verify any exam (No Login Required)
           </Link>
         </div>
       </div>

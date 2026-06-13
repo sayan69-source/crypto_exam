@@ -9,7 +9,7 @@ export default function AdminReportsPage() {
 
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 24 }}>📊 Reports & Analytics</h1>
+      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 24 }}>Reports & Analytics</h1>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'rgba(255,255,255,0.04)', padding: 4, borderRadius: 12 }}>
         {TABS.map(tab => (
@@ -22,7 +22,7 @@ export default function AdminReportsPage() {
           { label: 'Completion Rate', value: '98.2%', trend: '↑ 0.3% from last cycle' },
           { label: 'Avg. Answer Time', value: '2m 14s', trend: '↓ 8s improvement' },
           { label: 'Anomaly Rate', value: '0.13%', trend: '↓ 0.02% (better)' },
-          { label: 'Blockchain Commits', value: '5/5', trend: 'All verified ✅' },
+          { label: 'Blockchain Commits', value: '5/5', trend: 'All verified ✓' },
         ].map(stat => (
           <div key={stat.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--color-navy-700)', borderRadius: 12, padding: 20 }}>
             <span style={{ fontSize: 12, color: 'var(--color-navy-400)', display: 'block' }}>{stat.label}</span>

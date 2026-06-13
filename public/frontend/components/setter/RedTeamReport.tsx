@@ -13,11 +13,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { redTeamApi, type RedTeamReport, type RedTeamFlag } from '@/lib/api/red-team';
 
-const ATTACK_ICON: Record<string, string> = {
-  AMBIGUITY: '❓', MULTIPLE_CORRECT: '✌️', NO_CORRECT: '🚫', ABSOLUTE_LANGUAGE: '🚦',
-  CULTURAL_BIAS: '🌐', GRAMMAR_ELIM: '✏️', TRIVIAL_DISTRACTOR: '🪶', ANSWER_LEAKED: '🔓',
-  SYLLABUS_BREACH: '📚', OUTDATED_FACT: '📜',
-};
 const PERSONA_LABEL: Record<string, string> = {
   clever_student: 'Clever Student', rti_officer: 'RTI Officer', opposition_lawyer: 'Opposition Lawyer',
 };
@@ -68,7 +63,7 @@ export default function RedTeamReportPanel({ questions, answerKey, examId, autoR
       borderRadius: 14, padding: 22, marginTop: 18, fontFamily: 'var(--font-sans)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-        <span style={{ fontSize: 22 }}>🛡️</span>
+        <span style={{ fontSize: 22 }}></span>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: 0, color: '#fff', fontSize: 16 }}>AI Adversarial Red-Team Report</h3>
           <p style={{ margin: '2px 0 0', color: '#94a3b8', fontSize: 12 }}>
@@ -88,7 +83,7 @@ export default function RedTeamReportPanel({ questions, answerKey, examId, autoR
             background: summary.tone === 'danger' ? 'rgba(220,38,38,0.15)' : summary.tone === 'warn' ? 'rgba(217,119,6,0.15)' : 'rgba(22,163,74,0.15)',
             color: summary.tone === 'danger' ? '#fca5a5' : summary.tone === 'warn' ? '#fbbf24' : '#86efac',
           }}>
-            {summary.tone === 'danger' ? '🛑' : summary.tone === 'warn' ? '⚠️' : '✅'} {summary.text}
+            {summary.tone === 'danger' ? '' : summary.tone === 'warn' ? '' : '✓'} {summary.text}
           </div>
 
           <FlagList flags={report.blockers} kind="BLOCKER" />
@@ -117,7 +112,6 @@ function FlagList({ flags, kind }: { flags: RedTeamFlag[]; kind: 'BLOCKER' | 'WA
             borderRadius: 8, padding: '8px 12px', background: 'rgba(8,14,30,0.6)',
           }}>
             <summary style={{ cursor: 'pointer', fontSize: 13, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 16 }}>{ATTACK_ICON[f.attack_type] ?? '⚑'}</span>
               <b style={{ color }}>Q{f.question_number}</b>
               <span style={{ color: '#cbd5e1' }}>· {f.attack_type.replace(/_/g, ' ')}</span>
               <span style={{ marginLeft: 'auto', fontSize: 11, color: '#64748b' }}>{PERSONA_LABEL[f.persona] ?? f.persona} · {(f.confidence * 100).toFixed(0)}%</span>

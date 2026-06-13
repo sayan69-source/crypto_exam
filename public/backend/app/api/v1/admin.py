@@ -9,19 +9,23 @@ POST /api/v1/admin/emergency/abort  — Emergency exam abort
 GET  /api/v1/admin/nodes            — Hardware node status
 """
 
+import hashlib
 import logging
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import (
     User, UserRole, Exam, ExamStatus, Session, Enrollment,
     DPDPAuditLog, HardwareNode,
+    StaffRegistrationRequest, StaffApprovalStatus,
 )
 from app.services.auth import require_role
 
@@ -294,7 +298,14 @@ async def node_status(
     current_user: dict = Depends(require_role(UserRole.ADMIN)),
 ):
     """List all hardware nodes with status, location, and firmware version."""
-    stmt = select(HardwareNode).order_by(HardwareNode.last_heartbeat.desc())
+    # Eager-load `center` — the serialized properties (center_name, state,
+    # latitude, longitude) read node.center, which would otherwise trigger a
+    # lazy load outside the async context and raise greenlet_spawn errors.
+    stmt = (
+        select(HardwareNode)
+        .options(selectinload(HardwareNode.center))
+        .order_by(HardwareNode.last_heartbeat.desc())
+    )
     result = await db.execute(stmt)
     nodes = result.scalars().all()
 
@@ -316,3 +327,90 @@ async def node_status(
             for node in nodes
         ],
     }
+
+
+# ═══════════════════ Centre-Admin Approvals (ZUUP-OS §9.3) ═══════════════════
+# The System Admin approves CENTER_ADMIN registrations captured on the public
+# website (/staff/register). Approval issues a real one-time, time-boxed code —
+# stored only as a SHA-256 hash; the cleartext is returned ONCE, here, to the
+# approver, and handed over in person. Activation still happens at the centre.
+
+_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ0123456789"  # Crockford-ish, no ambiguous chars
+_CODE_TTL_MIN = 10
+
+
+def _generate_code() -> str:
+    groups = ["".join(secrets.choice(_CODE_ALPHABET) for _ in range(3)) for _ in range(4)]
+    return "-".join(groups)
+
+
+def _approval_view(r: StaffRegistrationRequest) -> dict:
+    return {
+        "requestId": r.id,
+        "applicantName": r.full_name,
+        "role": r.role,
+        "centreName": r.center_name,
+        "centreIdHash": hashlib.sha256((r.center_id or "").encode()).hexdigest()[:16],
+        "status": r.status.value,
+        "fingerprintAuthorised": bool(r.fingerprint_authorised),
+        "createdAt": r.created_at.isoformat() if r.created_at else None,
+        "approvedAt": r.approved_at.isoformat() if r.approved_at else None,
+        "codeExpiresAt": r.activation_code_expires_at.isoformat() if r.activation_code_expires_at else None,
+    }
+
+
+@router.get("/staff-approvals", summary="Pending centre-staff registrations")
+async def list_staff_approvals(
+    role: str = "CENTER_ADMIN",
+    include_resolved: bool = False,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """List real centre-staff registration requests (default: pending Centre Admins)."""
+    q = select(StaffRegistrationRequest).where(StaffRegistrationRequest.role == role)
+    if not include_resolved:
+        q = q.where(StaffRegistrationRequest.status == StaffApprovalStatus.PENDING)
+    q = q.order_by(StaffRegistrationRequest.created_at.desc())
+    rows = (await db.execute(q)).scalars().all()
+    return {"pending": [_approval_view(r) for r in rows]}
+
+
+@router.post("/staff-approvals/{request_id}/issue-code", summary="Approve + issue one-time code")
+async def issue_staff_code(
+    request_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Approve a request and issue a real one-time activation code (returned once)."""
+    r = (await db.execute(
+        select(StaffRegistrationRequest).where(StaffRegistrationRequest.id == request_id)
+    )).scalar_one_or_none()
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_REQUEST")
+
+    code = _generate_code()
+    expires = datetime.now(timezone.utc) + timedelta(minutes=_CODE_TTL_MIN)
+    r.activation_code_hash = hashlib.sha256(code.encode()).hexdigest()
+    r.activation_code_expires_at = expires
+    r.status = StaffApprovalStatus.APPROVED
+    r.approved_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {"ok": True, "code": code, "expiresAt": expires.isoformat(), "ttlMinutes": _CODE_TTL_MIN}
+
+
+@router.post("/staff-approvals/{request_id}/authorise-fp", summary="Authorise fingerprint enrolment")
+async def authorise_staff_fp(
+    request_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Mark the applicant's fingerprint as authorised for in-person enrolment."""
+    r = (await db.execute(
+        select(StaffRegistrationRequest).where(StaffRegistrationRequest.id == request_id)
+    )).scalar_one_or_none()
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_REQUEST")
+    r.fingerprint_authorised = True
+    await db.commit()
+    return {"ok": True}

@@ -16,9 +16,9 @@
  * with code + live fingerprint (§9.4). This page cannot mint a working login.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { staffApi, type Centre } from "@/lib/api/staff";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
-interface Centre { centerId: string; name: string; state: string | null }
 
 export default function StaffRegistration() {
   const [role, setRole] = useState<Role>("CENTER_INVIGILATOR");
@@ -32,12 +32,8 @@ export default function StaffRegistration() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/staff-registration")
-      .then(async (r) => {
-        if (!r.ok) throw new Error();
-        const j = await r.json();
-        setCentres(j.centres ?? []);
-      })
+    staffApi.centres()
+      .then((c) => setCentres(c))
       .catch(() => setRelayDown(true));
   }, []);
 
@@ -45,13 +41,7 @@ export default function StaffRegistration() {
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch("/api/staff-registration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ role, centerId, fullName, faceEmbeddingHash: faceHash }),
-      });
-      const j = await r.json();
-      if (!r.ok || !j.ok) throw new Error(j.reason ?? `HTTP ${r.status}`);
+      const j = await staffApi.register({ role, centerId, fullName, faceEmbeddingHash: faceHash! });
       setResult({ requestId: j.requestId, approver: j.approver });
     } catch (e) {
       setError((e as Error).message);

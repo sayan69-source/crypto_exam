@@ -18,10 +18,10 @@ export default function SetterDashboard() {
       {/* KPI Cards */}
       <div className={styles.kpiGrid}>
         {[
-          { label: 'Questions in Bank', value: '2,847', icon: '📚', trend: '+124 this week' },
-          { label: 'Exams This Cycle', value: '3', icon: '📝', trend: '1 live, 1 locked' },
-          { label: 'ZK Proofs Generated', value: '7', icon: '🔬', trend: 'All verified ✅' },
-          { label: 'Avg IRT Accuracy', value: '97.3%', icon: '📈', trend: '↑ 2.1% from last' },
+          { label: 'Questions in Bank', value: '2,847', icon: '', trend: '+124 this week' },
+          { label: 'Exams This Cycle', value: '3', icon: '', trend: '1 live, 1 locked' },
+          { label: 'ZK Proofs Generated', value: '7', icon: '', trend: 'All verified ✓' },
+          { label: 'Avg IRT Accuracy', value: '97.3%', icon: '', trend: '↑ 2.1% from last' },
         ].map(kpi => (
           <div key={kpi.label} className={styles.kpiCard}>
             <span className={styles.kpiIcon}>{kpi.icon}</span>
@@ -80,14 +80,14 @@ export default function SetterDashboard() {
           <div className={styles.activityList}>
             {mockBlockchainEvents.filter(e => e.type === 'ZKProofSubmitted' || e.type === 'PaperLocked').map(ev => (
               <div key={ev.tx_hash} className={styles.activityItem}>
-                <span className={styles.activityIcon}>{ev.type === 'ZKProofSubmitted' ? '🔬' : '🔒'}</span>
+                <span className={styles.activityIcon}>{ev.type === 'ZKProofSubmitted' ? '' : ''}</span>
                 <div>
                   <span className={styles.activityType}>{ev.type}</span>
                   <span className={styles.activityTime}>
                     {new Date(ev.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })} IST
                   </span>
                 </div>
-                <span className={styles.activityStatus}>✅ Confirmed</span>
+                <span className={styles.activityStatus}>✓ Confirmed</span>
               </div>
             ))}
           </div>
@@ -103,7 +103,7 @@ export default function SetterDashboard() {
               { agent: 'ValidatorAgent', action: 'Rejected 3 questions (IRT out-of-range)', time: '12m ago' },
             ].map((item, i) => (
               <div key={i} className={styles.activityItem}>
-                <span className={styles.activityIcon}>🤖</span>
+                <span className={styles.activityIcon}></span>
                 <div>
                   <span className={styles.activityType}>{item.agent}</span>
                   <span className={styles.activityTime}>{item.action}</span>

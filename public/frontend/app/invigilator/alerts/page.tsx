@@ -55,10 +55,10 @@ export default function AlertsPage() {
       {/* V3 §7.3 — Panic alerts (silent candidate distress signals) */}
       {openPanics.length > 0 && (
         <div style={{ marginBottom: 18 }}>
-          <h3 className={styles.cardTitle} style={{ color: '#C82020' }}>🆘 Panic Alerts — Candidate Distress Signals</h3>
+          <h3 className={styles.cardTitle} style={{ color: '#C82020' }}>Panic Alerts — Candidate Distress Signals</h3>
           {openPanics.map((p) => (
             <div key={p.id} className={`${styles.alert} ${styles.alertCritical}`}>
-              <span className={styles.alertIcon}>🆘</span>
+              <span className={styles.alertIcon}></span>
               <div style={{ flex: 1 }}>
                 <p className={styles.alertTitle}>Seat {p.seatNumber ?? '—'} · Exam: {p.examId}</p>
                 <p className={styles.alertMsg}>
@@ -74,10 +74,10 @@ export default function AlertsPage() {
       )}
 
       {open.length === 0 ? (
-        <div className={styles.card}><div className={styles.empty}>✅ No open alerts. Centre is operating normally.</div></div>
+        <div className={styles.card}><div className={styles.empty}>✓ No open alerts. Centre is operating normally.</div></div>
       ) : open.map((a) => (
         <div key={a.id} className={`${styles.alert} ${a.severity === 'CRITICAL' ? styles.alertCritical : a.severity === 'WARN' ? styles.alertWarn : styles.alertInfo}`}>
-          <span className={styles.alertIcon}>{a.severity === 'CRITICAL' ? '🛑' : a.severity === 'WARN' ? '⚠️' : 'ℹ️'}</span>
+          <span className={styles.alertIcon}>{a.severity === 'CRITICAL' ? '' : a.severity === 'WARN' ? '' : 'ℹ'}</span>
           <div style={{ flex: 1 }}>
             <p className={styles.alertTitle}>{a.type.replace('_', ' ')} — {a.candidate_name}</p>
             <p className={styles.alertMsg}>{a.message}</p>
@@ -92,7 +92,7 @@ export default function AlertsPage() {
           <h3 className={styles.cardTitle} style={{ marginTop: 28 }}>Resolved</h3>
           {resolved.map((a) => (
             <div key={a.id} className={`${styles.alert} ${styles.alertInfo}`} style={{ opacity: 0.6 }}>
-              <span className={styles.alertIcon}>✅</span>
+              <span className={styles.alertIcon}>✓</span>
               <div><p className={styles.alertTitle}>{a.candidate_name}</p><p className={styles.alertMsg}>{a.message}</p></div>
             </div>
           ))}

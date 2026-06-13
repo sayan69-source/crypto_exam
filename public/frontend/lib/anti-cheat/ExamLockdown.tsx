@@ -139,7 +139,7 @@ export function ExamLockdown({ children, onViolation, isSubmitted }: ExamLockdow
     return (
       <div className={styles.antiCheatOverlay} style={{ background: 'var(--color-navy-950)', zIndex: 9999 }}>
         <div className={styles.antiCheatCard}>
-          <h2 style={{ fontSize: 24, marginBottom: 16, color: 'var(--color-danger)' }}>⚠️ Exam Paused</h2>
+          <h2 style={{ fontSize: 24, marginBottom: 16, color: 'var(--color-danger)' }}>Exam Paused</h2>
           <p>You have exited fullscreen mode. Your activity has been logged.</p>
           <p style={{ marginTop: 8, marginBottom: 24 }}>You must return to fullscreen to continue the exam.</p>
           <button onClick={requestFullscreen} style={{ padding: '12px 24px', fontSize: 16, background: 'var(--color-navy-600)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>

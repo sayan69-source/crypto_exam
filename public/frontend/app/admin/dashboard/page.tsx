@@ -1,183 +1,213 @@
 /**
  * CryptoExam Core — Admin Mission Control Dashboard
- * 12-column CSS Grid, dark mode, real-time everything
- * Row 1: Live exams strip | Row 2: KPI tiles | Row 3: Map + Anomalies | Row 4: Nodes + Blockchain
+ * Wired to the live FastAPI backend (/admin/dashboard, /admin/nodes, /exams).
+ * No mock fixtures — shows real system state or an honest loading/error view.
  */
 'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { mockDashboard, mockCenters, mockAnomalies, mockBlockchainEvents, mockNodes } from '@/lib/api/mock-data';
+import {
+  adminApi,
+  type AdminDashboard,
+  type AdminNode,
+  type AdminExam,
+} from '@/lib/api/admin';
 import styles from './dashboard.module.css';
 
-export default function AdminDashboard() {
-  const dash = mockDashboard;
-  const [tick, setTick] = useState(0);
+const HEALTH_OK = new Set(['healthy', 'connected', 'up', 'ready']);
 
-  // Simulated live ticker
+export default function AdminDashboard() {
+  const [dash, setDash] = useState<AdminDashboard | null>(null);
+  const [nodes, setNodes] = useState<AdminNode[]>([]);
+  const [exams, setExams] = useState<AdminExam[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 3000);
-    return () => clearInterval(timer);
+    let alive = true;
+    (async () => {
+      try {
+        const [d, n, e] = await Promise.all([
+          adminApi.dashboard(),
+          adminApi.nodes().catch(() => ({ total: 0, nodes: [] as AdminNode[] })),
+          adminApi.exams().catch(() => ({ items: [] as AdminExam[], total: 0, page: 1, per_page: 0 })),
+        ]);
+        if (!alive) return;
+        setDash(d);
+        setNodes(n.nodes);
+        setExams(e.items);
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
   }, []);
+
+  if (loading) {
+    return <div className={styles.page}><div className={styles.header}><h1>Mission Control</h1></div><p style={{ color: 'var(--color-navy-300)' }}>Loading live system state…</p></div>;
+  }
+  if (error || !dash) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}><h1>Mission Control</h1></div>
+        <div style={{ padding: 20, border: '1px solid #7f1d1d', background: 'rgba(127,29,29,0.15)', borderRadius: 12, color: '#fca5a5' }}>
+          Could not reach the backend: {error ?? 'unknown error'}.
+          <br />Ensure the API is running at <code>{process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}</code>.
+        </div>
+      </div>
+    );
+  }
+
+  const liveExams = exams.filter((e) => e.status === 'LIVE');
+  const onlineNodes = nodes.filter((n) => n.is_online).length;
+  const examStatuses = Object.entries(dash.exams).filter(([, v]) => v > 0);
 
   return (
     <div className={styles.page}>
       {/* Row 0 — Page header */}
       <div className={styles.header}>
         <h1>Mission Control</h1>
-        <span className={styles.headerMeta}>Last update: {new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
+        <span className={styles.headerMeta}>
+          Live · {new Date(dash.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
+        </span>
       </div>
 
-      {/* Row 1 — Live exams strip */}
+      {/* Row 1 — Live exams strip (real exams in LIVE state) */}
       <div className={styles.liveStrip}>
-        {dash.live_exams.map(exam => (
-          <div key={exam.id} className={`${styles.liveCard} ${styles[`health-${exam.health}`]}`}>
+        {liveExams.length === 0 ? (
+          <div className={styles.liveCard} style={{ opacity: 0.7 }}>
+            <div className={styles.liveHeader}><span className={styles.liveExamName}>No exams currently live</span></div>
+            <div className={styles.liveStats}><span className={styles.liveStatLabel}>Next scheduled exams appear here once they enter the LIVE state.</span></div>
+          </div>
+        ) : liveExams.map((exam) => (
+          <div key={exam.id} className={`${styles.liveCard} ${styles['health-healthy']}`}>
             <div className={styles.liveHeader}>
               <span className={styles.liveIndicator}>● LIVE</span>
               <span className={styles.liveExamName}>{exam.name}</span>
             </div>
             <div className={styles.liveStats}>
-              <div className={styles.liveStat}>
-                <span className={styles.liveStatValue}>{exam.candidates_online.toLocaleString()}</span>
-                <span className={styles.liveStatLabel}>online</span>
-              </div>
-              <div className={styles.liveStat}>
-                <span className={styles.liveStatValue}>{exam.centers_healthy}/{exam.centers_total}</span>
-                <span className={styles.liveStatLabel}>centers ok</span>
-              </div>
-              <div className={styles.liveStat}>
-                <span className={styles.liveStatValue}>{Math.floor(exam.time_remaining_seconds / 60)}m</span>
-                <span className={styles.liveStatLabel}>remaining</span>
-              </div>
-              <div className={styles.liveStat}>
-                <span className={`${styles.liveStatValue} ${exam.anomaly_count > 0 ? styles.anomalyCount : ''}`}>
-                  {exam.anomaly_count}
-                </span>
-                <span className={styles.liveStatLabel}>anomalies</span>
-              </div>
+              <div className={styles.liveStat}><span className={styles.liveStatValue}>{exam.sets_count}</span><span className={styles.liveStatLabel}>sets</span></div>
+              <div className={styles.liveStat}><span className={styles.liveStatValue}>{exam.duration_minutes}m</span><span className={styles.liveStatLabel}>duration</span></div>
+              <div className={styles.liveStat}><span className={styles.liveStatValue}>{exam.exam_body}</span><span className={styles.liveStatLabel}>body</span></div>
+              <div className={styles.liveStat}><span className={styles.liveStatValue}>−{exam.negative_marking}</span><span className={styles.liveStatLabel}>neg. mark</span></div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Row 2 — KPI Tiles */}
+      {/* Row 2 — KPI Tiles (real) */}
       <div className={styles.kpiRow}>
         {[
-          { label: 'Candidates Online', value: dash.candidates_online.toLocaleString(), icon: '👥', color: '#4ade80' },
-          { label: 'Centers Healthy', value: `${dash.centers_healthy}/${dash.centers_total}`, icon: '🏫', color: dash.centers_healthy < dash.centers_total ? '#f59e0b' : '#4ade80' },
-          { label: 'Blockchain TPS', value: dash.blockchain_tps.toString(), icon: '⛓️', color: '#a78bfa' },
-          { label: 'Active Anomalies', value: dash.active_anomalies.toString(), icon: '⚠️', color: dash.active_anomalies > 5 ? '#f87171' : '#f59e0b' },
-        ].map(kpi => (
+          { label: 'Candidates Enrolled', value: (dash.users.CANDIDATE ?? 0).toLocaleString(), color: '#4ade80' },
+          { label: 'Active Sessions', value: dash.active_sessions.toLocaleString(), color: '#60a5fa' },
+          { label: 'Nodes Online', value: `${dash.hardware_nodes.online}/${dash.hardware_nodes.total}`, color: dash.hardware_nodes.online < dash.hardware_nodes.total ? '#f59e0b' : '#4ade80' },
+          { label: 'Total Enrollments', value: dash.total_enrollments.toLocaleString(), color: '#a78bfa' },
+        ].map((kpi) => (
           <div key={kpi.label} className={styles.kpiTile}>
-            <span className={styles.kpiIcon}>{kpi.icon}</span>
             <span className={styles.kpiValue} style={{ color: kpi.color }}>{kpi.value}</span>
             <span className={styles.kpiLabel}>{kpi.label}</span>
           </div>
         ))}
       </div>
 
-      {/* Row 3 — Map placeholder + Anomaly feed */}
+      {/* Row 3 — Node map (real GPS) + System health */}
       <div className={styles.mapRow}>
-        {/* India map placeholder */}
         <div className={styles.mapPanel}>
           <div className={styles.mapHeader}>
-            <h2>Center Map — India</h2>
-            <Link href="/admin/centers" className={styles.viewAllLink}>View All →</Link>
+            <h2>Hardware Nodes — India</h2>
+            <Link href="/admin/nodes" className={styles.viewAllLink}>View All →</Link>
           </div>
           <div className={styles.mapPlaceholder}>
             <div className={styles.indiaOutline}>
-              {/* Simplified center dots */}
-              {mockCenters.map(center => (
+              {nodes.filter((n) => n.latitude != null && n.longitude != null).map((n) => (
                 <div
-                  key={center.id}
-                  className={`${styles.centerDot} ${styles[`dot-${center.status}`]}`}
+                  key={n.id}
+                  className={`${styles.centerDot} ${n.is_online ? styles['dot-healthy'] : styles['dot-inactive']}`}
                   style={{
-                    left: `${((center.longitude - 68) / (98 - 68)) * 100}%`,
-                    top: `${((37 - center.latitude) / (37 - 8)) * 100}%`,
+                    left: `${((n.longitude! - 68) / (98 - 68)) * 100}%`,
+                    top: `${((37 - n.latitude!) / (37 - 8)) * 100}%`,
                   }}
-                  title={`${center.name} — ${center.status}`}
+                  title={`${n.center_name ?? n.serial_number} — ${n.is_online ? 'online' : 'offline'}`}
                 />
               ))}
             </div>
             <div className={styles.mapLegend}>
-              <span><span className={`${styles.legendDot} ${styles['dot-healthy']}`} /> Healthy</span>
-              <span><span className={`${styles.legendDot} ${styles['dot-degraded']}`} /> Degraded</span>
-              <span><span className={`${styles.legendDot} ${styles['dot-incident']}`} /> Incident</span>
+              <span><span className={`${styles.legendDot} ${styles['dot-healthy']}`} /> Online</span>
+              <span><span className={`${styles.legendDot} ${styles['dot-inactive']}`} /> Offline</span>
             </div>
           </div>
         </div>
 
-        {/* Anomaly feed */}
+        {/* System health (real) */}
         <div className={styles.anomalyPanel}>
           <div className={styles.anomalyHeader}>
-            <h2>⚠️ Anomaly Feed</h2>
-            <span className={styles.anomalyBadge}>{mockAnomalies.filter(a => !a.resolved).length} active</span>
+            <h2>System Health</h2>
+            <span className={styles.anomalyBadge}>{Object.values(dash.system_health).filter((s) => HEALTH_OK.has(s)).length}/{Object.keys(dash.system_health).length} OK</span>
           </div>
           <div className={styles.anomalyList}>
-            {mockAnomalies.map(anomaly => {
-              const timeDiff = Math.floor((Date.now() - new Date(anomaly.created_at).getTime()) / 60000);
-              return (
-                <div key={anomaly.id} className={`${styles.anomalyItem} ${styles[`sev-${anomaly.severity}`]}`}>
-                  <div className={styles.anomalyMeta}>
-                    <span className={styles.anomalyType}>{anomaly.type.replace(/_/g, ' ')}</span>
-                    <span className={styles.anomalyTime}>{timeDiff}m ago</span>
-                  </div>
-                  <span className={styles.anomalyCenter}>{anomaly.center_name}</span>
-                  {anomaly.candidate_name && (
-                    <span className={styles.anomalyCandidate}>{anomaly.candidate_name}</span>
-                  )}
-                  <span className={`${styles.anomalyStatus} ${anomaly.resolved ? styles.resolved : ''}`}>
-                    {anomaly.resolved ? '✅ Resolved' : '🔴 Active'}
-                  </span>
+            {Object.entries(dash.system_health).map(([component, state]) => (
+              <div key={component} className={`${styles.anomalyItem} ${HEALTH_OK.has(state) ? styles['sev-1'] : styles['sev-4']}`}>
+                <div className={styles.anomalyMeta}>
+                  <span className={styles.anomalyType}>{component}</span>
+                  <span className={styles.anomalyTime}>{state}</span>
                 </div>
-              );
-            })}
+                <span className={`${styles.anomalyStatus} ${HEALTH_OK.has(state) ? styles.resolved : ''}`}>
+                  {HEALTH_OK.has(state) ? '✓ Healthy' : 'Degraded'}
+                </span>
+              </div>
+            ))}
+            <div className={styles.anomalyItem}>
+              <div className={styles.anomalyMeta}><span className={styles.anomalyType}>Users by role</span></div>
+              <span className={styles.anomalyCenter}>
+                {Object.entries(dash.users).map(([r, c]) => `${r.toLowerCase()} ${c}`).join(' · ')}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Row 4 — Nodes + Blockchain */}
+      {/* Row 4 — Nodes grid (real) + Exam pipeline (real) */}
       <div className={styles.bottomRow}>
-        {/* Hardware Nodes */}
         <div className={styles.nodesPanel}>
           <div className={styles.panelHeader}>
-            <h2>🔧 Hardware Nodes</h2>
+            <h2>Hardware Nodes ({onlineNodes}/{nodes.length} online)</h2>
             <Link href="/admin/nodes" className={styles.viewAllLink}>Manage →</Link>
           </div>
           <div className={styles.nodeGrid}>
-            {mockNodes.slice(0, 4).map(node => (
-              <div key={node.id} className={`${styles.nodeCard} ${styles[`nodeStatus-${node.status}`]}`}>
+            {nodes.slice(0, 4).map((node) => (
+              <div key={node.id} className={`${styles.nodeCard} ${node.is_online ? styles['nodeStatus-ARMED'] : styles['nodeStatus-ERROR']}`}>
                 <div className={styles.nodeHeader}>
                   <code className={styles.nodeSerial}>{node.serial_number}</code>
-                  <span className={`${styles.nodeStatusBadge} ${styles[`nodeS-${node.status}`]}`}>{node.status}</span>
+                  <span className={`${styles.nodeStatusBadge} ${node.is_online ? styles['nodeS-ARMED'] : styles['nodeS-ERROR']}`}>{node.is_online ? 'ONLINE' : 'OFFLINE'}</span>
                 </div>
-                <span className={styles.nodeCenter}>{node.center_name}</span>
+                <span className={styles.nodeCenter}>{node.center_name ?? node.state ?? '—'}</span>
                 <div className={styles.nodeChecks}>
-                  <span>TPM {node.tpm_ok ? '✅' : '❌'}</span>
-                  <span>GPS {node.gps_ok ? '✅' : '❌'}</span>
-                  <span>ATECC {node.atecc_ok ? '✅' : '❌'}</span>
-                  <span>Mesh {node.tamper_mesh_ok ? '✅' : '❌'}</span>
+                  <span>TPM {node.tpm_verified ? '✓' : '✗'}</span>
+                  <span>GPS {node.latitude != null ? '✓' : '✗'}</span>
+                  <span>FW {node.firmware_version ?? '—'}</span>
                 </div>
-                {node.battery_percent < 100 && (
-                  <span className={styles.nodeBattery}>🔋 {node.battery_percent}%</span>
-                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Blockchain Feed */}
+        {/* Exam pipeline (real status breakdown) */}
         <div className={styles.blockchainPanel}>
           <div className={styles.panelHeader}>
-            <h2>⛓️ Blockchain Feed</h2>
-            <Link href="/admin/blockchain" className={styles.viewAllLink}>Full Log →</Link>
+            <h2>Exam Pipeline</h2>
+            <Link href="/admin/exams" className={styles.viewAllLink}>All Exams →</Link>
           </div>
           <div className={styles.txList}>
-            {mockBlockchainEvents.map(event => (
-              <div key={event.tx_hash} className={styles.txItem}>
-                <span className={styles.txType}>{event.type}</span>
-                <code className={styles.txHash}>{event.tx_hash.slice(0, 10)}...{event.tx_hash.slice(-6)}</code>
-                <span className={styles.txStatus}>✅</span>
+            {examStatuses.length === 0 ? (
+              <div className={styles.txItem}><span className={styles.txType}>No exams</span></div>
+            ) : examStatuses.map(([status, count]) => (
+              <div key={status} className={styles.txItem}>
+                <span className={styles.txType}>{status}</span>
+                <code className={styles.txHash}>{count} exam{count === 1 ? '' : 's'}</code>
+                <span className={styles.txStatus}>{count}</span>
               </div>
             ))}
           </div>

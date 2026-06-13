@@ -110,7 +110,7 @@ export default function AIEditedPage() {
   return (
     <div className={styles.page}>
       <Link href="/setter/paper-modes" className={styles.backBtn}>← Back to Paper Modes</Link>
-      <h1 className={styles.title}>🔄 AI-Updated Upload (Mixed Mode)</h1>
+      <h1 className={styles.title}>AI-Updated Upload (Mixed Mode)</h1>
       <p className={styles.subtitle}>Upload Syllabus & Paper. Computer Vision extracts questions, and a Black-Box AI randomly modifies numbers and phrasing while maintaining original difficulty.</p>
 
       {/* Stepper */}
@@ -127,7 +127,7 @@ export default function AIEditedPage() {
       {step === 0 && (
         <div className={styles.form}>
           <div className={styles.infoBanner}>
-            <span className={styles.infoBannerIcon}>📄</span>
+            <span className={styles.infoBannerIcon}></span>
             <span className={styles.infoBannerText}>
               Upload exactly two PDFs: the official Syllabus and the Question Paper. 
               Computer Vision will map them, and AI will use the syllabus limits to intelligently swap numbers or randomly rephrase questions.
@@ -136,13 +136,13 @@ export default function AIEditedPage() {
 
           <div className={styles.dualUploadGrid}>
             <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={handleSyllabusUpload}>
-              <span className={styles.uploadIcon}>📋</span>
+              <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{syllabusFile ? 'Syllabus Uploaded' : 'Upload Syllabus PDF'}</span>
               <span className={styles.uploadDesc}>{syllabusFile ? syllabusFile.name : 'Click to select syllabus file'}</span>
             </div>
 
             <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={handlePaperUpload}>
-              <span className={styles.uploadIcon}>📝</span>
+              <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{paperFile ? 'Question Paper Uploaded' : 'Upload Question Paper PDF'}</span>
               <span className={styles.uploadDesc}>{paperFile ? paperFile.name : 'Full paper written in exam pattern'}</span>
             </div>
@@ -163,7 +163,7 @@ export default function AIEditedPage() {
               className={`${styles.diffCard} ${styles.diffCardEasy} ${difficulty === 'EASY' ? styles.diffSelected : ''}`}
               onClick={() => setDifficulty('EASY')}
             >
-              <span className={styles.diffIcon}>🟢</span>
+              <span className={styles.diffIcon}></span>
               <span className={styles.diffName}>Light</span>
               <span className={`${styles.diffPercent} ${styles.diffEasyColor}`}>~20%</span>
               <span className={styles.diffDesc}>Only changes numerical values and swaps option orders. Text remains identical.</span>
@@ -173,7 +173,7 @@ export default function AIEditedPage() {
               className={`${styles.diffCard} ${styles.diffCardMedium} ${difficulty === 'MEDIUM' ? styles.diffSelected : ''}`}
               onClick={() => setDifficulty('MEDIUM')}
             >
-              <span className={styles.diffIcon}>🟡</span>
+              <span className={styles.diffIcon}></span>
               <span className={styles.diffName}>Moderate</span>
               <span className={`${styles.diffPercent} ${styles.diffMedColor}`}>~50%</span>
               <span className={styles.diffDesc}>Rephrases questions slightly + randomizes numbers. Same core concepts.</span>
@@ -183,7 +183,7 @@ export default function AIEditedPage() {
               className={`${styles.diffCard} ${styles.diffCardHard} ${difficulty === 'HARD' ? styles.diffSelected : ''}`}
               onClick={() => setDifficulty('HARD')}
             >
-              <span className={styles.diffIcon}>🔴</span>
+              <span className={styles.diffIcon}></span>
               <span className={styles.diffName}>Aggressive</span>
               <span className={`${styles.diffPercent} ${styles.diffHardColor}`}>~80%</span>
               <span className={styles.diffDesc}>Major overhauls. AI may swap entire components (e.g., lens to mirror) within syllabus limits.</span>
@@ -199,12 +199,12 @@ export default function AIEditedPage() {
           {/* CV Animation shown first half */}
           {progress < 50 ? (
             <div className={styles.cvScanner}>
-              <div className={styles.cvIcon}>👁️</div>
+              <div className={styles.cvIcon}></div>
               <div className={styles.cvText}>Computer Vision Optical Parsing...</div>
             </div>
           ) : (
             <div className={styles.cvScanner} style={{ borderColor: '#6366f1' }}>
-              <div className={styles.cvIcon}>🤖</div>
+              <div className={styles.cvIcon}></div>
               <div className={styles.cvText} style={{ color: '#818cf8' }}>Black-Box AI Randomization Active...</div>
             </div>
           )}
@@ -220,7 +220,7 @@ export default function AIEditedPage() {
           </div>
 
           <div className={styles.sectionCard}>
-            <h3 className={styles.sectionTitle}>⚙️ Action Log</h3>
+            <h3 className={styles.sectionTitle}>Action Log</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
                 { msg: '[CV] Extracting syllabus constraints...', done: progress > 10 },
@@ -233,7 +233,7 @@ export default function AIEditedPage() {
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
                   <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>
-                    {item.done ? '✅' : progress > i * 14 ? '⏳' : '⬜'}
+                    {item.done ? '✓' : progress > i * 14 ? '…' : ''}
                   </span>
                   <span style={{ fontSize: 13, color: item.done ? 'var(--color-navy-200)' : 'var(--color-navy-500)' }}>{item.msg}</span>
                 </div>
@@ -260,7 +260,7 @@ export default function AIEditedPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span className={styles.diffQNum}>Q{q.id}</span>
                     <span className={`${styles.diffStatus} ${q.status === 'modified' ? styles.diffModified : styles.diffUnchanged}`}>
-                      {q.status === 'modified' ? '🔄 AI Updated' : '— Unchanged'}
+                      {q.status === 'modified' ? 'AI Updated' : '— Unchanged'}
                     </span>
                   </div>
                   {q.status === 'modified' && (
@@ -293,8 +293,8 @@ export default function AIEditedPage() {
 
                 {q.status !== 'unchanged' && (
                   <div className={styles.diffActions}>
-                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginRight: 8 }}>✅ Approved</span>}
-                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600, marginRight: 8 }}>❌ Rejected</span>}
+                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginRight: 8 }}>✓ Approved</span>}
+                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600, marginRight: 8 }}>✗ Rejected</span>}
                     <button className={styles.approveBtn} onClick={() => handleApprove(q.id)}>✓ Approve</button>
                     <button className={styles.rejectBtn} onClick={() => handleReject(q.id)}>✕ Reject</button>
                   </div>
@@ -304,7 +304,7 @@ export default function AIEditedPage() {
           </div>
 
           {approvedCount >= totalReviewable && (
-            <button className={styles.submitBtn} style={{ marginTop: 24 }}>🔐 Finalize & Lock Paper →</button>
+            <button className={styles.submitBtn} style={{ marginTop: 24 }}>Finalize & Lock Paper →</button>
           )}
         </div>
       )}

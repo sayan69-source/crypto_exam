@@ -62,7 +62,7 @@ export default function RosterPage() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.candidate_id}>
-                  <td className={styles.rowEmoji}>{r.photo_emoji ?? '🧑'}</td>
+                  <td className={styles.rowEmoji}>{(r.candidate_name ?? '?').charAt(0)}</td>
                   <td>{r.candidate_name}</td>
                   <td style={{ fontFamily: 'var(--font-mono)' }}>{r.hall_ticket}</td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{r.roll_number}</td>

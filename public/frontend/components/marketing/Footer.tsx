@@ -50,6 +50,16 @@ export default function Footer() {
               <li><Link href="/#faq">FAQ</Link></li>
             </ul>
           </div>
+
+          <div className="footer-col">
+            <h5>Centre staff</h5>
+            <ul>
+              <li><Link href="/staff-registration">Register as Centre Admin</Link></li>
+              <li><Link href="/staff-registration">Register as Invigilator</Link></li>
+              <li><Link href="/center-access">Centre access &amp; login</Link></li>
+              <li><Link href="/for-administrators">For administrators</Link></li>
+            </ul>
+          </div>
         </div>
 
         <div className="footer-bottom">

@@ -30,7 +30,7 @@ export default function InstructionsPage() {
       {/* Top Bar */}
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>
-          🔐 CryptoExam Core — {config.examName}
+          CryptoExam Core — {config.examName}
         </div>
         <div className={styles.topBarRight}>
           <span>Candidate: {session?.name || 'Priya Sharma'}</span>

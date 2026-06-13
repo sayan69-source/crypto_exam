@@ -74,7 +74,7 @@ export default function DirectUploadPage() {
   return (
     <div className={styles.page}>
       <Link href="/setter/paper-modes" className={styles.backBtn}>← Back to Paper Modes</Link>
-      <h1 className={styles.title}>🏛️ Direct Upload — Trusted Institutions</h1>
+      <h1 className={styles.title}>Direct Upload — Trusted Institutions</h1>
       <p className={styles.subtitle}>Upload Syllabus and Question Paper PDFs. Computer Vision automatically converts them to CBT format.</p>
 
       {/* Stepper */}
@@ -108,7 +108,6 @@ export default function DirectUploadPage() {
                 className={`${styles.instCard} ${selectedInst === inst.id ? styles.instCardSelected : ''}`}
                 onClick={() => setSelectedInst(inst.id)}
               >
-                <span className={styles.instEmoji}>{inst.logo_emoji}</span>
                 <div className={styles.instInfo}>
                   <span className={styles.instName}>{inst.short_name}</span>
                   <span className={styles.instLocation}>{inst.location}</span>
@@ -118,7 +117,7 @@ export default function DirectUploadPage() {
                     <span className={styles.instMetaTag}>0 leaks</span>
                   </div>
                 </div>
-                <span className={styles.trustBadge}>✅ Verified</span>
+                <span className={styles.trustBadge}>✓ Verified</span>
               </div>
             ))}
           </div>
@@ -129,7 +128,7 @@ export default function DirectUploadPage() {
       {step === 1 && (
         <div className={styles.form}>
           <div className={styles.infoBanner}>
-            <span className={styles.infoBannerIcon}>👤</span>
+            <span className={styles.infoBannerIcon}></span>
             <span className={styles.infoBannerText}>
               These details will be shown to students after the exam for full transparency.
               Your email will be partially masked.
@@ -180,7 +179,7 @@ export default function DirectUploadPage() {
       {step === 2 && (
         <div className={styles.form}>
           <div className={styles.infoBanner}>
-            <span className={styles.infoBannerIcon}>📄</span>
+            <span className={styles.infoBannerIcon}></span>
             <span className={styles.infoBannerText}>
               Upload exactly two PDFs: the official Syllabus and the full Question Paper written in the exam pattern. 
               Our Computer Vision model will automatically integrate them into CBT mode.
@@ -192,14 +191,14 @@ export default function DirectUploadPage() {
           <div className={styles.dualUploadGrid}>
             {/* Syllabus Upload */}
             <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={() => syllabusInput.current?.click()}>
-              <span className={styles.uploadIcon}>📋</span>
+              <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{syllabusFile ? 'Syllabus Uploaded' : 'Upload Syllabus PDF'}</span>
               <span className={styles.uploadDesc}>{syllabusFile ? `${syllabusFile.name} · ${syllabusFile.size}` : 'Click to select syllabus file'}</span>
             </div>
 
             {/* Paper Upload */}
             <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={() => paperInput.current?.click()}>
-              <span className={styles.uploadIcon}>📝</span>
+              <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{paperFile ? 'Question Paper Uploaded' : 'Upload Question Paper PDF'}</span>
               <span className={styles.uploadDesc}>{paperFile ? `${paperFile.name} · ${paperFile.size}` : 'Full paper written in exam pattern'}</span>
             </div>
@@ -211,13 +210,13 @@ export default function DirectUploadPage() {
       {step === 3 && (
         <div className={styles.form}>
           <div className={styles.cvScanner}>
-            <div className={styles.cvIcon}>👁️</div>
+            <div className={styles.cvIcon}></div>
             <div className={styles.cvText}>Computer Vision Optical Parsing in Progress...</div>
           </div>
 
           {parseError && (
             <div className={styles.infoBanner} style={{ borderColor: '#ef4444' }}>
-              <span className={styles.infoBannerIcon}>⚠️</span>
+              <span className={styles.infoBannerIcon}></span>
               <span className={styles.infoBannerText}>Parsing failed: {parseError}</span>
             </div>
           )}
@@ -233,7 +232,7 @@ export default function DirectUploadPage() {
           </div>
 
           <div className={styles.sectionCard}>
-            <h3 className={styles.sectionTitle}>👁️ Vision Activity Log</h3>
+            <h3 className={styles.sectionTitle}>Vision Activity Log</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
                 { msg: 'Extracting text and structure from Syllabus PDF...', done: progress > 15 },
@@ -246,7 +245,7 @@ export default function DirectUploadPage() {
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
                   <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>
-                    {item.done ? '✅' : progress > i * 14 ? '⏳' : '⬜'}
+                    {item.done ? '✓' : progress > i * 14 ? '…' : ''}
                   </span>
                   <span style={{ fontSize: 13, color: item.done ? 'var(--color-navy-200)' : 'var(--color-navy-500)' }}>{item.msg}</span>
                 </div>
@@ -260,7 +259,7 @@ export default function DirectUploadPage() {
       {step === 4 && (
         <div className={styles.form}>
           <div className={styles.infoBanner}>
-            <span className={styles.infoBannerIcon}>✅</span>
+            <span className={styles.infoBannerIcon}>✓</span>
             <span className={styles.infoBannerText}>
               Computer Vision parsing successful. The paper is CBT-ready. 
               Upon submission, it will be AES-GCM-256 encrypted and locked on the blockchain.
@@ -268,7 +267,7 @@ export default function DirectUploadPage() {
           </div>
 
           <div className={styles.sectionCard}>
-            <h3 className={styles.sectionTitle}>📄 Computer Vision Output</h3>
+            <h3 className={styles.sectionTitle}>Computer Vision Output</h3>
             <div className={styles.reviewGrid}>
               <span className={styles.reviewLabel}>Questions Extracted</span>
               <span className={styles.reviewValue}>
@@ -292,14 +291,14 @@ export default function DirectUploadPage() {
           </div>
 
           <div className={styles.sectionCard}>
-            <h3 className={styles.sectionTitle}>👤 Setter Transparency Details</h3>
+            <h3 className={styles.sectionTitle}>Setter Transparency Details</h3>
             <div className={styles.reviewGrid}>
               <span className={styles.reviewLabel}>Setter Name</span>
               <span className={styles.reviewValue}>{setterData.name || 'Prof. Arvind Krishnamurthy'}</span>
               <span className={styles.reviewLabel}>Institution</span>
               <span className={styles.reviewValue}>{selectedInstitution?.name || 'IIT Bombay'}</span>
               <span className={styles.reviewLabel}>Institution Record</span>
-              <span className={styles.reviewValue} style={{ color: '#4ade80' }}>0 leak incidents — Clean ✅</span>
+              <span className={styles.reviewValue} style={{ color: '#4ade80' }}>0 leak incidents — Clean ✓</span>
             </div>
           </div>
 
@@ -319,7 +318,7 @@ export default function DirectUploadPage() {
             style={redTeam && !redTeam.red_team_passed ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
             title={redTeam && !redTeam.red_team_passed ? `Resolve ${redTeam.blocker_count} Red-Team blocker(s) before locking` : ''}
           >
-            🔐 Encrypt & Lock on Blockchain →
+            Encrypt & Lock on Blockchain →
           </button>
         </div>
       )}

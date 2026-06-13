@@ -135,10 +135,10 @@ export default function SystemCheckPage() {
           {checks.map(check => (
             <div key={check.id} className={styles.checkItem}>
               <div className={styles.checkIcon}>
-                {check.status === 'pending' && <span style={{ color: '#9ca3af' }}>⏳</span>}
+                {check.status === 'pending' && <span style={{ color: '#9ca3af' }}>…</span>}
                 {check.status === 'running' && <span className={styles.statusSpinner} />}
-                {check.status === 'passed' && <span style={{ color: '#16a34a' }}>✅</span>}
-                {check.status === 'failed' && <span style={{ color: '#dc2626' }}>❌</span>}
+                {check.status === 'passed' && <span style={{ color: '#16a34a' }}>✓</span>}
+                {check.status === 'failed' && <span style={{ color: '#dc2626' }}>✗</span>}
               </div>
               <div className={styles.checkDetails}>
                 <div className={styles.checkName}>{check.name}</div>

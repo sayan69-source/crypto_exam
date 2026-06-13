@@ -27,7 +27,7 @@ export default function AuditDetailPage({ params }: { params: { examId: string }
           </div>
 
           <div className={styles.verdictBox}>
-            <div className={styles.verdictIcon}>✅</div>
+            <div className={styles.verdictIcon}>✓</div>
             <div className={styles.verdictText}>
               <h2>INTEGRITY VERIFIED</h2>
               <p>All cryptographic proofs match. The mathematics confirm the exam was conducted securely and fairly.</p>
@@ -36,28 +36,28 @@ export default function AuditDetailPage({ params }: { params: { examId: string }
 
           <div className={styles.checklist}>
             <div className={styles.checkItem}>
-              <span className={styles.checkIcon}>✅</span>
+              <span className={styles.checkIcon}>✓</span>
               <div className={styles.checkContent}>
                 <h3>Question Hash Commitment</h3>
                 <p>Matches on-chain commitment exactly.</p>
               </div>
             </div>
             <div className={styles.checkItem}>
-              <span className={styles.checkIcon}>✅</span>
+              <span className={styles.checkIcon}>✓</span>
               <div className={styles.checkContent}>
                 <h3>ZK Difficulty Proof (Groth16)</h3>
                 <p>Verified on Polygon. The difficulty distribution was within the required parameters before the exam started.</p>
               </div>
             </div>
             <div className={styles.checkItem}>
-              <span className={styles.checkIcon}>✅</span>
+              <span className={styles.checkIcon}>✓</span>
               <div className={styles.checkContent}>
                 <h3>Time-Lock Integrity</h3>
                 <p>Paper was locked at least 72 hours prior to scheduled T₀.</p>
               </div>
             </div>
             <div className={styles.checkItem}>
-              <span className={styles.checkIcon}>✅</span>
+              <span className={styles.checkIcon}>✓</span>
               <div className={styles.checkContent}>
                 <h3>Answer Merkle Root</h3>
                 <p>Root hash committed to the blockchain immediately post-exam.</p>

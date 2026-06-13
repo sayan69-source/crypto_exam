@@ -41,9 +41,9 @@ export default function InvigilatorDashboardPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
-        <Link href={`/invigilator/verify/${CENTER_ID}`} className={styles.btnPrimary}>🪪 Verify Next Candidate · अगला अभ्यर्थी</Link>
-        <Link href="/invigilator/roster" className={styles.btnGhost}>📋 Open Roster</Link>
-        <Link href="/invigilator/alerts" className={styles.btnGhost}>🚨 Alerts ({alerts.filter((a) => !a.resolved).length})</Link>
+        <Link href={`/invigilator/verify/${CENTER_ID}`} className={styles.btnPrimary}>Verify Next Candidate · अगला अभ्यर्थी</Link>
+        <Link href="/invigilator/roster" className={styles.btnGhost}>Open Roster</Link>
+        <Link href="/invigilator/alerts" className={styles.btnGhost}>Alerts ({alerts.filter((a) => !a.resolved).length})</Link>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
@@ -55,7 +55,7 @@ export default function InvigilatorDashboardPage() {
               <tbody>
                 {recent.map((r) => (
                   <tr key={r.candidate_id}>
-                    <td className={styles.rowEmoji}>{r.photo_emoji ?? '🧑'}</td>
+                    <td className={styles.rowEmoji}>{(r.candidate_name ?? '?').charAt(0)}</td>
                     <td>{r.candidate_name}</td>
                     <td style={{ fontFamily: 'var(--font-mono)' }}>{r.hall_ticket}</td>
                     <td><span className={`${styles.badge} ${r.status === 'VERIFIED' ? styles.badgeVerified : r.status === 'MISMATCH' ? styles.badgeMismatch : styles.badgePending}`}>{r.status}</span></td>
@@ -71,7 +71,7 @@ export default function InvigilatorDashboardPage() {
           <h3 className={styles.cardTitle}>Open Alerts</h3>
           {alerts.length === 0 ? <div className={styles.empty}>No alerts. केंद्र सामान्य।</div> : alerts.slice(0, 3).map((a) => (
             <div key={a.id} className={`${styles.alert} ${a.severity === 'CRITICAL' ? styles.alertCritical : a.severity === 'WARN' ? styles.alertWarn : styles.alertInfo}`}>
-              <span className={styles.alertIcon}>{a.severity === 'CRITICAL' ? '🛑' : a.severity === 'WARN' ? '⚠️' : 'ℹ️'}</span>
+              <span className={styles.alertIcon}>{a.severity === 'CRITICAL' ? '' : a.severity === 'WARN' ? '' : 'ℹ'}</span>
               <div>
                 <p className={styles.alertTitle}>{a.candidate_name}</p>
                 <p className={styles.alertMsg}>{a.message}</p>

@@ -1,18 +1,18 @@
 'use client';
 
 const ROLES = [
-  { name: 'Super Admin', users: 2, permissions: 'Full access', badge: '🛡️' },
-  { name: 'Exam Controller', users: 5, permissions: 'Exam lifecycle, Emergency actions', badge: '📋' },
-  { name: 'Center Coordinator', users: 48, permissions: 'Center management, Node monitoring', badge: '🏫' },
-  { name: 'Blockchain Auditor', users: 3, permissions: 'Read-only blockchain, Integrity checks', badge: '⛓️' },
-  { name: 'Setter Lead', users: 12, permissions: 'Exam creation, ZK proof generation', badge: '🔬' },
-  { name: 'Viewer', users: 8, permissions: 'Read-only dashboard', badge: '👁️' },
+  { name: 'Super Admin', users: 2, permissions: 'Full access', badge: '' },
+  { name: 'Exam Controller', users: 5, permissions: 'Exam lifecycle, Emergency actions', badge: '' },
+  { name: 'Center Coordinator', users: 48, permissions: 'Center management, Node monitoring', badge: '' },
+  { name: 'Blockchain Auditor', users: 3, permissions: 'Read-only blockchain, Integrity checks', badge: '' },
+  { name: 'Setter Lead', users: 12, permissions: 'Exam creation, ZK proof generation', badge: '' },
+  { name: 'Viewer', users: 8, permissions: 'Read-only dashboard', badge: '' },
 ];
 
 export default function AdminRolesPage() {
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 24 }}>🔑 Roles & Permissions</h1>
+      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 24 }}>Roles & Permissions</h1>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {ROLES.map(role => (
           <div key={role.name} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--color-navy-700)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>

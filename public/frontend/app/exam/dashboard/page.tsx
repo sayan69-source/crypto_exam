@@ -15,11 +15,11 @@ import styles from './dashboard.module.css';
 type Category = 'all' | 'engineering' | 'medical' | 'government' | 'premier';
 
 const categories: { id: Category; label: string; icon: string }[] = [
-  { id: 'all', label: 'All Exams', icon: '📋' },
-  { id: 'engineering', label: 'Engineering', icon: '⚙️' },
-  { id: 'medical', label: 'Medical', icon: '🩺' },
-  { id: 'government', label: 'Government', icon: '🏛️' },
-  { id: 'premier', label: 'ISI / CMI', icon: '🎓' },
+  { id: 'all', label: 'All Exams', icon: '' },
+  { id: 'engineering', label: 'Engineering', icon: '' },
+  { id: 'medical', label: 'Medical', icon: '' },
+  { id: 'government', label: 'Government', icon: '' },
+  { id: 'premier', label: 'ISI / CMI', icon: '' },
 ];
 
 export default function CandidateDashboard() {
@@ -45,7 +45,7 @@ export default function CandidateDashboard() {
       {/* Top Bar */}
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>
-          🔐 CryptoExam Core — Examination Portal
+          CryptoExam Core — Examination Portal
         </div>
         <div className={styles.topBarRight}>
           <span style={{ fontSize: 13, opacity: 0.85 }}>{session?.name || 'Candidate'}</span>

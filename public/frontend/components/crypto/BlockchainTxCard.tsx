@@ -5,20 +5,11 @@
 import styles from './BlockchainTxCard.module.css';
 import type { BlockchainEvent } from '@/lib/api/types';
 
-const EVENT_ICONS: Record<string, string> = {
-  ExamCreated: '📋',
-  PaperLocked: '🔒',
-  ZKProofSubmitted: '🔬',
-  ExamStarted: '▶️',
-  AnswerRootCommitted: '✅',
-  ProofOfDelivery: '📦',
-};
-
 const STATUS_LABELS: Record<string, string> = {
-  confirmed: '✅ Confirmed',
-  pending: '⏳ Pending',
+  confirmed: '✓ Confirmed',
+  pending: '… Pending',
   unconfirmed: '○ Unconfirmed',
-  failed: '❌ Failed',
+  failed: '✗ Failed',
 };
 
 export default function BlockchainTxCard({ event }: { event: BlockchainEvent }) {
@@ -32,7 +23,6 @@ export default function BlockchainTxCard({ event }: { event: BlockchainEvent }) 
   return (
     <div className={`${styles.card} ${styles[event.status]}`}>
       <div className={styles.header}>
-        <span className={styles.icon}>{EVENT_ICONS[event.type] || '📄'}</span>
         <span className={styles.type}>{event.type}</span>
         <span className={`${styles.status} ${styles[`status-${event.status}`]}`}>
           {STATUS_LABELS[event.status]}

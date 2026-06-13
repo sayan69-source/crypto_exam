@@ -13,11 +13,11 @@ import styles from './emergency.module.css';
 type EmergencyAction = 'pause' | 'extend' | 'abort' | 'suspend' | 'broadcast';
 
 const ACTIONS: { type: EmergencyAction; icon: string; label: string; color: string; description: string }[] = [
-  { type: 'pause', icon: '⏸️', label: 'PAUSE ALL EXAMS', color: '#f59e0b', description: 'Freeze all timers. Candidates see a "Please wait" screen. Requires 1 admin co-sign.' },
-  { type: 'extend', icon: '⏰', label: 'EXTEND TIME', color: '#3b82f6', description: 'Add time to one or all exams. Logged on blockchain.' },
-  { type: 'abort', icon: '🛑', label: 'ABORT EXAM', color: '#ef4444', description: 'Cancel exam. IRREVERSIBLE. Requires 2 admin co-signs. All data preserved for audit.' },
-  { type: 'suspend', icon: '🚫', label: 'SUSPEND CENTER', color: '#f97316', description: 'Disable a specific center. All candidates moved to grace period.' },
-  { type: 'broadcast', icon: '📢', label: 'BROADCAST MESSAGE', color: '#8b5cf6', description: 'Send a message to all candidates, invigilators, or both.' },
+  { type: 'pause', icon: '', label: 'PAUSE ALL EXAMS', color: '#f59e0b', description: 'Freeze all timers. Candidates see a "Please wait" screen. Requires 1 admin co-sign.' },
+  { type: 'extend', icon: '', label: 'EXTEND TIME', color: '#3b82f6', description: 'Add time to one or all exams. Logged on blockchain.' },
+  { type: 'abort', icon: '', label: 'ABORT EXAM', color: '#ef4444', description: 'Cancel exam. IRREVERSIBLE. Requires 2 admin co-signs. All data preserved for audit.' },
+  { type: 'suspend', icon: '', label: 'SUSPEND CENTER', color: '#f97316', description: 'Disable a specific center. All candidates moved to grace period.' },
+  { type: 'broadcast', icon: '', label: 'BROADCAST MESSAGE', color: '#8b5cf6', description: 'Send a message to all candidates, invigilators, or both.' },
 ];
 
 export default function EmergencyPage() {
@@ -45,7 +45,7 @@ export default function EmergencyPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>🚨 Emergency Control Panel</h1>
+        <h1 className={styles.title}>Emergency Control Panel</h1>
         <p className={styles.subtitle}>All actions are logged on-chain and cannot be reversed.</p>
       </div>
 
@@ -76,7 +76,7 @@ export default function EmergencyPage() {
 
           {actionComplete ? (
             <div className={styles.completeCard}>
-              <span className={styles.completeIcon}>✅</span>
+              <span className={styles.completeIcon}>✓</span>
               <h3>Action Executed Successfully</h3>
               <p>TX Hash: <code>0x7a8b9c0d...f7a8</code> — Logged on Polygon Amoy.</p>
               <button className={styles.doneBtn} onClick={resetAction}>Done</button>
@@ -109,7 +109,7 @@ export default function EmergencyPage() {
                   <h4>Co-Signer Approval Required</h4>
                   <div className={styles.coSignRow}>
                     <span>Admin 1: Vikram S. Rathore</span>
-                    <span className={styles.coSignApproved}>✅ Approved (you)</span>
+                    <span className={styles.coSignApproved}>✓ Approved (you)</span>
                   </div>
                   <div className={styles.coSignRow}>
                     <span>Admin 2: Dr. Meera Kapoor</span>
@@ -118,7 +118,7 @@ export default function EmergencyPage() {
                       onClick={() => setCoSignerApproved(true)}
                       disabled={coSignerApproved}
                     >
-                      {coSignerApproved ? '✅ Approved' : 'Simulate Co-Sign'}
+                      {coSignerApproved ? '✓ Approved' : 'Simulate Co-Sign'}
                     </button>
                   </div>
                 </div>

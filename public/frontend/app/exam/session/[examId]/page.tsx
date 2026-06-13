@@ -94,13 +94,13 @@ export default function ExamSessionPage() {
     if (type === 'WINDOW_BLUR' || type === 'FULLSCREEN_EXIT') {
       setTabSwitchCount(prev => {
         const next = prev + 1;
-        if (next >= 5) setAntiCheatWarning('🔴 CRITICAL: Multiple violations detected. Session flagged.');
-        else if (next >= 3) setAntiCheatWarning('🟠 WARNING: Repeated focus loss. Stay on the exam page.');
-        else setAntiCheatWarning('⚠️ Focus loss detected. Remain in fullscreen.');
+        if (next >= 5) setAntiCheatWarning('CRITICAL: Multiple violations detected. Session flagged.');
+        else if (next >= 3) setAntiCheatWarning('WARNING: Repeated focus loss. Stay on the exam page.');
+        else setAntiCheatWarning('Focus loss detected. Remain in fullscreen.');
         return next;
       });
     } else {
-      setAntiCheatWarning(`⚠️ ${details}`);
+      setAntiCheatWarning(`${details}`);
       setTimeout(() => setAntiCheatWarning(null), 3000);
     }
   }, []);
@@ -207,7 +207,7 @@ export default function ExamSessionPage() {
         {/* ═══ TOP HEADER BAR ═══ */}
         <header className={styles.header}>
           <div className={styles.headerLeft}>
-            <span className={styles.examLogo}>🔐</span>
+            <span className={styles.examLogo}></span>
             <div className={styles.headerExamInfo}>
               <span className={styles.headerExamName}>{config.examName}</span>
               <span className={styles.headerExamBody}>{config.examBody} • Set {config.setLabel}</span>

@@ -19,7 +19,7 @@
   overflow: hidden;
 }
 .hero::before {
-  content: ""; position: absolute; inset: 0;
+  content: ""; position: absolute; inset: 0; z-index: 1;
   background-image:
     linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
@@ -28,8 +28,21 @@
   pointer-events: none;
 }
 
+/* Faded real exam-hall photo behind the hero (professional backdrop pattern). */
+.heroPhoto {
+  position: absolute; inset: 0; z-index: 0;
+  background: url('/exam-hall.jpg') center / cover no-repeat;
+  opacity: 0.16;
+  filter: grayscale(0.35) contrast(1.04);
+  /* dark scrim so the faded image never fights the headline */
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.55) 60%, transparent);
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.55) 60%, transparent);
+  pointer-events: none;
+}
+
 .heroInner {
   position: relative;
+  z-index: 2;
   padding-block: clamp(80px, 12vw, 150px) clamp(70px, 9vw, 120px);
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
@@ -340,6 +353,31 @@
 .ctaBand p {
   color: var(--color-navy-200); margin-top: var(--space-md);
   font-size: var(--fs-lead); position: relative; max-width: 560px;
+}
+
+/* ===== EXAM HALL VISUAL ===== */
+.hallBand {
+  background: var(--bg-surface);
+  border-block: 1px solid var(--border-soft);
+  padding: clamp(28px, 4vw, 44px) 0;
+}
+.hallInner {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--space-lg); text-align: center;
+}
+.hallPhoto {
+  width: 100%; max-width: 1040px;
+  height: clamp(220px, 32vw, 380px);
+  background: url('/exam-hall-2.jpg') center / cover no-repeat;
+  filter: grayscale(0.18) contrast(1.02);
+  opacity: 0.92;
+  /* fade the top & bottom edges into the band so it reads soft, not a hard photo block */
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+}
+.hallCaption {
+  max-width: 580px; color: var(--color-navy-500);
+  font-size: var(--fs-sm); line-height: 1.7;
 }
 
 /* ===== RESPONSIVE ===== */

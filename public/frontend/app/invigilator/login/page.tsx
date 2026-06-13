@@ -187,7 +187,7 @@ export default function InvigilatorLoginPage() {
     <div className={styles.loginPage}>
       <div className={styles.loginCard}>
         <div className={styles.loginHead}>
-          <div className={styles.loginIcon}>🛡️</div>
+          <div className={styles.loginIcon}></div>
           <h1 className={styles.loginTitle}>Invigilator Gateway</h1>
           <p className={styles.loginSub}>केंद्र निरीक्षक · Biometric multi-factor sign-in</p>
         </div>
@@ -203,7 +203,7 @@ export default function InvigilatorLoginPage() {
           </div>
         )}
 
-        {error && <div className={styles.errorBox}>⚠️ {error}</div>}
+        {error && <div className={styles.errorBox}>{error}</div>}
 
         {step === 'creds' && (
           <form onSubmit={startCreds} className={styles.stepBody}>
@@ -220,7 +220,7 @@ export default function InvigilatorLoginPage() {
 
         {step === 'geofence' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>📍 Location &amp; Network</h3>
+            <h3 className={styles.stepHeading}>Location &amp; Network</h3>
             <p className={styles.stepHint}>Checking centre perimeter and capturing your device IP.<br /><span className={styles.stepHintHi}>केंद्र परिधि एवं डिवाइस IP की जाँच।</span></p>
             {geo && <p className={styles.statusOk}>✓ {geo}</p>}
             {liveIp && (
@@ -236,14 +236,14 @@ export default function InvigilatorLoginPage() {
 
         {step === 'face' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>🙂 Face Verification</h3>
+            <h3 className={styles.stepHeading}>Face Verification</h3>
             <p className={styles.stepHint}>Look at the camera. We compare you to your enrolled face.<br /><span className={styles.stepHintHi}>कैमरे की ओर देखें।</span></p>
             <div className={styles.camera} style={{ maxWidth: 400 }}>
               {camReady ? <video ref={videoRef} autoPlay muted playsInline /> : <div className={styles.cameraPlaceholder}>Waiting for camera… allow access.</div>}
               <div className={styles.scanRing} />
             </div>
             <p style={{ fontSize: 12, color: modelStatus === 'ready' ? 'var(--color-success)' : modelStatus === 'error' ? 'var(--color-danger)' : 'var(--color-navy-500)', margin: '6px 0' }}>
-              {modelStatus === 'loading' && '⏳ Loading face-recognition model…'}
+              {modelStatus === 'loading' && '… Loading face-recognition model…'}
               {modelStatus === 'ready' && '✓ Face model ready'}
               {modelStatus === 'error' && '✗ Face model failed (check network)'}
             </p>
@@ -258,7 +258,7 @@ export default function InvigilatorLoginPage() {
 
         {step === 'fingerprint' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>👆 Fingerprint (WebAuthn)</h3>
+            <h3 className={styles.stepHeading}>Fingerprint (WebAuthn)</h3>
             <p className={styles.stepHint}>Use your device biometric when prompted.<br /><span className={styles.stepHintHi}>संकेत मिलने पर बायोमेट्रिक दें।</span></p>
             {faceResult && <p className={styles.statusOk}>✓ Face matched (confidence {(faceResult.confidence * 100).toFixed(0)}%)</p>}
             <button className={`${styles.btnPrimary} ${styles.fullBtn}`} onClick={runFingerprint} disabled={busy}>
@@ -269,7 +269,7 @@ export default function InvigilatorLoginPage() {
 
         {step === 'otp' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>🔐 One-Time Password</h3>
+            <h3 className={styles.stepHeading}>One-Time Password</h3>
             <p className={styles.stepHint}>Enter any 6-digit code (dev OTP).<br /><span className={styles.stepHintHi}>6 अंकों का कोड दर्ज करें।</span></p>
             {fpResult && <p className={styles.statusOk}>✓ Fingerprint: {fpResult}</p>}
             <div className={styles.field}>

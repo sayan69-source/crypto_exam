@@ -92,6 +92,10 @@ export default function LandingPage() {
 
       {/* ===== HERO ===== */}
       <section className={s.hero}>
+        {/* Faded photographic backdrop — a real CBT exam hall, kept low-opacity
+            under a dark scrim so the headline stays legible. Drops in gracefully:
+            if /exam-hall.jpg is absent the gradient hero shows unchanged. */}
+        <div className={s.heroPhoto} aria-hidden="true" />
         <div className={`wrap ${s.heroInner}`}>
           <div>
             <span className="eyebrow on-dark">FAR AWAY 2026 · Examinations Track</span>
@@ -166,6 +170,21 @@ export default function LandingPage() {
           ))}
         </div>
       </div>
+
+      {/* ===== EXAM HALL VISUAL ===== */}
+      <section className={`${s.hallBand} reveal`} aria-label="Computer-based testing at examination centres">
+        <div className={`wrap ${s.hallInner}`}>
+          <div
+            className={s.hallPhoto}
+            role="img"
+            aria-label="Candidates sitting a computer-based examination at an accredited centre in India"
+          />
+          <p className={s.hallCaption}>
+            Conducted as computer-based tests at accredited centres across India — every
+            terminal sealed, every candidate biometrically verified, every paper opened only at&nbsp;T₀.
+          </p>
+        </div>
+      </section>
 
       {/* ===== PROBLEM ===== */}
       <section className="section">

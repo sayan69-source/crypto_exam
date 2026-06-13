@@ -10,7 +10,7 @@ import styles from './centers.module.css';
 export default function AdminCentersPage() {
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>🗺️ Exam Centers</h1>
+      <h1 className={styles.title}>Exam Centers</h1>
       <p className={styles.subtitle}>{mockCenters.length} centers across India</p>
 
       <div className={styles.layout}>
@@ -38,13 +38,13 @@ export default function AdminCentersPage() {
                 <span className={`${styles.statusBadge} ${styles[`badge-${center.status}`]}`}>{center.status}</span>
               </div>
               <div className={styles.centerMeta}>
-                <span>📍 {center.city}, {center.state}</span>
-                <span>👥 {center.candidates_present}/{center.capacity}</span>
-                <span>📶 {center.connectivity.replace('TIER_', 'T').replace('_', ' ')}</span>
+                <span>{center.city}, {center.state}</span>
+                <span>{center.candidates_present}/{center.capacity}</span>
+                <span>{center.connectivity.replace('TIER_', 'T').replace('_', ' ')}</span>
               </div>
               <div className={styles.centerContact}>
-                <span>👤 {center.invigilator_name}</span>
-                <span>📞 {center.invigilator_phone}</span>
+                <span>{center.invigilator_name}</span>
+                <span>{center.invigilator_phone}</span>
               </div>
             </div>
           ))}

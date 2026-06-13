@@ -94,7 +94,7 @@ export default function T0BroadcastDemo() {
 
         {paper && (
           <div style={{ marginTop: 20, background: '#0D1526', border: '1px solid #138808', borderRadius: 12, padding: 18 }}>
-            <h3 style={{ color: '#34d399', margin: '0 0 10px' }}>🔓 Decrypted Paper (client-side)</h3>
+            <h3 style={{ color: '#34d399', margin: '0 0 10px' }}>Decrypted Paper (client-side)</h3>
             {(paper.questions as { text: string }[]).map((q, i) => (
               <div key={i} style={{ fontSize: 14, padding: '6px 0', borderBottom: '1px solid #132040' }}>Q{i + 1}. {q.text}</div>
             ))}

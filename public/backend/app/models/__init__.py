@@ -527,3 +527,38 @@ class SealedQuestionBundle(Base):
 
     # Relationships
     exam = relationship("Exam")
+
+
+class StaffApprovalStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class StaffRegistrationRequest(Base):
+    """A real centre-staff registration captured on the public website (§9.2).
+
+    Centre Admin applicants are approved by the System Admin; invigilator
+    applicants by their centre's Centre Admin. Approval issues a one-time,
+    time-boxed activation code (shown only to the approver). Activation itself
+    still happens in person at the centre — this row only tracks the request
+    and its approval, never an ACTIVE identity.
+    """
+    __tablename__ = "staff_registration_requests"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    role = Column(String(32), nullable=False)              # CENTER_ADMIN | CENTER_INVIGILATOR
+    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    center_name = Column(String(255), nullable=True)       # denormalised for display
+    full_name = Column(String(255), nullable=False)
+    face_embedding_hash = Column(String(64), nullable=False)
+    status = Column(Enum(StaffApprovalStatus, name="staff_approval_status", create_type=True), default=StaffApprovalStatus.PENDING)
+    fingerprint_authorised = Column(Boolean, default=False)
+    activation_code_hash = Column(String(64), nullable=True)   # SHA-256 of the issued code (cleartext never stored)
+    activation_code_expires_at = Column(DateTime(timezone=True), nullable=True)
+    approver_role = Column(String(32), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    center = relationship("Center")

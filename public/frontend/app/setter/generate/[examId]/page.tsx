@@ -21,7 +21,7 @@ export default function SetterGeneratePage() {
 
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 24, color: 'white', marginBottom: 8 }}>🤖 AI Question Generation</h1>
+      <h1 style={{ fontSize: 24, color: 'white', marginBottom: 8 }}>AI Question Generation</h1>
       <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 32 }}>Generating questions for NEET UG 2026 — Phase I</p>
 
       {/* Overall progress */}

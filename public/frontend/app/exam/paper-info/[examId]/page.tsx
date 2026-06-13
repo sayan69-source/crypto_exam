@@ -28,7 +28,7 @@ export default function PaperInfoPage() {
       </header>
 
       <main className={styles.main}>
-        <h1 className={styles.pageTitle}>📋 Paper Setter Information</h1>
+        <h1 className={styles.pageTitle}>Paper Setter Information</h1>
         <p className={styles.pageSubtitle}>
           This page shows complete transparency about who set the question paper for <strong>{exam.name}</strong>.
           All information is permanently recorded on the Polygon blockchain and cannot be modified.
@@ -45,7 +45,7 @@ export default function PaperInfoPage() {
               <span className={styles.setterDesignation}>{setter.setter_designation}</span>
               <span className={styles.setterDept}>{setter.setter_department}</span>
             </div>
-            <span className={styles.verifiedBadge}>✅ Verified Setter</span>
+            <span className={styles.verifiedBadge}>✓ Verified Setter</span>
           </div>
 
           <div className={styles.detailGrid}>
@@ -88,7 +88,7 @@ export default function PaperInfoPage() {
         {institution && (
           <div className={styles.trustCard}>
             <h2 className={styles.trustTitle}>
-              {institution.logo_emoji} Institution Trust Score
+              Institution Trust Score
             </h2>
 
             <div className={styles.trustScoreContainer}>
@@ -127,7 +127,7 @@ export default function PaperInfoPage() {
               </div>
               <div className={styles.detailItem}>
                 <span className={styles.detailLabel}>Verification Status</span>
-                <span className={styles.detailValue} style={{ color: '#16a34a', fontWeight: 700 }}>✅ Premier Verified</span>
+                <span className={styles.detailValue} style={{ color: '#16a34a', fontWeight: 700 }}>✓ Premier Verified</span>
               </div>
               <div className={styles.detailItem}>
                 <span className={styles.detailLabel}>Verified On</span>
@@ -141,7 +141,7 @@ export default function PaperInfoPage() {
 
         {/* Blockchain Verification Card */}
         <div className={styles.blockchainCard}>
-          <h2 className={styles.blockchainTitle}>🔗 Blockchain Verification</h2>
+          <h2 className={styles.blockchainTitle}>Blockchain Verification</h2>
           <p style={{ fontSize: 13, color: 'var(--color-navy-600)', marginBottom: 16, lineHeight: 1.7 }}>
             All paper creation and locking events are permanently recorded on the Polygon PoS blockchain.
             You can independently verify these transactions on Polygonscan.
@@ -151,19 +151,19 @@ export default function PaperInfoPage() {
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>Paper Lock Transaction</span>
               <a href={`https://polygonscan.com/tx/${setter.paper_lock_tx}`} target="_blank" rel="noopener noreferrer" className={styles.txLink}>
-                🔗 {setter.paper_lock_tx.slice(0, 10)}...{setter.paper_lock_tx.slice(-8)}
+                {setter.paper_lock_tx.slice(0, 10)}...{setter.paper_lock_tx.slice(-8)}
               </a>
             </div>
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>Exam Creation Transaction</span>
               <a href={`https://polygonscan.com/tx/${exam.polygon_exam_tx}`} target="_blank" rel="noopener noreferrer" className={styles.txLink}>
-                🔗 {exam.polygon_exam_tx?.slice(0, 10)}...{exam.polygon_exam_tx?.slice(-8)}
+                {exam.polygon_exam_tx?.slice(0, 10)}...{exam.polygon_exam_tx?.slice(-8)}
               </a>
             </div>
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>ZK Proof Transaction</span>
               <a href={`https://polygonscan.com/tx/${exam.polygon_zkproof_tx}`} target="_blank" rel="noopener noreferrer" className={styles.txLink}>
-                🔗 {exam.polygon_zkproof_tx?.slice(0, 10)}...{exam.polygon_zkproof_tx?.slice(-8)}
+                {exam.polygon_zkproof_tx?.slice(0, 10)}...{exam.polygon_zkproof_tx?.slice(-8)}
               </a>
             </div>
             <div className={styles.detailItem}>
@@ -175,7 +175,7 @@ export default function PaperInfoPage() {
 
         {/* Notice */}
         <div style={{ background: 'var(--color-navy-50)', border: '1px solid var(--color-navy-200)', borderRadius: 16, padding: '16px 20px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <span style={{ fontSize: 18 }}>ℹ️</span>
+          <span style={{ fontSize: 18 }}>ℹ</span>
           <div>
             <p style={{ fontSize: 13, color: 'var(--color-navy-700)', margin: 0, lineHeight: 1.7 }}>
               <strong>Why this transparency?</strong> This paper was uploaded directly by a trusted institution ({institution?.short_name}).

@@ -17,11 +17,11 @@ import { ceremonyApi, encryptShareForEnclave, type AttestationResponse, type Cer
 const EXAM_ID = 'demo-cc-2026';
 
 const OFFICIALS = [
-  { id: 'off-1', role: 'NTA Director', icon: '🏛️' },
-  { id: 'off-2', role: 'Exam Board Chair', icon: '⚖️' },
-  { id: 'off-3', role: 'Independent Observer', icon: '🕵️' },
-  { id: 'off-4', role: 'Centre Coordinator', icon: '📋' },
-  { id: 'off-5', role: 'Ministry Observer', icon: '🏢' },
+  { id: 'off-1', role: 'NTA Director', icon: '' },
+  { id: 'off-2', role: 'Exam Board Chair', icon: '' },
+  { id: 'off-3', role: 'Independent Observer', icon: '' },
+  { id: 'off-4', role: 'Centre Coordinator', icon: '' },
+  { id: 'off-5', role: 'Ministry Observer', icon: '' },
 ];
 
 export default function CeremonyPortal() {
@@ -105,7 +105,7 @@ export default function CeremonyPortal() {
       <div style={{ maxWidth: 1080, margin: '0 auto' }}>
         <header style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span style={{ fontSize: 30 }}>🔐</span>
+            <span style={{ fontSize: 30 }}></span>
             <div>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 30, color: '#fff', margin: 0 }}>Key Ceremony Portal · CC-SSS</h1>
               <p style={{ margin: '2px 0 0', color: '#6B84D4', fontSize: 13 }}>
@@ -121,7 +121,7 @@ export default function CeremonyPortal() {
           </p>
         </header>
 
-        {error && <div style={errBox}>⚠️ {error}</div>}
+        {error && <div style={errBox}>{error}</div>}
 
         {/* PHASE 1 — Attestation */}
         <section style={card}>
@@ -143,7 +143,7 @@ export default function CeremonyPortal() {
             background: pcrMatch ? 'rgba(22,163,74,0.18)' : 'rgba(220,38,38,0.18)',
             color: pcrMatch ? '#86efac' : '#fca5a5',
           }}>
-            {pcrMatch ? '✅ Enclave verified — safe to submit shares' : '🛑 PCR0 MISMATCH — DO NOT SUBMIT. Alert the exam board.'}
+            {pcrMatch ? '✓ Enclave verified — safe to submit shares' : 'PCR0 MISMATCH — DO NOT SUBMIT. Alert the exam board.'}
           </div>
         </section>
 
@@ -177,7 +177,7 @@ export default function CeremonyPortal() {
                     style={{ ...btn, marginTop: 10, width: '100%', padding: '8px 12px', fontSize: 12,
                              background: has ? '#374151' : busyShare === o.id ? '#374151' : '#2942A6',
                              cursor: has ? 'default' : 'pointer' }}>
-                    {has ? '✅ Submitted' : busyShare === o.id ? 'Wrapping & submitting…' : '🔒 Submit Share'}
+                    {has ? '✓ Submitted' : busyShare === o.id ? 'Wrapping & submitting…' : 'Submit Share'}
                   </button>
                 </div>
               );
@@ -193,7 +193,7 @@ export default function CeremonyPortal() {
             salt=exam_id, info=qN), and decrypt one question. Plaintext appears only inside enclave memory and
             in the JSON returned over TLS — never on the parent.
           </p>
-          <button onClick={decryptOneQuestion} disabled={!thresholdMet} style={btn}>🔓 Decrypt Question #0</button>
+          <button onClick={decryptOneQuestion} disabled={!thresholdMet} style={btn}>Decrypt Question #0</button>
           {decrypted && (
             <pre style={decryptedBox}>{decrypted}</pre>
           )}
@@ -212,7 +212,7 @@ export default function CeremonyPortal() {
                 {audit.map((e) => (
                   <a key={e.tx_hash} href={e.polygonscan_url} target="_blank" rel="noreferrer" style={auditRow}>
                     <span style={{ color: badgeFor(e.event), fontWeight: 700 }}>
-                      {e.event === 'CeremonyShareSubmitted' ? '📝' : e.event === 'CeremonyCompleted' ? '✅' : '🛡️'} {e.event}
+                      {e.event === 'CeremonyShareSubmitted' ? '' : e.event === 'CeremonyCompleted' ? '✓' : ''} {e.event}
                     </span>
                     <code style={{ color: '#6B84D4', fontSize: 11 }}>{e.tx_hash.slice(0, 18)}…</code>
                     <span style={{ color: '#64748b', fontSize: 11, marginLeft: 'auto' }}>

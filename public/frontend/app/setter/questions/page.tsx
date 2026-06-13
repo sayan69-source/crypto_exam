@@ -5,7 +5,7 @@ import { mockQuestions } from '@/lib/api/mock-data';
 export default function SetterQuestionsPage() {
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 24, color: 'white', marginBottom: 8 }}>📚 Question Bank</h1>
+      <h1 style={{ fontSize: 24, color: 'white', marginBottom: 8 }}>Question Bank</h1>
       <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 24 }}>2,847 questions across all subjects</p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
@@ -24,7 +24,7 @@ export default function SetterQuestionsPage() {
                 <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>{q.subject}</span>
                 <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>L{q.blooms_level}</span>
                 <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>b={q.irt_b}</span>
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: q.is_accepted ? 'rgba(74,222,128,0.15)' : 'rgba(245,158,11,0.15)', color: q.is_accepted ? '#4ade80' : '#f59e0b' }}>{q.is_accepted ? '✅ Accepted' : '⏳ Review'}</span>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: q.is_accepted ? 'rgba(74,222,128,0.15)' : 'rgba(245,158,11,0.15)', color: q.is_accepted ? '#4ade80' : '#f59e0b' }}>{q.is_accepted ? '✓ Accepted' : '… Review'}</span>
               </div>
             </div>
           </div>

@@ -52,7 +52,6 @@ export interface TrustedInstitution {
   leak_incidents: number;
   verified: boolean;
   verification_date: string;
-  logo_emoji: string;
 }
 
 export interface SetterMetadata {
@@ -356,5 +355,7 @@ export interface PaginatedResponse<T> {
 export interface AuthResponse {
   access_token: string;
   token_type: string;
-  user: User;
+  expires_at: string;
+  role: string;
+  user_id: string;
 }

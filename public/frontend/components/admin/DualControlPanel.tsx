@@ -14,12 +14,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { emergencyApi, type EmergencyRequest, type EmergencyActionType } from '@/lib/api/emergency';
 
-const ACTIONS: { value: EmergencyActionType; label: string; icon: string; severity: 'amber' | 'blue' | 'red' }[] = [
-  { value: 'PAUSE_EXAM', label: 'Pause Exam', icon: '⏸️', severity: 'amber' },
-  { value: 'EXTEND_EXAM', label: 'Extend Exam', icon: '⏰', severity: 'blue' },
-  { value: 'RESUME_EXAM', label: 'Resume Exam', icon: '▶️', severity: 'blue' },
-  { value: 'ABORT_EXAM', label: 'Abort Exam', icon: '🛑', severity: 'red' },
-  { value: 'ALERT_BROADCAST', label: 'Broadcast Alert', icon: '📢', severity: 'blue' },
+const ACTIONS: { value: EmergencyActionType; label: string; severity: 'amber' | 'blue' | 'red' }[] = [
+  { value: 'PAUSE_EXAM', label: 'Pause Exam', severity: 'amber' },
+  { value: 'EXTEND_EXAM', label: 'Extend Exam', severity: 'blue' },
+  { value: 'RESUME_EXAM', label: 'Resume Exam', severity: 'blue' },
+  { value: 'ABORT_EXAM', label: 'Abort Exam', severity: 'red' },
+  { value: 'ALERT_BROADCAST', label: 'Broadcast Alert', severity: 'blue' },
 ];
 
 const SEVERITY_COLOR = { amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444' };
@@ -89,7 +89,7 @@ export default function DualControlPanel() {
       fontFamily: 'var(--font-sans)',
     }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-        <span style={{ fontSize: 26 }}>🔐</span>
+        <span style={{ fontSize: 26 }}></span>
         <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0, color: '#fff', fontSize: 20 }}>V3 §10 — Emergency Dual-Control</h2>
           <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: 13 }}>
@@ -110,7 +110,7 @@ export default function DualControlPanel() {
           <h3 style={cardTitle}>Initiate action</h3>
           <label style={fieldRow}><span style={lbl}>Action</span>
             <select value={action} onChange={(e) => setAction(e.target.value as EmergencyActionType)} style={input}>
-              {ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.icon} {a.label}</option>)}
+              {ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
             </select>
           </label>
           <label style={fieldRow}><span style={lbl}>Exam ID</span>
@@ -146,11 +146,11 @@ export default function DualControlPanel() {
                         <button onClick={() => confirm(r.request_id)} disabled={isOwn || busy}
                           title={isOwn ? 'Initiator cannot confirm their own request' : 'Confirm (requires different admin)'}
                           style={{ ...btn, padding: '8px 14px', fontSize: 12, background: isOwn ? '#374151' : '#16a34a', cursor: isOwn ? 'not-allowed' : 'pointer', opacity: isOwn ? 0.6 : 1 }}>
-                          ✅ Confirm
+                          ✓ Confirm
                         </button>
                         <button onClick={() => reject(r.request_id)} disabled={busy}
                           style={{ ...btn, padding: '8px 14px', fontSize: 12, background: '#7f1d1d' }}>
-                          ✖ Reject
+                          ✗ Reject
                         </button>
                       </div>
                     </div>

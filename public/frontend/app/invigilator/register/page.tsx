@@ -166,7 +166,7 @@ export default function InvigilatorRegisterPage() {
     <div className={styles.loginPage}>
       <div className={styles.loginCard} style={{ maxWidth: 560 }}>
         <div className={styles.loginHead}>
-          <div className={styles.loginIcon}>🪪</div>
+          <div className={styles.loginIcon}></div>
           <h1 className={styles.loginTitle}>Invigilator Enrollment</h1>
           <p className={styles.loginSub}>निरीक्षक पंजीकरण · Register your real face, fingerprint &amp; device</p>
         </div>
@@ -182,7 +182,7 @@ export default function InvigilatorRegisterPage() {
           </div>
         )}
 
-        {error && <div className={styles.errorBox}>⚠️ {error}</div>}
+        {error && <div className={styles.errorBox}>{error}</div>}
 
         {/* IDENTITY */}
         {step === 'identity' && (
@@ -205,7 +205,7 @@ export default function InvigilatorRegisterPage() {
         {/* FACE */}
         {step === 'face' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>📷 Capture Your Face</h3>
+            <h3 className={styles.stepHeading}>Capture Your Face</h3>
             <p className={styles.stepHint}>
               A 128-number face signature is stored — never the photo.<br />
               <span className={styles.stepHintHi}>केवल चेहरे का गणितीय हस्ताक्षर संग्रहीत होता है।</span>
@@ -217,7 +217,7 @@ export default function InvigilatorRegisterPage() {
               <div className={styles.scanRing} />
             </div>
             <p style={{ fontSize: 12, color: modelStatus === 'ready' ? 'var(--color-success)' : modelStatus === 'error' ? 'var(--color-danger)' : 'var(--color-navy-500)', margin: '6px 0' }}>
-              {modelStatus === 'loading' && '⏳ Loading face-recognition model…'}
+              {modelStatus === 'loading' && '… Loading face-recognition model…'}
               {modelStatus === 'ready' && '✓ Face model ready'}
               {modelStatus === 'error' && '✗ Face model failed to load (check network)'}
             </p>
@@ -226,7 +226,7 @@ export default function InvigilatorRegisterPage() {
             )}
             <div style={{ display: 'flex', gap: 10 }}>
               <button className={`${styles.btnGhost}`} style={{ flex: 1 }} onClick={captureFace} disabled={busy || !camReady || modelStatus !== 'ready'}>
-                {busy ? 'Analysing…' : face ? '↻ Recapture' : '📸 Capture Face'}
+                {busy ? 'Analysing…' : face ? '↻ Recapture' : 'Capture Face'}
               </button>
               <button className={`${styles.btnPrimary}`} style={{ flex: 1 }} onClick={proceedFromFace} disabled={!face}>Next →</button>
             </div>
@@ -236,7 +236,7 @@ export default function InvigilatorRegisterPage() {
         {/* FINGERPRINT */}
         {step === 'fingerprint' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>👆 Register Fingerprint</h3>
+            <h3 className={styles.stepHeading}>Register Fingerprint</h3>
             <p className={styles.stepHint}>
               Uses your device biometric (Windows Hello / Touch ID / fingerprint reader).<br />
               <span className={styles.stepHintHi}>आपके डिवाइस का बायोमेट्रिक उपयोग होगा।</span>
@@ -248,7 +248,7 @@ export default function InvigilatorRegisterPage() {
               ? <p className={styles.statusOk}>✓ Fingerprint credential registered ({fingerprint.credentialId.slice(0, 16)}…)</p>
               : <p style={{ fontSize: 13, color: 'var(--color-navy-500)' }}>{platformAvail === null ? 'Checking device…' : 'Tap below — your OS will ask for your fingerprint.'}</p>}
             <button className={`${styles.btnPrimary} ${styles.fullBtn}`} onClick={doRegisterFingerprint} disabled={busy || !!fingerprint}>
-              {busy ? 'Waiting for biometric…' : fingerprint ? '✓ Registered' : '👆 Register Fingerprint'}
+              {busy ? 'Waiting for biometric…' : fingerprint ? '✓ Registered' : 'Register Fingerprint'}
             </button>
             <button className={`${styles.btnGhost} ${styles.fullBtn}`} style={{ marginTop: 10 }} onClick={() => setStep('device')}>
               {fingerprint ? 'Next →' : 'Skip fingerprint →'}
@@ -259,7 +259,7 @@ export default function InvigilatorRegisterPage() {
         {/* DEVICE / IP */}
         {step === 'device' && (
           <div className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>🌐 Device &amp; Network</h3>
+            <h3 className={styles.stepHeading}>Device &amp; Network</h3>
             <p className={styles.stepHint}>Your real public IP and device are recorded for this enrollment.</p>
             {busy && <p style={{ color: 'var(--color-navy-500)' }}>Detecting public IP…</p>}
             {device && (
@@ -270,7 +270,7 @@ export default function InvigilatorRegisterPage() {
               </div>
             )}
             <button className={`${styles.btnPrimary} ${styles.fullBtn}`} style={{ marginTop: 14 }} onClick={finish} disabled={busy}>
-              ✅ Complete Enrollment
+              ✓ Complete Enrollment
             </button>
           </div>
         )}

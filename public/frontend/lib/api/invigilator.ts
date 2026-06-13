@@ -34,7 +34,6 @@ export interface RosterEntry {
   roll_number: string | null;
   hall_ticket: string | null;
   status: VerifyStatus;
-  photo_emoji?: string;
   verified_at?: string | null;
 }
 
@@ -81,24 +80,23 @@ export interface PanicAlert {
 
 // ── Mock roster (mirrors the backend seeder's candidates) ──────────────
 
-const MOCK_CANDIDATES: Array<[string, string]> = [
-  ['Rahul Verma', '🧑🏽'], ['Sneha Patel', '👩🏽'], ['Arjun Nair', '🧑🏾'],
-  ['Priya Devi', '👩🏽'], ['Karthik Rajan', '🧑🏾'], ['Aisha Khan', '🧕🏽'],
-  ['Vikram Singh', '🧑🏻'], ['Lakshmi Menon', '👩🏾'], ['Rohit Das', '🧑🏽'],
-  ['Anjali Sharma', '👩🏻'], ['Deepak Yadav', '🧑🏽'], ['Fatima Begum', '🧕🏽'],
+const MOCK_CANDIDATES: string[] = [
+  'Rahul Verma', 'Sneha Patel', 'Arjun Nair',
+  'Priya Devi', 'Karthik Rajan', 'Aisha Khan',
+  'Vikram Singh', 'Lakshmi Menon', 'Rohit Das',
+  'Anjali Sharma', 'Deepak Yadav', 'Fatima Begum',
 ];
 
 let mockRoster: RosterEntry[] | null = null;
 
 function ensureMockRoster(): RosterEntry[] {
   if (mockRoster) return mockRoster;
-  mockRoster = MOCK_CANDIDATES.map(([name, emoji], i) => ({
+  mockRoster = MOCK_CANDIDATES.map((name, i) => ({
     candidate_id: `cand-${i + 1}`,
     candidate_name: name,
     roll_number: `NTA-2026-${['DEL', 'GUJ', 'KER', 'BIH', 'TAM', 'UTT'][i % 6]}-${(i + 1).toString().padStart(7, '0')}`,
     hall_ticket: `HALL-${(1000 + i).toString()}`,
     status: i < 5 ? 'VERIFIED' : 'PENDING',
-    photo_emoji: emoji,
     verified_at: i < 5 ? new Date(Date.now() - (5 - i) * 90_000).toISOString() : null,
   }));
   return mockRoster;

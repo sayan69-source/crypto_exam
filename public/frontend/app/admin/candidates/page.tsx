@@ -12,7 +12,7 @@ const MOCK_CANDIDATES = [
 export default function AdminCandidatesPage() {
   return (
     <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
-      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 8 }}>👥 Candidate Roster</h1>
+      <h1 style={{ fontSize: 22, color: 'white', marginBottom: 8 }}>Candidate Roster</h1>
       <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 24 }}>NEET UG 2026 — Phase I · 2,400,000 candidates</p>
 
       <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-navy-700)', borderRadius: 16, overflow: 'hidden' }}>
@@ -25,7 +25,7 @@ export default function AdminCandidatesPage() {
             <code style={{ fontSize: 12, color: 'var(--color-navy-300)', background: 'none', padding: 0 }}>{c.roll}</code>
             <span style={{ fontSize: 12, color: 'var(--color-navy-300)' }}>{c.state}</span>
             <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: c.status === 'present' ? 'rgba(74,222,128,0.15)' : 'rgba(107,114,128,0.15)', color: c.status === 'present' ? '#4ade80' : '#6b7280' }}>{c.status.toUpperCase()}</span>
-            <span style={{ fontSize: 12, color: c.anomalies > 0 ? '#f59e0b' : 'var(--color-navy-400)' }}>{c.anomalies > 0 ? `⚠️ ${c.anomalies}` : '—'}</span>
+            <span style={{ fontSize: 12, color: c.anomalies > 0 ? '#f59e0b' : 'var(--color-navy-400)' }}>{c.anomalies > 0 ? `${c.anomalies}` : '—'}</span>
           </div>
         ))}
       </div>

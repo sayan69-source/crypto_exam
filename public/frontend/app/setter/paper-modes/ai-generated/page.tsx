@@ -83,7 +83,7 @@ export default function AIGeneratedPage() {
   return (
     <div className={styles.page}>
       <Link href="/setter/paper-modes" className={styles.backBtn}>← Back to Paper Modes</Link>
-      <h1 className={styles.title}>🧠 AI Full Generation</h1>
+      <h1 className={styles.title}>AI Full Generation</h1>
       <p className={styles.subtitle}>Upload Syllabus and a Reference Paper. Computer Vision analyzes the style, and AI generates an entirely new paper matching that exact standard.</p>
 
       {/* Stepper */}
@@ -100,7 +100,7 @@ export default function AIGeneratedPage() {
       {step === 0 && (
         <div className={styles.form}>
           <div className={styles.infoBanner}>
-            <span className={styles.infoBannerIcon}>📚</span>
+            <span className={styles.infoBannerIcon}></span>
             <span className={styles.infoBannerText}>
               Upload exactly two PDFs: the official Syllabus and a Reference Question Paper. 
               The Computer Vision AI will analyze question patterns, difficulty curves, and phrasing styles from the reference paper, and use the Syllabus to generate completely new questions.
@@ -109,13 +109,13 @@ export default function AIGeneratedPage() {
 
           <div className={styles.dualUploadGrid}>
             <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={handleSyllabusUpload}>
-              <span className={styles.uploadIcon}>📋</span>
+              <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{syllabusFile ? 'Syllabus Uploaded' : 'Upload Syllabus PDF'}</span>
               <span className={styles.uploadDesc}>{syllabusFile ? syllabusFile.name : 'Defines generation limits'}</span>
             </div>
 
             <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={handlePaperUpload}>
-              <span className={styles.uploadIcon}>📝</span>
+              <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{paperFile ? 'Reference Paper Uploaded' : 'Upload Reference Paper'}</span>
               <span className={styles.uploadDesc}>{paperFile ? paperFile.name : 'Defines style and difficulty'}</span>
             </div>
@@ -159,7 +159,7 @@ export default function AIGeneratedPage() {
             </div>
           </div>
 
-          <h3 style={{ fontSize: 14, color: 'var(--color-navy-200)', marginTop: 16 }}>📊 Difficulty Distribution Target</h3>
+          <h3 style={{ fontSize: 14, color: 'var(--color-navy-200)', marginTop: 16 }}>Difficulty Distribution Target</h3>
           <div className={styles.row}>
             <div className={styles.field}>
               <label style={{ color: '#4ade80' }}>Easy (%)</label>
@@ -177,7 +177,7 @@ export default function AIGeneratedPage() {
 
           {paperConfig.difficultyDistribution.easy + paperConfig.difficultyDistribution.medium + paperConfig.difficultyDistribution.hard !== 100 && (
             <div className={styles.infoBanner} style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.2)' }}>
-              <span className={styles.infoBannerIcon}>⚠️</span>
+              <span className={styles.infoBannerIcon}></span>
               <span className={styles.infoBannerText} style={{ color: '#f87171' }}>
                 Difficulty distribution must sum to 100%. Current: {paperConfig.difficultyDistribution.easy + paperConfig.difficultyDistribution.medium + paperConfig.difficultyDistribution.hard}%
               </span>
@@ -192,12 +192,12 @@ export default function AIGeneratedPage() {
           
           {progress < 40 ? (
             <div className={styles.cvScanner}>
-              <div className={styles.cvIcon}>👁️</div>
+              <div className={styles.cvIcon}></div>
               <div className={styles.cvText}>Computer Vision Style Analysis...</div>
             </div>
           ) : (
             <div className={styles.cvScanner} style={{ borderColor: '#10b981' }}>
-              <div className={styles.cvIcon} style={{ animation: 'none' }}>🧠</div>
+              <div className={styles.cvIcon} style={{ animation: 'none' }}></div>
               <div className={styles.cvText} style={{ color: '#34d399' }}>AI Generating New Questions...</div>
             </div>
           )}
@@ -213,7 +213,7 @@ export default function AIGeneratedPage() {
           </div>
 
           <div className={styles.sectionCard}>
-            <h3 className={styles.sectionTitle}>🧠 Process Log</h3>
+            <h3 className={styles.sectionTitle}>Process Log</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
                 { msg: '[CV] Extracting structural boundaries from Syllabus PDF...', done: progress > 10 },
@@ -227,7 +227,7 @@ export default function AIGeneratedPage() {
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' }}>
                   <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>
-                    {item.done ? '✅' : progress > i * 12 ? '⏳' : '⬜'}
+                    {item.done ? '✓' : progress > i * 12 ? '…' : ''}
                   </span>
                   <span style={{ fontSize: 13, color: item.done ? 'var(--color-navy-200)' : 'var(--color-navy-500)' }}>{item.msg}</span>
                 </div>
@@ -296,8 +296,8 @@ export default function AIGeneratedPage() {
                     <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>b={q.irt_b}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>✅</span>}
-                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600 }}>❌</span>}
+                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>✓</span>}
+                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600 }}>✗</span>}
                     <button className={styles.approveBtn} onClick={() => handleApprove(q.id)}>✓</button>
                     <button className={styles.rejectBtn} onClick={() => handleReject(q.id)}>✕</button>
                   </div>
@@ -313,7 +313,7 @@ export default function AIGeneratedPage() {
           </div>
 
           {approvedCount === questions.length && (
-            <button className={styles.submitBtn} style={{ marginTop: 24 }}>🔐 Finalize Paper & Generate ZK Proof →</button>
+            <button className={styles.submitBtn} style={{ marginTop: 24 }}>Finalize Paper & Generate ZK Proof →</button>
           )}
         </div>
       )}

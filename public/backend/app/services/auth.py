@@ -66,8 +66,10 @@ def _get_public_key() -> str:
     key = _load_key(settings.JWT_PUBLIC_KEY_PATH)
     if key:
         return key
-    # Derive from private key
-    private_pem = _get_private_key()
+    # Derive from the *cached* private key — calling the uncached _get_private_key()
+    # here would mint a second ephemeral keypair, so the verify key would never
+    # match the sign key and every token would fail verification (dev fallback).
+    private_pem = get_private_key()
     from cryptography.hazmat.primitives.serialization import load_pem_private_key
     from cryptography.hazmat.primitives import serialization
     private_key = load_pem_private_key(private_pem.encode(), password=None)

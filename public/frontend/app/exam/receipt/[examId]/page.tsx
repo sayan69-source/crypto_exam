@@ -62,7 +62,7 @@ export default function ReceiptPage() {
         <section className={styles.cryptoSection}>
           <div className={styles.proofRow}>
             <div className={styles.proofLabel}>
-              <span className={styles.proofIcon}>🌳</span>
+              <span className={styles.proofIcon}></span>
               <div>
                 <strong>Your Answer Fingerprint (Merkle Root)</strong>
                 <p className={styles.proofExplain}>
@@ -75,11 +75,11 @@ export default function ReceiptPage() {
 
           <div className={styles.proofRow}>
             <div className={styles.proofLabel}>
-              <span className={styles.proofIcon}>⛓️</span>
+              <span className={styles.proofIcon}></span>
               <div>
                 <strong>Blockchain Commitment</strong>
                 <p className={styles.proofDetail}>
-                  TX: <code>{receipt.polygon_answer_tx.slice(0, 14)}...{receipt.polygon_answer_tx.slice(-8)}</code> · Block #{receipt.block_number.toLocaleString()} · ✅ Confirmed
+                  TX: <code>{receipt.polygon_answer_tx.slice(0, 14)}...{receipt.polygon_answer_tx.slice(-8)}</code> · Block #{receipt.block_number.toLocaleString()} · ✓ Confirmed
                 </p>
               </div>
             </div>
@@ -95,7 +95,7 @@ export default function ReceiptPage() {
 
           <div className={styles.proofRow}>
             <div className={styles.proofLabel}>
-              <span className={styles.proofIcon}>🔬</span>
+              <span className={styles.proofIcon}></span>
               <div>
                 <strong>Paper Difficulty Proof</strong>
                 <p className={styles.proofExplain}>
@@ -103,12 +103,12 @@ export default function ReceiptPage() {
                 </p>
               </div>
             </div>
-            <span className={styles.zkBadge}>✅ ZK Proof Verified on-chain</span>
+            <span className={styles.zkBadge}>✓ ZK Proof Verified on-chain</span>
           </div>
 
           <div className={styles.proofRow}>
             <div className={styles.proofLabel}>
-              <span className={styles.proofIcon}>🔐</span>
+              <span className={styles.proofIcon}></span>
               <div>
                 <strong>Your Merkle Inclusion Proof</strong>
                 <button className={styles.toggleProof} onClick={() => setShowProof(!showProof)}>
@@ -150,7 +150,7 @@ export default function ReceiptPage() {
                 <span className={styles.qNum}>{a.question_number}</span>
                 <span>{a.section}</span>
                 <span className={`${styles.ansStatus} ${styles[`status-${a.status}`]}`}>
-                  {a.status === 'answered' ? '✅' : a.status === 'flagged_answered' ? '🚩' : '⬜'} {a.status.replace('_', ' ')}
+                  {a.status === 'answered' ? '✓' : a.status === 'flagged_answered' ? '' : ''} {a.status.replace('_', ' ')}
                 </span>
                 <span className={styles.timeSpent}>{Math.floor(a.time_spent_seconds / 60)}m {a.time_spent_seconds % 60}s</span>
               </div>
@@ -182,9 +182,9 @@ export default function ReceiptPage() {
 
         {/* Download buttons */}
         <div className={`${styles.downloadRow} no-print`}>
-          <button className={styles.downloadBtn} onClick={() => window.print()}>📄 Print Receipt (A4)</button>
-          <button className={styles.downloadBtn}>📥 Export JSON Proof</button>
-          <button className={styles.downloadBtn}>🔗 Share Link</button>
+          <button className={styles.downloadBtn} onClick={() => window.print()}>Print Receipt (A4)</button>
+          <button className={styles.downloadBtn}>Export JSON Proof</button>
+          <button className={styles.downloadBtn}>Share Link</button>
         </div>
       </div>
     </div>

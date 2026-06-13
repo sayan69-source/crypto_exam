@@ -117,7 +117,7 @@ export default function PanicButton({ examId, candidateId, seatNumber, centerId 
       {armed && !alerted && (
         <div style={armedOverlay}>
           <div style={armedCard}>
-            <div style={{ fontSize: 40 }}>🆘</div>
+            <div style={{ fontSize: 40 }}></div>
             <h3 style={{ margin: '8px 0', color: '#fff' }}>Hold to call for help</h3>
             <p style={{ margin: 0, color: '#cbd5e1', fontSize: 13 }}>Keep holding to alert the invigilator…</p>
             <div style={progressBg}>
@@ -130,7 +130,7 @@ export default function PanicButton({ examId, candidateId, seatNumber, centerId 
       {alerted && (
         <div style={confirmOverlay} role="status">
           <div style={confirmCard}>
-            <div style={{ fontSize: 48 }}>✅</div>
+            <div style={{ fontSize: 48 }}>✓</div>
             <h3 style={{ margin: '8px 0 4px', color: '#fff' }}>Help has been requested</h3>
             <p style={{ margin: 0, color: '#cbd5e1', fontSize: 14 }}>An invigilator is on their way to your seat.</p>
             <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 12 }}>Your exam timer is still running — you may continue or wait.</p>

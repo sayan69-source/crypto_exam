@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 
 # ── Enums (mirror DB) ──
@@ -129,6 +129,13 @@ class ExamResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("question_hash", "zk_proof_hash", "answer_merkle_root", mode="before")
+    @classmethod
+    def _bytes_to_hex(cls, v):
+        # These columns are LargeBinary in the DB; surface them as hex strings
+        # so the response model (which types them as str) can serialize them.
+        return v.hex() if isinstance(v, (bytes, bytearray)) else v
 
 
 class ExamListResponse(BaseModel):

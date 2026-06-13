@@ -15,7 +15,7 @@ export default function AuditPortal() {
 
       <main className={styles.main}>
         <section className={styles.hero}>
-          <h1 className={styles.title}>🔍 Public Exam Verification</h1>
+          <h1 className={styles.title}>Public Exam Verification</h1>
           <p className={styles.subtitle}>
             Anyone — journalist, RTI officer, candidate, parent, or court — can independently verify
             any exam&apos;s integrity. No API key. No login. No trust required.
@@ -43,25 +43,25 @@ export default function AuditPortal() {
           <h2 className={styles.sectionTitle}>How Verification Works</h2>
           <div className={styles.stepGrid}>
             <div className={styles.stepCard}>
-              <div className={styles.stepIcon}>📋</div>
+              <div className={styles.stepIcon}></div>
               <h3>Step 1: Question Hash</h3>
               <p>The SHA-256 hash of the encrypted paper was committed to Polygon <strong>before T₀</strong>.
                 This proves the paper existed before anyone could see it.</p>
             </div>
             <div className={styles.stepCard}>
-              <div className={styles.stepIcon}>🧮</div>
+              <div className={styles.stepIcon}></div>
               <h3>Step 2: ZK Proof</h3>
               <p>A Groth16 ZK-SNARK proves the paper meets IRT difficulty constraints
                 <strong> without revealing any questions</strong>. Download from IPFS and verify locally.</p>
             </div>
             <div className={styles.stepCard}>
-              <div className={styles.stepIcon}>🌳</div>
+              <div className={styles.stepIcon}></div>
               <h3>Step 3: Merkle Root</h3>
               <p>Every candidate&apos;s answer hash is a leaf in a SHA-256 Merkle tree. The root is
                 committed to Polygon. <strong>Any modification changes the root.</strong></p>
             </div>
             <div className={styles.stepCard}>
-              <div className={styles.stepIcon}>⛓️</div>
+              <div className={styles.stepIcon}></div>
               <h3>Step 4: Polygonscan</h3>
               <p>Copy the transaction hash to <a href="https://amoy.polygonscan.com" target="_blank" rel="noopener noreferrer">amoy.polygonscan.com</a> and
                 verify all data matches. <strong>Zero trust required.</strong></p>

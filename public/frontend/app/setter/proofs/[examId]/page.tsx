@@ -108,11 +108,11 @@ export default function ZKProofPage() {
               { label: 'Sets A/B/C/D equivalence verified', done: true },
               { label: 'Topic overlap below threshold τ', done: true },
               { label: 'Primary setter digital signature', done: true },
-              { label: 'Co-setter signatures', done: false, detail: '✅ Dr. Sharma · ⏳ Awaiting Dr. Gupta...' },
+              { label: 'Co-setter signatures', done: false, detail: '✓ Dr. Sharma · … Awaiting Dr. Gupta...' },
             ].map((item, i) => (
               <div key={i} className={styles.checkItem}>
                 <span className={item.done ? styles.checkDone : styles.checkPending}>
-                  {item.done ? '✅' : '⏳'}
+                  {item.done ? '✓' : '…'}
                 </span>
                 <div>
                   <span className={styles.checkLabel}>{item.label}</span>
@@ -137,7 +137,7 @@ export default function ZKProofPage() {
             {PROOF_STEPS.map((step, i) => (
               <div key={i} className={`${styles.step} ${i < currentStep ? styles.stepDone : i === currentStep ? styles.stepActive : styles.stepWaiting}`}>
                 <span className={styles.stepIcon}>
-                  {i < currentStep ? '✅' : i === currentStep ? '⏳' : '○'}
+                  {i < currentStep ? '✓' : i === currentStep ? '…' : '○'}
                 </span>
                 <span className={styles.stepText}>{step}</span>
                 {i === currentStep && i === 3 && (
@@ -168,7 +168,7 @@ export default function ZKProofPage() {
       {phase === 'confirmed' && (
         <div className={styles.phaseCard}>
           <div className={styles.achievementBadge}>
-            <span className={styles.achievementIcon}>🔬</span>
+            <span className={styles.achievementIcon}></span>
           </div>
 
           <h1 className={styles.confirmedTitle}>The math is now on the public ledger.</h1>
@@ -203,7 +203,7 @@ export default function ZKProofPage() {
             </div>
             <div className={styles.proofRow}>
               <span className={styles.proofLabel}>Block</span>
-              <span className={styles.proofMeta}>#58,234,950 · Status: ✅ Confirmed (2 blocks)</span>
+              <span className={styles.proofMeta}>#58,234,950 · Status: ✓ Confirmed (2 blocks)</span>
             </div>
           </div>
 
@@ -249,7 +249,7 @@ export default function ZKProofPage() {
               </div>
             ) : lockCountdown === 0 ? (
               <div className={styles.lockSuccess}>
-                <span>🔒</span> Paper Locked. Exam status → LOCKED.
+                <span></span> Paper Locked. Exam status → LOCKED.
               </div>
             ) : (
               <button
@@ -257,7 +257,7 @@ export default function ZKProofPage() {
                 disabled={lockText !== exam.name}
                 onClick={handleLock}
               >
-                🔒 LOCK PAPER
+                LOCK PAPER
               </button>
             )}
           </div>

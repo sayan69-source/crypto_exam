@@ -561,7 +561,7 @@ table {
   padding-block: var(--space-3xl) var(--space-xl);
 }
 .footer-main {
-  display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: var(--space-2xl);
+  display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: var(--space-2xl);
 }
 .footer-blurb { margin-top: var(--space-md); font-size: var(--fs-sm); color: var(--color-navy-400); max-width: 300px; line-height: var(--lh-normal); }
 .site-footer .brand { color: #fff; }

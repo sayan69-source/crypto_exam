@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { api } from '@/lib/api/client';
 import styles from '../../(auth)/login/login.module.css';
 
 export default function SetterLoginPage() {
@@ -18,6 +19,7 @@ export default function SetterLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [consentExpanded, setConsentExpanded] = useState(false);
+  const [authToken, setAuthTokenState] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,14 +28,26 @@ export default function SetterLoginPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Invalid official email format.'); return; }
     if (password.length < 4) { setError('Password is too short.'); return; }
 
+    // Step 1 — verify credentials against the real backend.
+    if (!showOtp) {
+      setLoading(true);
+      try {
+        const res = await api.login({ identifier: email, password, role: 'SETTER' });
+        setAuthTokenState(res.access_token);
+        setShowOtp(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Step 2 — confirm OTP and finalise with the real JWT.
+    if (otp.length < 6) { setError('Please enter a valid 6-digit OTP.'); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-
-    if (!showOtp) { setShowOtp(true); setLoading(false); return; }
-    if (otp.length < 6) { setError('Please enter a valid 6-digit OTP.'); setLoading(false); return; }
-
     try {
-      await login('setter', email, 'Prof. Arvind Krishnamurthy');
+      await login('setter', email, undefined, authToken ?? undefined);
       window.location.href = '/setter/dashboard';
     } catch {
       setError('Login failed. Please check your credentials.');
@@ -46,13 +60,13 @@ export default function SetterLoginPage() {
       <div className={styles.patternBg} />
       <div className={styles.card}>
         <div className={styles.logoArea}>
-          <span className={styles.logoIcon}>🔬</span>
+          <span className={styles.logoIcon}></span>
           <h1 className={styles.logoTitle}>CryptoExam Core</h1>
           <p className={styles.tagline}>Question Paper Setter Portal</p>
         </div>
 
         <div className={styles.roleBadge}>
-          🔬 Setter — Authorized Personnel Only
+          Setter — Authorized Personnel Only
         </div>
 
         <form onSubmit={handleLogin} className={styles.form}>
@@ -72,11 +86,11 @@ export default function SetterLoginPage() {
             </div>
           )}
 
-          {error && <div className={styles.errorMessage}>⚠️ {error}</div>}
+          {error && <div className={styles.errorMessage}>{error}</div>}
 
           <div className={styles.accordion}>
             <button type="button" className={styles.accordionToggle} onClick={() => setConsentExpanded(!consentExpanded)}>
-              <span>🔒 Data Consent</span><span>{consentExpanded ? '▲' : '▼'}</span>
+              <span>Data Consent</span><span>{consentExpanded ? '▲' : '▼'}</span>
             </button>
             {consentExpanded && (
               <div className={styles.accordionContent}>

@@ -16,10 +16,10 @@ import Link from 'next/link';
 import { complaintApi, type CryptoExamReceipt, type ComplaintResult } from '@/lib/api/complaint';
 
 const VERDICT_STYLES: Record<string, { color: string; bg: string; icon: string; label: string }> = {
-  COMPLAINT_DISMISSED: { color: '#86efac', bg: 'rgba(22,163,74,0.18)', icon: '✅', label: 'Complaint Dismissed' },
-  TAMPERING_DETECTED:  { color: '#fca5a5', bg: 'rgba(220,38,38,0.18)', icon: '🛑', label: 'Tampering Detected' },
-  PROOF_INVALID:       { color: '#fcd34d', bg: 'rgba(217,119,6,0.18)', icon: '⚠️', label: 'Proof Invalid' },
-  NO_ONCHAIN_ROOT:     { color: '#93c5fd', bg: 'rgba(37,99,235,0.18)', icon: 'ℹ️', label: 'No On-Chain Root Yet' },
+  COMPLAINT_DISMISSED: { color: '#86efac', bg: 'rgba(22,163,74,0.18)', icon: '✓', label: 'Complaint Dismissed' },
+  TAMPERING_DETECTED:  { color: '#fca5a5', bg: 'rgba(220,38,38,0.18)', icon: '', label: 'Tampering Detected' },
+  PROOF_INVALID:       { color: '#fcd34d', bg: 'rgba(217,119,6,0.18)', icon: '', label: 'Proof Invalid' },
+  NO_ONCHAIN_ROOT:     { color: '#93c5fd', bg: 'rgba(37,99,235,0.18)', icon: 'ℹ', label: 'No On-Chain Root Yet' },
 };
 
 export default function ComplaintPortalPage() {
@@ -72,7 +72,7 @@ export default function ComplaintPortalPage() {
     <main style={{ minHeight: '100vh', background: '#080E1E', color: '#D8DEF4', padding: 32, fontFamily: 'var(--font-sans)' }}>
       <div style={{ maxWidth: 880, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
-          <span style={{ fontSize: 30 }}>⚖️</span>
+          <span style={{ fontSize: 30 }}></span>
           <div>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, color: '#fff', margin: 0 }}>Complaint Resolution Portal</h1>
             <p style={{ color: '#6B84D4', fontSize: 14, margin: '2px 0 0' }}>
@@ -93,8 +93,8 @@ export default function ComplaintPortalPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <h3 style={{ margin: 0, color: '#fff', fontSize: 15 }}>Step 1 · Your CryptoExam Receipt (JSON)</h3>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={generateDemoReceipt} disabled={busy} style={btnGhost}>📥 Use a demo receipt</button>
-                {receipt && <button onClick={tamperReceipt} style={{ ...btnGhost, borderColor: '#7f1d1d', color: '#fca5a5' }} title="Forge the receipt to test the TAMPERING / INVALID_PROOF path">🔧 Forge receipt</button>}
+                <button onClick={generateDemoReceipt} disabled={busy} style={btnGhost}>Use a demo receipt</button>
+                {receipt && <button onClick={tamperReceipt} style={{ ...btnGhost, borderColor: '#7f1d1d', color: '#fca5a5' }} title="Forge the receipt to test the TAMPERING / INVALID_PROOF path">Forge receipt</button>}
               </div>
             </div>
             <textarea
@@ -119,7 +119,7 @@ export default function ComplaintPortalPage() {
               </label>
             </div>
             <button onClick={submit} disabled={busy || !receiptText.trim()} style={btnPrimary}>
-              {busy ? 'Verifying Merkle proof…' : '⚖️ Verify Complaint'}
+              {busy ? 'Verifying Merkle proof…' : 'Verify Complaint'}
             </button>
           </div>
 

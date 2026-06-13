@@ -2,7 +2,7 @@
  * CryptoExam Core — § 29.3 / § 29.6 Candidate Verification Screen (Interface D)
  * The single most important UI in Interface D: 3-panel dual-biometric verify.
  *   Left (40%): candidate identity   Center (30%): live capture + progress
- *   Right (30%): VERIFIED ✅ / MISMATCH ❌ with confidence scores
+ *   Right (30%): VERIFIED ✓ / MISMATCH ✗ with confidence scores
  */
 'use client';
 
@@ -104,7 +104,7 @@ export default function CandidateVerifyPage() {
         <input className={styles.input} value={hallTicket} onChange={(e) => setHallTicket(e.target.value)}
           placeholder="Hall ticket no. — e.g. HALL-1005" disabled={phase === 'capturing' || phase === 'matching'} />
         <button type="submit" className={styles.btnPrimary} disabled={phase === 'capturing' || phase === 'matching'}>Verify</button>
-        <button type="button" className={styles.btnGhost} onClick={simulateQR}>📷 Scan QR</button>
+        <button type="button" className={styles.btnGhost} onClick={simulateQR}>Scan QR</button>
       </form>
 
       <div className={styles.verifyGrid}>
@@ -113,7 +113,7 @@ export default function CandidateVerifyPage() {
           <p className={styles.panelLabel}>Candidate Identity</p>
           {candidate ? (
             <>
-              <div className={styles.candPhoto}>{candidate.photo_emoji ?? '🧑'}</div>
+              <div className={styles.candPhoto}>{(candidate.candidate_name ?? '?').charAt(0)}</div>
               <h2 className={styles.candName}>{candidate.candidate_name}</h2>
               <div className={styles.candMeta}>
                 <div>Hall Ticket: <b>{candidate.hall_ticket}</b></div>
@@ -144,7 +144,7 @@ export default function CandidateVerifyPage() {
             <div className={styles.empty}>Awaiting verification…</div>
           ) : (
             <>
-              <div className={`${styles.resultIcon} ${verified ? styles.resultVerified : styles.resultMismatch}`}>{verified ? '✅' : '❌'}</div>
+              <div className={`${styles.resultIcon} ${verified ? styles.resultVerified : styles.resultMismatch}`}>{verified ? '✓' : '✗'}</div>
               <div className={`${styles.resultBig} ${verified ? styles.resultVerified : styles.resultMismatch}`}>{verified ? 'VERIFIED' : 'MISMATCH'}</div>
               <div className={styles.confRow}><span>Face confidence</span><span className={result.face_match ? styles.ok : styles.bad}>{(result.face_confidence * 100).toFixed(1)}%</span></div>
               <div className={styles.confRow}><span>Fingerprint</span><span className={result.fp_match ? styles.ok : styles.bad}>{(result.fp_confidence * 100).toFixed(1)}%</span></div>
