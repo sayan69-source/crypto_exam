@@ -15,6 +15,7 @@ Roles:
 """
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -46,6 +47,12 @@ def _load_key(path: str) -> Optional[str]:
 
 def _get_private_key() -> str:
     """Load RS256 private key for token signing."""
+    # Prod hosts have an ephemeral filesystem, so prefer an env-provided PEM
+    # (set once as a secret) — otherwise keys regenerate per restart and every
+    # session breaks. `\n` is allowed so the PEM can live on one env line.
+    env_pem = os.getenv("JWT_PRIVATE_KEY_PEM")
+    if env_pem:
+        return env_pem.replace("\\n", "\n")
     key = _load_key(settings.JWT_PRIVATE_KEY_PATH)
     if key:
         return key
@@ -63,6 +70,9 @@ def _get_private_key() -> str:
 
 def _get_public_key() -> str:
     """Load RS256 public key for token verification."""
+    env_pem = os.getenv("JWT_PUBLIC_KEY_PEM")
+    if env_pem:
+        return env_pem.replace("\\n", "\n")
     key = _load_key(settings.JWT_PUBLIC_KEY_PATH)
     if key:
         return key

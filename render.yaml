@@ -1,0 +1,77 @@
+# Render Blueprint — one-click deploy of the public CryptoExam website.
+# Defines: a free Postgres DB, the FastAPI backend, and the Next.js frontend.
+#
+#   1. Push this repo to GitHub (done).
+#   2. On https://render.com → New → Blueprint → pick this repo.
+#   3. Render reads this file and creates all three services.
+#   4. Fill the secrets marked `sync: false` (see DEPLOY.md) and deploy.
+#
+# Free tier note: web services sleep after ~15 min idle (first hit is slow);
+# the free Postgres expires after 90 days. Region `singapore` is closest to India.
+
+databases:
+  - name: cryptoexam-db
+    databaseName: cryptoexam
+    user: cryptoexam
+    plan: free
+    region: singapore
+
+services:
+  # ── FastAPI backend ──────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-backend
+    runtime: docker
+    rootDir: public/backend
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cryptoexam-db
+          property: connectionString
+      - key: DEBUG
+        value: "false"
+      # Stable RS256 keys (else every restart logs everyone out). Generate with:
+      #   openssl genrsa -out p.pem 2048 && openssl rsa -in p.pem -pubout -out pub.pem
+      # then paste each PEM (newlines as literal \n on one line is fine).
+      - key: JWT_PRIVATE_KEY_PEM
+        sync: false
+      - key: JWT_PUBLIC_KEY_PEM
+        sync: false
+      # Comma-separated allowed origins — set to the frontend's URL.
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      # Don't ship the public demo admin password to prod.
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_ADMIN_PHONE
+        sync: false
+      # Real OTP delivery (your Twilio account).
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      # HQ→Edge provisioning shared secret (only needed if syncing to a centre Edge).
+      - key: EDGE_PROVISIONING_KEY
+        sync: false
+
+  # ── Next.js frontend ─────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-frontend
+    runtime: docker
+    rootDir: public/frontend
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    region: singapore
+    envVars:
+      # MUST be the backend's public URL + /api/v1. It is baked in at BUILD time,
+      # so after the backend is live, set this and trigger a frontend redeploy.
+      #   e.g. https://cryptoexam-backend.onrender.com/api/v1
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_USE_MOCK
+        value: "false"
