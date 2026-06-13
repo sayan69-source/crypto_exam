@@ -1,4 +1,4 @@
-# CryptoExam Core
+# crypto_exam
 
 <div align="center">
 
@@ -76,7 +76,7 @@ Open [amoy.polygonscan.com](https://amoy.polygonscan.com/), paste the TX hash, a
 
 ---
 
-## Quick Start
+## How to run the full project step by step guide
 
 ### One-Command Setup
 

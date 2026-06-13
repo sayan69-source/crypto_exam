@@ -30,15 +30,18 @@ docker info >/dev/null 2>&1 || {
 mkdir -p "$OUT"
 
 # MSYS/Git-Bash mangles /paths into C:\paths; the -W forms are Docker-safe.
-repo_mnt="$REPO_ROOT"; out_mnt="$OUT"
+repo_mnt="$REPO_ROOT"; out_mnt="$OUT"; here_ctx="$HERE"
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
   repo_mnt="$(cd "$REPO_ROOT" && pwd -W)"
   out_mnt="$(cd "$OUT" && pwd -W)"
+  # The Docker build CONTEXT + -f path must also be Windows-form: the Windows
+  # Docker engine can't resolve an MSYS /d/... path.
+  here_ctx="$(cd "$HERE" && pwd -W)"
   export MSYS_NO_PATHCONV=1
 fi
 
 echo "[zuup-os] building the pinned build-host container…"
-docker build -t "$IMAGE_TAG" -f "$HERE/Dockerfile" "$HERE"
+docker build -t "$IMAGE_TAG" -f "$here_ctx/Dockerfile" "$here_ctx"
 
 # Intermediate state (kernel tree, rootfs) lives in a NAMED VOLUME — a real
 # Linux ext4 filesystem inside Docker's VM. It must NOT live on the Windows
