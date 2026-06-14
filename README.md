@@ -16,7 +16,7 @@
 
 ---
 
-[**Live Demo**](#live-demo) · [**Verify on Blockchain**](#verify-on-blockchain) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture)
+[**Verify on Blockchain**](#verify-on-blockchain) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture)
 
 </div>
 
@@ -50,18 +50,6 @@ This is not an isolated incident:
 | 2 | **Answer records are immutable** | SHA-256 Merkle root committed to Polygon PoS — any modification changes the root |
 | 3 | **Paper difficulty is machine-verifiable** | ZK-SNARK (CIRCOM + Groth16) proof on-chain — proves IRT compliance without revealing questions |
 
----
-
-## Live Demo
-
-| Interface | URL | Role |
-|-----------|-----|------|
-| 🎓 **Candidate Portal** | `[demo-url]/exam` | Light theme · Calm institutional design |
-| 🔬 **Setter Workbench** | `[demo-url]/setter` | Dark theme · Bloomberg-style data density |
-| 🛡️ **Admin Control Centre** | `[demo-url]/admin` | Darkest theme · Real-time mission control |
-| 📋 **Public Audit** | `[demo-url]/exam/audit` | No login required · Court-ready evidence |
-
----
 
 ## Verify on Blockchain
 
