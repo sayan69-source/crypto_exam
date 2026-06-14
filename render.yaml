@@ -33,6 +33,10 @@ services:
           property: connectionString
       - key: DEBUG
         value: "false"
+      # Seed the DB once on a fresh deploy (admin/exams/centres) while keeping
+      # DEBUG off. Idempotent — no-ops once seeded.
+      - key: SEED_ON_START
+        value: "true"
       # Stable RS256 keys (else every restart logs everyone out). Generate with:
       #   openssl genrsa -out p.pem 2048 && openssl rsa -in p.pem -pubout -out pub.pem
       # then paste each PEM (newlines as literal \n on one line is fine).

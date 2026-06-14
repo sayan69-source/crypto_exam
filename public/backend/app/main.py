@@ -9,6 +9,7 @@ exception handling, and health endpoints.
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
+import os
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,8 +53,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Broadcast service startup skipped: {e}")
 
-    # Auto-seed in debug mode
-    if settings.DEBUG:
+    # Seed on startup in dev (DEBUG) OR when SEED_ON_START=true (set this on a
+    # prod deploy so a fresh DB gets its admin/exams/centres without turning DEBUG
+    # on). The seeder is idempotent — it no-ops once the DB is already seeded.
+    if settings.DEBUG or os.getenv("SEED_ON_START", "").lower() == "true":
         try:
             from app.services.seeder import seed_database
             from app.database import async_session
