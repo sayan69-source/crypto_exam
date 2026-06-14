@@ -70,13 +70,7 @@ find_part() { # $1 = GPT partition number → echoes candidate /dev nodes,
 # its verity tree to appear; removable (USB) candidates are preferred so we
 # never grab the internal disk's like-numbered partition.
 ROOTDEV=""; HASHDEV=""; _i=0
-while [ "$_i" -lt 60 ]; do
-  # Nudge the kernel to (re)scan partition tables each round — on some BIOSes a
-  # DD'd USB's GPT isn't scanned until poked. Harmless if blockdev is absent.
-  for d in /sys/class/block/sd? /sys/class/block/nvme?n?; do
-    [ -e "$d" ] || continue
-    /bin/busybox blockdev --rereadpt "/dev/$(basename "$d")" 2>/dev/null || true
-  done
+while [ "$_i" -lt 10 ]; do            # ~5s: enough where the kernel DOES scan
   ROOTDEV="$(find_part 2 | head -n1)"
   HASHDEV="$(find_part 3 | head -n1)"
   [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] && [ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] && break
@@ -92,17 +86,53 @@ done
   echo "=== resolved ROOTDEV=$ROOTDEV  HASHDEV=$HASHDEV ==="
 } > /dev/console 2>/dev/null
 
-# PXE-into-RAM fallback only if the GPT partitions truly never showed up.
-[ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] || ROOTDEV=/dev/ram0
-[ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] || HASHDEV=/dev/ram1
-[ -b "$ROOTDEV" ] || fail "no root device (USB partitions never enumerated)"
+# ── 3. open the verity mapping. Two methods, tried in order; verity itself
+#       proves we opened the RIGHT bytes, so wrong guesses fail safely:
+#   (1) kernel-enumerated partitions — works where the firmware scanned the GPT;
+#   (2) GPT byte-offset mapping off the whole disk via loop devices — for
+#       firmware that attaches the USB but never scans its GPT (this hardware).
 
-# ── 3. open the verity mapping: every 4K block is hash-checked on read; a
-#       single flipped bit anywhere → I/O error → kernel panic → poweroff ────
-# Absolute path: there is no /etc/profile here to set PATH, and the binary
-# lives at a known location staged by mkinitramfs.sh.
-/sbin/veritysetup open "$ROOTDEV" zuup-root "$HASHDEV" "$ROOTHASH" \
-  --panic-on-corruption || fail "verity open (image does not match signed hash)"
+le64() { # $1 dev, $2 byte-offset → little-endian u64 as decimal
+  _b=$(dd if="$1" bs=1 skip="$2" count=8 2>/dev/null | od -An -tu1)
+  set -- $_b
+  echo $(( ${1:-0} + ${2:-0}*256 + ${3:-0}*65536 + ${4:-0}*16777216 \
+         + ${5:-0}*4294967296 + ${6:-0}*1099511627776 \
+         + ${7:-0}*281474976710656 + ${8:-0}*72057594037927936 ))
+}
+
+opened=0
+# Method 1 — kernel-scanned partitions.
+if [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] && [ -n "$HASHDEV" ] && [ -b "$HASHDEV" ]; then
+  /sbin/veritysetup open "$ROOTDEV" zuup-root "$HASHDEV" "$ROOTHASH" --panic-on-corruption 2>/dev/null \
+    && opened=1
+fi
+
+# Method 2 — standard GPT (128-byte entries at LBA2): partition 2's FirstLBA is
+# at byte 1184, partition 3's at byte 1312. Map both off the whole disk by
+# offset and let verity confirm the right disk.
+if [ "$opened" = 0 ]; then
+  echo "ZUUP-OS: root partition not exposed by kernel — trying GPT-offset map…" > /dev/console 2>/dev/null
+  for b in /sys/class/block/*; do
+    name="$(basename "$b")"
+    [ -e "$b/partition" ] && continue              # whole disks only
+    case "$name" in ram*|loop*|zram*|dm-*|md*) continue ;; esac
+    dev="/dev/$name"; [ -b "$dev" ] || continue
+    p2=$(le64 "$dev" 1184); p3=$(le64 "$dev" 1312)
+    [ "${p2:-0}" -gt 0 ] 2>/dev/null || continue
+    [ "${p3:-0}" -gt 0 ] 2>/dev/null || continue
+    /bin/busybox losetup -o $(( p2 * 512 )) /dev/loop2 "$dev" 2>/dev/null || continue
+    /bin/busybox losetup -o $(( p3 * 512 )) /dev/loop3 "$dev" 2>/dev/null \
+      || { /bin/busybox losetup -d /dev/loop2 2>/dev/null; continue; }
+    if /sbin/veritysetup open /dev/loop2 zuup-root /dev/loop3 "$ROOTHASH" --panic-on-corruption 2>/dev/null; then
+      echo "ZUUP-OS: root mapped from $dev by GPT offset (p2 LBA $p2, p3 LBA $p3)" > /dev/console 2>/dev/null
+      opened=1; break
+    fi
+    /bin/busybox losetup -d /dev/loop2 2>/dev/null
+    /bin/busybox losetup -d /dev/loop3 2>/dev/null
+  done
+fi
+
+[ "$opened" = 1 ] || fail "verity open (no matching root found on any disk)"
 
 /bin/busybox mount -t squashfs -o ro,nosuid,nodev /dev/mapper/zuup-root /newroot \
   || fail "squashfs mount"
