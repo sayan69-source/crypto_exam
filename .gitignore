@@ -79,3 +79,6 @@ scripts/out/
 
 # ZUUP-OS image pipeline artifacts (multi-GB: disk image, kernel tree, UKI)
 private/zuup-os/image-build/out/
+
+# ZUUP-OS terminal walkthrough zip (local demo only, never tracked)
+zuup-os-terminal.zip
