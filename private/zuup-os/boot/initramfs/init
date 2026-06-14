@@ -15,8 +15,15 @@
 # only external binary shipped. No mdev/udev — the devices used are static.
 
 fail() {
+  # Make the reason observable before halting: print to the console (not just
+  # kmsg) and hold for 30s so it can be read/photographed on real hardware.
+  # Still fail-closed — it powers off, it just doesn't vanish instantly.
   echo "ZUUP-OS BOOT HALT: $1" > /dev/kmsg 2>/dev/null
+  echo "" > /dev/console 2>/dev/null
+  echo "ZUUP-OS BOOT HALT: $1" > /dev/console 2>/dev/null
+  echo "(halting in 30s)" > /dev/console 2>/dev/null
   sync
+  /bin/busybox sleep 30 2>/dev/null
   poweroff -f
   exit 1 # unreachable
 }
@@ -42,20 +49,39 @@ esac
 #       are resolved from sysfs by their fixed GPT index — misidentification
 #       is harmless because a wrong device cannot match the signed root hash
 #       and the boot HALTs at verity open. ──────────────────────────────────
-find_part() { # $1 = GPT partition number → echoes /dev node, or nothing
+find_part() { # $1 = GPT partition number → echoes candidate /dev nodes,
+              # REMOVABLE parent (the USB) first, then others (QEMU/virtio).
+  _rem=""; _any=""
   for b in /sys/class/block/*; do
     [ -r "$b/partition" ] || continue
     [ "$(cat "$b/partition")" = "$1" ] || continue
-    echo "/dev/$(basename "$b")"
-    return 0
+    _dev="/dev/$(basename "$b")"
+    if [ "$(cat "$b/../removable" 2>/dev/null)" = "1" ]; then
+      _rem="$_rem $_dev"
+    else
+      _any="$_any $_dev"
+    fi
   done
-  return 1
+  for d in $_rem $_any; do echo "$d"; done
 }
-ROOTDEV="$(find_part 2 || true)"
-HASHDEV="$(find_part 3 || true)"
+
+# Real USB needs a few seconds to enumerate after the kernel brings up the
+# controller (QEMU is instant). Wait/retry up to ~30s for BOTH the root and
+# its verity tree to appear; removable (USB) candidates are preferred so we
+# never grab the internal disk's like-numbered partition.
+ROOTDEV=""; HASHDEV=""; _i=0
+while [ "$_i" -lt 60 ]; do
+  ROOTDEV="$(find_part 2 | head -n1)"
+  HASHDEV="$(find_part 3 | head -n1)"
+  [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] && [ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] && break
+  /bin/busybox sleep 0.5
+  _i=$((_i + 1))
+done
+
+# PXE-into-RAM fallback only if the GPT partitions truly never showed up.
 [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] || ROOTDEV=/dev/ram0
 [ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] || HASHDEV=/dev/ram1
-[ -b "$ROOTDEV" ] || fail "no root device"
+[ -b "$ROOTDEV" ] || fail "no root device (USB partitions never enumerated)"
 
 # ── 3. open the verity mapping: every 4K block is hash-checked on read; a
 #       single flipped bit anywhere → I/O error → kernel panic → poweroff ────

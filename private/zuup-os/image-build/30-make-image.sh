@@ -54,10 +54,13 @@ if [[ -z "${ZUUP_DB_KEY:-}" || -z "${ZUUP_DB_CRT:-}" ]]; then
 fi
 
 # ── 4. UKI: kernel + initramfs + locked cmdline(verity hash), sbsigned ─────
-# Dev images get an observable serial console; production stays console=null.
+# Dev images get an observable console; production stays console=null. Log to
+# the laptop SCREEN (tty0) AND serial — tty0 listed last so it's the primary
+# console, so a real machine with no serial port still shows the full boot
+# sequence and any failure on its own display.
 VARIANT="$(cat "$BUILD/.rootfs-variant" 2>/dev/null || echo production)"
 if [[ "$VARIANT" == dev ]]; then
-  export ZUUP_CONSOLE="${ZUUP_CONSOLE:-ttyS0,115200}"
+  export ZUUP_CONSOLE="${ZUUP_CONSOLE:-ttyS0,115200 console=tty0}"
 fi
 echo "[zuup-os] building + signing the Unified Kernel Image (variant=$VARIANT)…"
 OUT="$BUILD/zuup.efi.signed" bash "$ZOS/boot/secureboot/sign-image.sh" \
