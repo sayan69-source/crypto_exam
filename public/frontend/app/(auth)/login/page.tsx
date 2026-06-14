@@ -127,6 +127,12 @@ export default function CandidateLoginPage() {
           Candidate Examination Portal
         </div>
 
+        {/* Candidates are not online accounts — enrol, then get verified at the centre. */}
+        <div style={{ margin: '0 0 4px', padding: '12px 14px', borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 13, color: '#1e3a8a', lineHeight: 1.6 }}>
+          New candidate? You don&apos;t log in online — you&apos;re verified by face + fingerprint at your
+          exam centre. <a href="/candidate-enrolment" style={{ color: '#1d4ed8', fontWeight: 600, textDecoration: 'underline' }}>Enrol here →</a>
+        </div>
+
         {/* Login Form */}
         <form onSubmit={handleLogin} className={styles.form}>
           <div className={styles.field}>

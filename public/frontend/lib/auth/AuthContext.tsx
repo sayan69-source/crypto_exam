@@ -72,6 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Centre staff register on the PUBLIC site (centre LANs are internet-free,
       // ZUUP-OS INV-3); approval + in-person activation still gate every identity.
       '/staff-registration',
+      // Candidates enrol (face + details) on the public site; they never log in
+      // online — verified biometrically at the centre OS, offline, on exam day.
+      '/candidate-enrolment',
     ];
     const isPublicRoute = publicRoutes.some(r => pathname === r) || pathname.startsWith('/exam/paper-info');
 
