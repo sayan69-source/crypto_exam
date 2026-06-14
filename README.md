@@ -167,36 +167,6 @@ cd public/contracts && npm install && npx hardhat compile && npx hardhat test
 | **AI Agents** | 6-agent pipeline · Instructor + LLM · IRT 3PL Scoring · Bloom's Taxonomy |
 | **Infrastructure** | Docker Compose · Nginx reverse proxy · IPFS |
 
----
-
-## AI Agent Pipeline
-
-6 specialized agents generate IRT-calibrated, Bloom's-verified exam questions:
-
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Generator   │────▶│  IRT Scorer │────▶│   Bloom's    │────▶│  Validator  │
-│  Agent       │     │  Agent       │     │   Agent      │     │  Agent       │
-│              │     │              │     │              │     │              │
-│ Instructor + │     │ 3PL params   │     │ L1-6 keyword │     │ Accept if    │
-│ OpenAI/Mock  │     │ b/a/c        │     │ EN + HI      │     │ IRT ∈ range  │
-└──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
-                                                                      │
-                                                              ┌───────▼──────┐
-                                                              │   Balancer   │
-                                                              │   Agent      │
-                                                              │              │
-                                                              │ Set A/B/C/D  │
-                                                              │ equivalence  │
-                                                              └──────────────┘
-```
-
-- **50+ mock questions** across NEET/JEE/SSC/UPSC with Hindi translations
-- **SSE streaming** for real-time progress in Setter dashboard
-- **Set equivalence** prevents "set advantage" fraud vector
-
----
-
 
 
 ---
@@ -366,6 +336,38 @@ worthless, and the network being down cannot stop an exam.
 | Every claim verifiable on Polygon Amoy from your phone | "Trust us, it works" |
 
 ---
+
+---
+# Future Scope
+
+## AI Agent Pipeline
+
+6 specialized agents generate IRT-calibrated, Bloom's-verified exam questions:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Generator   │────▶│  IRT Scorer │────▶│   Bloom's    │────▶│  Validator  │
+│  Agent       │     │  Agent       │     │   Agent      │     │  Agent       │
+│              │     │              │     │              │     │              │
+│ Instructor + │     │ 3PL params   │     │ L1-6 keyword │     │ Accept if    │
+│ OpenAI/Mock  │     │ b/a/c        │     │ EN + HI      │     │ IRT ∈ range  │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
+                                                                      │
+                                                              ┌───────▼──────┐
+                                                              │   Balancer   │
+                                                              │   Agent      │
+                                                              │              │
+                                                              │ Set A/B/C/D  │
+                                                              │ equivalence  │
+                                                              └──────────────┘
+```
+
+- **50+ mock questions** across NEET/JEE/SSC/UPSC with Hindi translations
+- **SSE streaming** for real-time progress in Setter dashboard
+- **Set equivalence** prevents "set advantage" fraud vector
+
+---
+
 
 <div align="center">
 
