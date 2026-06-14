@@ -150,11 +150,13 @@ async def _seed_users(db: AsyncSession) -> list[User]:
     users = []
     now = datetime.now(timezone.utc)
 
-    # Admin
+    # Admin (System Admin / tier-0). Identity is fully env-controlled so the
+    # operator owns it on deploy without anyone seeing the password:
+    #   SEED_ADMIN_EMAIL · SEED_ADMIN_PASSWORD · SEED_ADMIN_PHONE
     admin = User(
         id=str(uuid4()),
-        email="admin@cryptoexam.dev",
-        full_name="CryptoExam Admin",
+        email=os.getenv("SEED_ADMIN_EMAIL", "admin@cryptoexam.dev"),
+        full_name=os.getenv("SEED_ADMIN_NAME", "CryptoExam Admin"),
         name_hi="क्रिप्टोएक्ज़ाम एडमिन",
         role=UserRole.ADMIN,
         phone=os.getenv("SEED_ADMIN_PHONE", "+91 90000 00001"),
