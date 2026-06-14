@@ -102,18 +102,13 @@ async def login(
 
     # Role-specific authentication
     if user.role == UserRole.CANDIDATE:
-        # Candidate: verify their account password (real). The legacy DOB-only
-        # path is gone — a roll number alone can no longer authenticate.
-        if not request.password or not user.password_hash:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password required for candidate login",
-            )
-        if not verify_password(request.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials",
-            )
+        # Candidates have NO online login by design. They enrol (face) on the
+        # web and are verified BIOMETRICALLY at the centre OS terminal, offline.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Candidates do not log in online. You are verified by face + "
+                   "fingerprint at your exam centre. Enrol at /candidate-enrolment.",
+        )
 
     else:
         # Setter/Admin: verify password
