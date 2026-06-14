@@ -11,7 +11,7 @@
 # the free Postgres expires after 90 days. Region `singapore` is closest to India.
 
 databases:
-  - name: cryptoexam-db
+  - name: cryptoexam-db-sayan
     databaseName: cryptoexam
     user: cryptoexam
     plan: free
@@ -20,7 +20,7 @@ databases:
 services:
   # ── FastAPI backend ──────────────────────────────────────────────────────
   - type: web
-    name: cryptoexam-backend
+    name: cryptoexam-api-sayan
     runtime: docker
     rootDir: public/backend
     dockerfilePath: ./Dockerfile.render
@@ -30,7 +30,7 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: cryptoexam-db
+          name: cryptoexam-db-sayan
           property: connectionString
       # DEBUG=true enables the dev OTP path (OTP returned in response) so
       # login works without Twilio. Set to "false" + provide Twilio creds
@@ -50,7 +50,7 @@ services:
       # Comma-separated allowed origins — set to the frontend's URL after deploy.
       # Placeholder value; update after the frontend URL is known.
       - key: CORS_ALLOW_ORIGINS
-        value: "https://cryptoexam-frontend.onrender.com"
+        value: "https://cryptoexam-web-sayan.onrender.com"
       # The System Admin identity — seeded on first boot.
       - key: SEED_ADMIN_EMAIL
         value: "admin@cryptoexam.dev"
@@ -72,7 +72,7 @@ services:
 
   # ── Next.js frontend ─────────────────────────────────────────────────────
   - type: web
-    name: cryptoexam-frontend
+    name: cryptoexam-web-sayan
     runtime: docker
     rootDir: public/frontend
     dockerfilePath: ./Dockerfile.render
@@ -83,6 +83,6 @@ services:
       # so after the backend is live, set this and trigger a frontend redeploy.
       #   e.g. https://cryptoexam-backend.onrender.com/api/v1
       - key: NEXT_PUBLIC_API_URL
-        value: "https://cryptoexam-backend.onrender.com/api/v1"
+        value: "https://cryptoexam-api-sayan.onrender.com/api/v1"
       - key: NEXT_PUBLIC_USE_MOCK
         value: "false"
