@@ -47,7 +47,10 @@ services:
       # Comma-separated allowed origins — set to the frontend's URL.
       - key: CORS_ALLOW_ORIGINS
         sync: false
-      # Don't ship the public demo admin password to prod.
+      # The System Admin identity — fully yours, set here on deploy. The password
+      # is write-only on Render; nobody (including me) reads it back.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
       - key: SEED_ADMIN_PHONE
