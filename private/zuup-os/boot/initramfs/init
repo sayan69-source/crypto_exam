@@ -71,12 +71,26 @@ find_part() { # $1 = GPT partition number → echoes candidate /dev nodes,
 # never grab the internal disk's like-numbered partition.
 ROOTDEV=""; HASHDEV=""; _i=0
 while [ "$_i" -lt 60 ]; do
+  # Nudge the kernel to (re)scan partition tables each round — on some BIOSes a
+  # DD'd USB's GPT isn't scanned until poked. Harmless if blockdev is absent.
+  for d in /sys/class/block/sd? /sys/class/block/nvme?n?; do
+    [ -e "$d" ] || continue
+    /bin/busybox blockdev --rereadpt "/dev/$(basename "$d")" 2>/dev/null || true
+  done
   ROOTDEV="$(find_part 2 | head -n1)"
   HASHDEV="$(find_part 3 | head -n1)"
   [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] && [ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] && break
   /bin/busybox sleep 0.5
   _i=$((_i + 1))
 done
+
+# Diagnostics to the dev console: the kernel's authoritative block/partition
+# list + what we resolved, so any remaining failure is precise, not guessed.
+{
+  echo "=== ZUUP-OS DIAG: /proc/partitions ==="
+  cat /proc/partitions
+  echo "=== resolved ROOTDEV=$ROOTDEV  HASHDEV=$HASHDEV ==="
+} > /dev/console 2>/dev/null
 
 # PXE-into-RAM fallback only if the GPT partitions truly never showed up.
 [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] || ROOTDEV=/dev/ram0
