@@ -13,7 +13,7 @@ export const enrollApi = {
     return (await res.json()).exams ?? [];
   },
 
-  async enrol(body: { fullName: string; dateOfBirth: string; examId: string; centerId: string; faceEmbeddingHash: string }) {
+  async enrol(body: { fullName: string; dateOfBirth: string; examId: string; centerId: string; faceDescriptor: number[] }) {
     const res = await fetch(`${API_BASE}/enroll/candidate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -22,5 +22,17 @@ export const enrollApi = {
     const j = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(j.detail || `enrol ${res.status}`);
     return j as { ok: boolean; rollNumber: string; centre: string; exam: string; note: string };
+  },
+
+  // Real face match against the enrolled descriptor (server-side distance).
+  async verifyFace(roll: string, faceDescriptor: number[]) {
+    const res = await fetch(`${API_BASE}/enroll/verify-face`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roll, faceDescriptor }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.detail || `verify ${res.status}`);
+    return j as { matched: boolean; distance: number; threshold: number; confidence: number; candidate: string | null };
   },
 };

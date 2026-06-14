@@ -13,8 +13,10 @@ POST /api/v1/enroll/candidate   — store a real candidate enrolment (no passwor
 """
 
 import logging
+import math
 import re
 import secrets
+import struct
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -31,8 +33,23 @@ from app.services.auth import hash_password
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_HEX64 = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
 _DOB = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+FACE_DIM = 128                 # face-api.js / FaceNet descriptor length
+FACE_MATCH_THRESHOLD = 0.5     # Euclidean distance for "same person" (exam-grade)
+
+
+def _pack_descriptor(vec: list[float]) -> bytes:
+    return struct.pack(f"<{FACE_DIM}f", *vec)
+
+
+def _unpack_descriptor(blob: bytes) -> list[float]:
+    return list(struct.unpack(f"<{FACE_DIM}f", blob)) if blob and len(blob) == FACE_DIM * 4 else []
+
+
+def _distance(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return math.inf
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
 class CandidateEnrolment(BaseModel):
@@ -40,7 +57,13 @@ class CandidateEnrolment(BaseModel):
     dateOfBirth: str = Field(description="YYYY-MM-DD")
     examId: str
     centerId: str
-    faceEmbeddingHash: str
+    faceDescriptor: list[float] = Field(min_length=FACE_DIM, max_length=FACE_DIM,
+                                        description="128-float face-recognition descriptor")
+
+
+class FaceVerify(BaseModel):
+    roll: str
+    faceDescriptor: list[float] = Field(min_length=FACE_DIM, max_length=FACE_DIM)
 
 
 @router.get("/exams")
@@ -62,10 +85,8 @@ async def enrol_candidate(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Store a real candidate enrolment — User(CANDIDATE) + Enrollment, with a
-    face hash and DOB. NO usable password is set: candidates cannot log in
-    online; they are verified biometrically at the centre OS."""
-    if not _HEX64.match(body.faceEmbeddingHash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="FACE_CAPTURE_REQUIRED")
+    real 128-d face descriptor and DOB. NO usable password is set: candidates
+    cannot log in online; they are verified biometrically at the centre OS."""
     if not _DOB.match(body.dateOfBirth):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="DOB must be YYYY-MM-DD")
 
@@ -83,7 +104,9 @@ async def enrol_candidate(
         full_name=body.fullName.strip(),
         role=UserRole.CANDIDATE,
         date_of_birth=body.dateOfBirth,
-        enrolled_photo_hash=bytes.fromhex(body.faceEmbeddingHash.lower()),
+        # Real face-recognition descriptor (128 float32 = 512 bytes). Only the
+        # descriptor is stored — never the photo (DPDP). Matched by distance.
+        enrolled_photo_hash=_pack_descriptor(body.faceDescriptor),
         password_hash=hash_password(secrets.token_urlsafe(32)),
         dpdp_consent=True,
         dpdp_consent_at=datetime.now(timezone.utc),
@@ -117,4 +140,31 @@ async def enrol_candidate(
         "centre": centre.name,
         "exam": exam.name,
         "note": "No online login. You will be verified by face + fingerprint at your centre on exam day.",
+    }
+
+
+@router.post("/verify-face")
+async def verify_face(body: FaceVerify, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Real face match: compare a LIVE descriptor against the candidate's enrolled
+    descriptor (Euclidean distance). The enrolled biometric never leaves the
+    server. This mirrors what the OS terminal does on-device at the centre."""
+    row = (await db.execute(
+        select(User).join(Enrollment, Enrollment.candidate_id == User.id)
+        .where(Enrollment.roll_number == body.roll)
+    )).scalars().first()
+    if not row or not row.enrolled_photo_hash:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No enrolled face for that roll number")
+
+    enrolled = _unpack_descriptor(row.enrolled_photo_hash)
+    if not enrolled:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Enrolled record is not a face descriptor")
+
+    dist = _distance(body.faceDescriptor, enrolled)
+    matched = dist <= FACE_MATCH_THRESHOLD
+    return {
+        "matched": matched,
+        "distance": round(dist, 4),
+        "threshold": FACE_MATCH_THRESHOLD,
+        "confidence": round(max(0.0, min(1.0, 1.0 - dist)), 4),
+        "candidate": row.full_name if matched else None,
     }
