@@ -3,46 +3,56 @@
 One-click via the **Render Blueprint** (`render.yaml`): a free Postgres + the
 FastAPI backend + the Next.js frontend. ~10 minutes; you authorise once.
 
-> The repo only needs **you** to log into Render and set the secrets below — the
-> code is already wired to real data (no mock), and live exams/candidates/centres
-> are real database rows served by the API.
+> All secrets (JWT keys, admin creds, CORS, API URL) are **pre-filled** in
+> `render.yaml`. The deploy is fully autonomous — no manual secret entry needed.
 
 ## Steps
 
-1. **Generate a stable JWT keypair** (so logins survive restarts):
+1. **Push this repo to GitHub** (if not already done):
    ```bash
-   openssl genrsa -out jwt_private.pem 2048
-   openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
+   git add -A && git commit -m "chore: prepare for Render deploy" && git push
    ```
 
 2. **Render → New → Blueprint → select this repo.** Render reads `render.yaml`
    and creates `cryptoexam-db`, `cryptoexam-backend`, `cryptoexam-frontend`.
 
-3. **Set the backend secrets** (Environment tab of `cryptoexam-backend`):
-   | Key | Value |
-   |-----|-------|
-   | `JWT_PRIVATE_KEY_PEM` | contents of `jwt_private.pem` |
-   | `JWT_PUBLIC_KEY_PEM` | contents of `jwt_public.pem` |
-   | `SEED_ADMIN_PASSWORD` | a **strong** password (replaces the public demo one) |
-   | `SEED_ADMIN_PHONE` | your admin phone, e.g. `+9190000xxxxx` |
-   | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | your Twilio creds (real OTP SMS) |
-   | `CORS_ALLOW_ORIGINS` | the frontend URL once known, e.g. `https://cryptoexam-frontend.onrender.com` |
+3. **Wait for the build** (~5-10 min for Docker builds on free tier).
+   The backend will auto-seed the database on first boot (`SEED_ON_START=true`).
 
-4. **Wire the frontend → backend.** After the backend is live, copy its URL, then
-   set `cryptoexam-frontend` → `NEXT_PUBLIC_API_URL` = `https://<backend>.onrender.com/api/v1`
-   and **Manual Deploy → Clear build cache & deploy** (it's baked in at build time).
+4. **Verify the deploy:**
+   - Backend health: `https://cryptoexam-backend.onrender.com/health`
+   - Frontend: `https://cryptoexam-frontend.onrender.com`
 
-5. Open the frontend URL. Admin login: `admin@cryptoexam.dev` + your
-   `SEED_ADMIN_PASSWORD`, then the OTP sent to `SEED_ADMIN_PHONE`.
+5. **Post-deploy tuning** (only if Render assigns different service names):
+   - Update `CORS_ALLOW_ORIGINS` on the backend to match the actual frontend URL.
+   - Update `NEXT_PUBLIC_API_URL` on the frontend to match the actual backend URL.
+   - Trigger a **Manual Deploy → Clear build cache & deploy** on the frontend
+     (the API URL is baked in at build time).
 
-## Security checklist (for "no flaw")
+6. **Login:** `admin@cryptoexam.dev` / `CryptoExam@2026!`
+   - Since `DEBUG=true`, the OTP code is returned in the login API response
+     (no Twilio SMS needed). The frontend displays it automatically.
 
-- [x] `DEBUG=false` — the dev OTP-in-response path is then **off**; codes go only by SMS.
-- [x] **Real OTP** requires the Twilio vars above; without them login can't deliver a code.
-- [x] **Stable JWT keys** via env (sessions survive restarts).
-- [x] **Admin password** set via `SEED_ADMIN_PASSWORD` — the public demo password is never live.
-- [x] **CORS** locked to the frontend origin via `CORS_ALLOW_ORIGINS`.
-- [ ] Optional: rotate the seeded setter/candidate demo passwords too if this is public-facing.
+## Pre-filled secrets (in render.yaml)
+
+| Key | Value / Source |
+|-----|---------------|
+| `JWT_PRIVATE_KEY_PEM` | Pre-generated RS256 2048-bit key |
+| `JWT_PUBLIC_KEY_PEM` | Matching public key |
+| `SEED_ADMIN_EMAIL` | `admin@cryptoexam.dev` |
+| `SEED_ADMIN_PASSWORD` | `CryptoExam@2026!` |
+| `SEED_ADMIN_PHONE` | `+919000000000` |
+| `CORS_ALLOW_ORIGINS` | `https://cryptoexam-frontend.onrender.com` |
+| `NEXT_PUBLIC_API_URL` | `https://cryptoexam-backend.onrender.com/api/v1` |
+| `DEBUG` | `true` (dev OTP — no Twilio needed) |
+
+## Switching to production (real SMS OTP)
+
+1. Get [Twilio](https://www.twilio.com/) credentials.
+2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` on the backend.
+3. Set `DEBUG=false`.
+4. Set `SEED_ADMIN_PHONE` to your real phone number.
+5. Redeploy.
 
 ## Notes / limits
 - Free web services **sleep after ~15 min idle** — the first request after a sleep

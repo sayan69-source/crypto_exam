@@ -4,7 +4,8 @@
 #   1. Push this repo to GitHub (done).
 #   2. On https://render.com → New → Blueprint → pick this repo.
 #   3. Render reads this file and creates all three services.
-#   4. Fill the secrets marked `sync: false` (see DEPLOY.md) and deploy.
+#   4. After deploy, update CORS_ALLOW_ORIGINS and NEXT_PUBLIC_API_URL with
+#      the actual service URLs and redeploy both services.
 #
 # Free tier note: web services sleep after ~15 min idle (first hit is slow);
 # the free Postgres expires after 90 days. Region `singapore` is closest to India.
@@ -31,40 +32,43 @@ services:
         fromDatabase:
           name: cryptoexam-db
           property: connectionString
+      # DEBUG=true enables the dev OTP path (OTP returned in response) so
+      # login works without Twilio. Set to "false" + provide Twilio creds
+      # for production-grade SMS delivery.
       - key: DEBUG
-        value: "false"
-      # Seed the DB once on a fresh deploy (admin/exams/centres) while keeping
-      # DEBUG off. Idempotent — no-ops once seeded.
+        value: "true"
+      # Seed the DB once on a fresh deploy (admin/exams/centres) while
+      # keeping the deploy autonomous. Idempotent — no-ops once seeded.
       - key: SEED_ON_START
         value: "true"
-      # Stable RS256 keys (else every restart logs everyone out). Generate with:
-      #   openssl genrsa -out p.pem 2048 && openssl rsa -in p.pem -pubout -out pub.pem
-      # then paste each PEM (newlines as literal \n on one line is fine).
+      # ── Stable RS256 JWT keys ──
+      # Generated specifically for this deployment. Sessions survive restarts.
       - key: JWT_PRIVATE_KEY_PEM
-        sync: false
+        value: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCoOVIOMb/J7vcn\n0jgVWgcvlsdXNiGP4wTXyHHAZEOpVlyzRI/9NTgprWXODX+dmW1/un1nNZPACHpD\n0BpXSVKXKVQz4J6ZimlwWHoZ5xNqUdsrmj2t8CcrrZ4DKSil0+1jVGtID4/sqeBE\njSzWz2LeqHJcWJwapnFX7sQf0f5gl7LWQwLhyuT7lzwx9cgsI0PVoB+SJlrsi1Kh\nh91XEv5WHnwGQrz8+08JDnuyw/KRDL2HnFLORxPLLc7/MyA2qreyE685pf45jhKg\nOELIo+HEDTcRMJcE0CfKSntwuyDuPTjprLYb2EXOER2qFaEU2uhtMzyPctKcQmcJ\nOn6JUcYdAgMBAAECggEAFBpbfbJAxNkvhHz48kZCrxNx6XBg1ODQgpfjzhW9RzZ4\nl/y0x1HNjx93V8chrbv4y6eF1mhe6nco40MybqVmvwUzmIp6cYdKn+AW4VMNrSow\nipahUdCt4aibBi4sOxrnFrRvKJqhfKr1T8PeLKJ2YnzXQ8VcDExBJby1B8dwwmqU\nkgFD6sLbJa8pMF//hggDMFX4EM9bs1FgnaS6WG5c7al54lIBs3BNTcD9NmRg7xzn\nwC82gqz4B4YBrN0IaIw0r6eQwPvXNOSH479TRqUxocdyM+NMUy+RpcTIfmwYbyvY\nOvM4sY73Sm7BAKyy0E0jV5fJj4CIleKxP0S0gpaOQQKBgQDnaS2cS71lNqHFZSz2\n5goAIPYDTuxjvbySCI1c/X1U9fVioGYFY8vw/3CJ7r6NG3fZi45qy4nPWyqx7ui2\n8ix8nEWc+2ZJ8jaLzyHPs5E2Pt/raJhhpFeJP+woUuwXo3QfvTDdGSscmMOTKhIG\n+GK42Y1A9gwLXMWWB/HBLlJ0QQKBgQC6GVXlSChjNRddd0reKwYtDNNZTjQnr24j\nd+EgyoeBHsW8arpewXKdJaUjAUyFkRwVCZBIMnrjhPz4T5Mwacs+NAZDlVElGZih\nfSGQAOXH83Y8+qohcCHGMAGZHjsSsojatvlUhN+ediD7YV8FYh6u0kw+F6dZel1s\niIFrNeDq3QKBgEk7m9eOkI1rUJ6reiNYgWmxBKnfXCfkb7y3QCVhgzxT6iggIqkp\n/+xwqii8iUkWnEMYSyW47A/XBhfxR2w+D54Pxmf7l09ne6ObFVQpu5azJyHUpASi\ngaFJvW61b0m7zJAOy1vtDxuprJryAWp7SKK/FlishPtDjLQCJ5u/EREBAoGAKYYD\nq3ApStGK0BkRBHd3HlAxTEjtzDkRiypxeh6Wk5HpLvxlb0UcrMG8kg31JAxXxr3m\niqVw1BlVVJZ00iWY6t0y1JuZinymmMnR1k7M9ot1Q2/uzB03+/+0K5UaOzbI4HxZ\nL6miN7pF67EzQYE+NWXJC0W92nI6LEBdGC3ibKUCgYEAgD0x4Zh2cpRJ7JVohMlX\nwN/guhp0uCMOc68bDEp+mHWuKHeayFpLeSB50V9LL2p3BcZkgv46Iuvfrefz+tfO\negst75Gi/gI/zvgzf/5e38GUBDg8zQYqFi2CBM4nW73B7gFDS8Vvug7WpD5j1KAm\nLnM8tcAuq04KugqRxJvOtfE=\n-----END PRIVATE KEY-----"
       - key: JWT_PUBLIC_KEY_PEM
-        sync: false
-      # Comma-separated allowed origins — set to the frontend's URL.
+        value: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqDlSDjG/ye73J9I4FVoH\nL5bHVzYhj+ME18hxwGRDqVZcs0SP/TU4Ka1lzg1/nZltf7p9ZzWTwAh6Q9AaV0lS\nlylUM+CemYppcFh6GecTalHbK5o9rfAnK62eAykopdPtY1RrSA+P7KngRI0s1s9i\n3qhyXFicGqZxV+7EH9H+YJey1kMC4crk+5c8MfXILCND1aAfkiZa7ItSoYfdVxL+\nVh58BkK8/PtPCQ57ssPykQy9h5xSzkcTyy3O/zMgNqq3shOvOaX+OY4SoDhCyKPh\nxA03ETCXBNAnykp7cLsg7j046ay2G9hFzhEdqhWhFNrobTM8j3LSnEJnCTp+iVHG\nHQIDAQAB\n-----END PUBLIC KEY-----"
+      # Comma-separated allowed origins — set to the frontend's URL after deploy.
+      # Placeholder value; update after the frontend URL is known.
       - key: CORS_ALLOW_ORIGINS
-        sync: false
-      # The System Admin identity — fully yours, set here on deploy. The password
-      # is write-only on Render; nobody (including me) reads it back.
+        value: "https://cryptoexam-frontend.onrender.com"
+      # The System Admin identity — seeded on first boot.
       - key: SEED_ADMIN_EMAIL
-        sync: false
+        value: "admin@cryptoexam.dev"
       - key: SEED_ADMIN_PASSWORD
-        sync: false
+        value: "CryptoExam@2026!"
       - key: SEED_ADMIN_PHONE
-        sync: false
-      # Real OTP delivery (your Twilio account).
+        value: "+919000000000"
+      # Twilio not configured — DEBUG=true enables dev-OTP (returned in response).
+      # To switch to real SMS: set these + set DEBUG=false.
       - key: TWILIO_ACCOUNT_SID
-        sync: false
+        value: ""
       - key: TWILIO_AUTH_TOKEN
-        sync: false
+        value: ""
       - key: TWILIO_FROM_NUMBER
-        sync: false
+        value: ""
       # HQ→Edge provisioning shared secret (only needed if syncing to a centre Edge).
       - key: EDGE_PROVISIONING_KEY
-        sync: false
+        value: ""
 
   # ── Next.js frontend ─────────────────────────────────────────────────────
   - type: web
@@ -79,6 +83,6 @@ services:
       # so after the backend is live, set this and trigger a frontend redeploy.
       #   e.g. https://cryptoexam-backend.onrender.com/api/v1
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: "https://cryptoexam-backend.onrender.com/api/v1"
       - key: NEXT_PUBLIC_USE_MOCK
         value: "false"
