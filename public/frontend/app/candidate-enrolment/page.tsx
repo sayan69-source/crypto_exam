@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { staffApi, type Centre } from "@/lib/api/staff";
 import { enrollApi, type EnrolExam } from "@/lib/api/enroll";
+import { detectFace, loadFaceApi } from "@/lib/biometric/face-real";
 
 export default function CandidateEnrolment() {
   const [exams, setExams] = useState<EnrolExam[] | null>(null);
@@ -20,7 +21,7 @@ export default function CandidateEnrolment() {
   const [dob, setDob] = useState("");
   const [examId, setExamId] = useState("");
   const [centerId, setCenterId] = useState("");
-  const [faceHash, setFaceHash] = useState<string | null>(null);
+  const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ rollNumber: string; centre: string; exam: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +35,7 @@ export default function CandidateEnrolment() {
   async function submit() {
     setBusy(true); setError(null);
     try {
-      const j = await enrollApi.enrol({ fullName, dateOfBirth: dob, examId, centerId, faceEmbeddingHash: faceHash! });
+      const j = await enrollApi.enrol({ fullName, dateOfBirth: dob, examId, centerId, faceDescriptor: faceDescriptor! });
       setResult({ rollNumber: j.rollNumber, centre: j.centre, exam: j.exam });
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -86,35 +87,37 @@ export default function CandidateEnrolment() {
         </select>
 
         <label style={label}>Face capture</label>
-        <FaceCapture onHash={setFaceHash} />
+        <FaceCapture onDescriptor={setFaceDescriptor} />
 
         {error && <p role="alert" style={{ ...errp, marginTop: 12 }}>Enrolment failed · {error}</p>}
 
         <button
-          disabled={busy || down || !fullName.trim() || !dob || !examId || !centerId || !faceHash}
+          disabled={busy || down || !fullName.trim() || !dob || !examId || !centerId || !faceDescriptor}
           onClick={submit}
           style={{ width: "100%", marginTop: 18, padding: 14, borderRadius: 10, border: "none",
-            background: busy || !fullName.trim() || !dob || !examId || !centerId || !faceHash ? "#94a3b8" : "#1e40af",
+            background: busy || !fullName.trim() || !dob || !examId || !centerId || !faceDescriptor ? "#94a3b8" : "#1e40af",
             color: "#fff", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
         >
           {busy ? "Enrolling…" : "Enrol"}
         </button>
 
         <p style={{ ...muted, fontSize: 12, marginTop: 14 }}>
-          Your face image is processed locally — only its digest leaves this page. Your fingerprint is
-          never captured in a browser; you enrol it in person at your centre seat.
+          A real 128-d face descriptor is computed on your device (face-recognition CNN) — only that
+          descriptor leaves this page, never the photo. Your fingerprint is enrolled in person at your
+          centre seat.
         </p>
       </section>
     </main>
   );
 }
 
-/** Webcam → SHA-256 digest of the frame; the raw image never leaves the browser. */
-function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
+/** Webcam → REAL 128-d face descriptor (face-api.js on-device). Only the
+ *  descriptor leaves the browser, never the photo. */
+function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [state, setState] = useState<"idle" | "live" | "captured" | "denied">("idle");
-  const [hash, setHash] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "live" | "captured" | "denied">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -123,42 +126,47 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
   useEffect(() => stop, [stop]);
 
   async function start() {
+    setState("loading"); setMsg("Loading face-recognition model…");
     try {
+      await loadFaceApi();
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      setState("live");
-    } catch { setState("denied"); onHash(null); }
+      setState("live"); setMsg(null);
+    } catch { setState("denied"); setMsg(null); onDescriptor(null); }
   }
 
   async function capture() {
     const v = videoRef.current;
     if (!v) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = v.videoWidth || 640; canvas.height = v.videoHeight || 480;
-    canvas.getContext("2d")!.drawImage(v, 0, 0);
-    const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("capture"))), "image/png"));
-    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-    setHash(hex); onHash(hex); setState("captured"); stop();
+    setMsg("Detecting face…");
+    try {
+      const res = await detectFace(v);
+      if (!res) { setMsg("No face detected — face the camera and try again."); return; }
+      onDescriptor(res.descriptor);
+      setState("captured"); setMsg(`✓ face captured · 128-d descriptor · detector ${(res.detectionScore * 100).toFixed(0)}%`);
+      stop();
+    } catch { setMsg("Face detection failed — try again."); }
   }
 
   return (
     <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 12, background: "#f8fafc" }}>
       {state === "idle" && <button onClick={start} style={ghostBtn}>Enable camera for face capture</button>}
+      {state === "loading" && <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>{msg}</p>}
       {state === "denied" && (
         <p style={{ fontSize: 13, color: "#b91c1c", margin: 0 }}>
-          Camera unavailable or denied — face capture is required to enrol.
+          Camera/model unavailable — face capture is required to enrol.
           <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
         </p>
       )}
       <video ref={videoRef} muted playsInline style={{ width: "100%", borderRadius: 8, display: state === "live" ? "block" : "none" }} />
       {state === "live" && (
-        <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#1e40af", color: "#fff", border: "none" }}>Capture face</button>
+        <>
+          <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#1e40af", color: "#fff", border: "none" }}>Capture face</button>
+          {msg && <p style={{ fontSize: 12, color: "#334155", margin: "8px 0 0" }}>{msg}</p>}
+        </>
       )}
-      {state === "captured" && hash && (
-        <p style={{ ...mono, fontSize: 12, margin: 0, color: "#15803d" }}>✓ face captured · digest {hash.slice(0, 16)}… (image stayed on this device)</p>
-      )}
+      {state === "captured" && <p style={{ ...mono, fontSize: 12, margin: 0, color: "#15803d" }}>{msg}</p>}
     </div>
   );
 }
