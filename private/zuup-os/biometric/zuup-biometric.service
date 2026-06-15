@@ -27,8 +27,10 @@ ProtectControlGroups=yes
 ProtectClock=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
-# loopback HTTP only — the LAN is unreachable from this process
-RestrictAddressFamilies=AF_UNIX AF_INET
+# loopback HTTP only — the LAN is unreachable from this process. AF_NETLINK is
+# needed for libudev/V4L2 to enumerate the camera device; IPAddressDeny=any still
+# blocks all network egress, so it's not an exfil path.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
 IPAddressDeny=any
 IPAddressAllow=127.0.0.1/8
 LockPersonality=yes

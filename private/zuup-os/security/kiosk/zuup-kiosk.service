@@ -40,7 +40,11 @@ ProtectControlGroups=yes
 ProtectClock=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
-RestrictAddressFamilies=AF_UNIX AF_INET
+# AF_NETLINK is required by wlroots/libudev to enumerate + monitor the DRM and
+# input devices (cage fails "session udev monitor: Address family not supported"
+# without it). It is local kernel<->user comms, not a network egress path, so the
+# air-gap is unaffected.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 SystemCallFilter=@system-service
