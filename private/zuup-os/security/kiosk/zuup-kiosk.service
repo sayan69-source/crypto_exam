@@ -25,6 +25,12 @@ Type=simple
 # (INV-2): /run/firefox via RuntimeDirectory, the profile under PrivateTmp's /tmp.
 Environment=XDG_RUNTIME_DIR=/run/firefox
 Environment=HOME=/tmp/firefox
+# The kernel ships WITHOUT user namespaces (a deliberate hardening — unprivileged
+# userns is an escalation vector). Firefox's content/GPU sandboxes rely on userns,
+# so disable them: the kiosk only ever loads the single trusted Edge origin on an
+# air-gapped LAN, so there is no untrusted web content to isolate from anyway.
+Environment=MOZ_DISABLE_CONTENT_SANDBOX=1
+Environment=MOZ_DISABLE_GMP_SANDBOX=1
 ExecStartPre=/bin/mkdir -p /tmp/firefox
 ExecStart=/usr/lib/zuup/zuup-kiosk-launch.sh
 Restart=always
@@ -46,7 +52,11 @@ RestrictSUIDSGID=yes
 # air-gap is unaffected.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
+# W^X (MemoryDenyWriteExecute) is intentionally NOT set: a browser engine needs
+# writable-then-executable mappings (graphics/regex/interp trampolines) even with
+# the JS JIT off, and Firefox crashes under strict W^X. The remaining hardening —
+# read-only verity root, no shell, seccomp, AppArmor, lockdown LSM, air-gap —
+# still stands; this only lifts W^X for the browser surface.
 SystemCallFilter=@system-service
 SystemCallArchitectures=native
 SystemCallErrorNumber=EPERM

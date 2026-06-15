@@ -43,6 +43,10 @@ user_pref("browser.shell.checkDefaultBrowser", false);
 user_pref("app.update.enabled", false);
 user_pref("datareporting.policy.dataSubmissionEnabled", false);
 user_pref("toolkit.telemetry.enabled", false);
+// No user namespaces in this kernel → Firefox's sandboxes can't start; turn them
+// off (single trusted air-gapped origin, nothing untrusted to isolate).
+user_pref("security.sandbox.content.level", 0);
+user_pref("media.gmp.insecure.allow", true);
 EOF
 
 # cage's stderr → console so a compositor failure (no seat/DRM) is visible on a
