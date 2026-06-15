@@ -45,7 +45,9 @@ user_pref("datareporting.policy.dataSubmissionEnabled", false);
 user_pref("toolkit.telemetry.enabled", false);
 EOF
 
-launch() { exec /usr/bin/cage -d -- "$FIREFOX" --kiosk --profile "$PROFILE" "$1"; }
+# cage's stderr → console so a compositor failure (no seat/DRM) is visible on a
+# dev image (console=tty0); harmless on production (console=null discards it).
+launch() { exec /usr/bin/cage -d -- "$FIREFOX" --kiosk --profile "$PROFILE" "$1" 2>/dev/console; }
 
 # No identity baked in → fail closed, never guess a role.
 [ -r "$ID_FILE" ] || { echo "zuup-kiosk: no terminal id" >/dev/kmsg 2>/dev/null || true; launch "$EDGE/locked"; }

@@ -10,8 +10,10 @@
 Description=ZUUP-OS locked examination surface
 # The Gate renders only after the boot is attested (§7.1) and the biometric
 # daemon is serving — and never without the tunnel (INV-3, INV-10).
-After=zuup-network.target zuup-attest.service zuup-biometric.service
-Requires=zuup-network.target zuup-attest.service
+# Cage needs a seat manager (seatd) to take the DRM display + input — logind is
+# masked on this image, so seatd is the one that hands cage the seat.
+After=zuup-network.target zuup-attest.service zuup-biometric.service seatd.service
+Requires=zuup-network.target zuup-attest.service seatd.service
 
 [Service]
 Type=simple
