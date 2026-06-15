@@ -138,6 +138,7 @@ done
 
 # ── 7. enable the unit graph + lock the default target (offline) ───────────
 systemctl --root="$ROOT" enable \
+  seatd.service \
   zuup-firewall.service zuup-wireguard.service \
   zuup-attest.service zuup-biometric.service \
   zuup-heartbeatd.service zuup-kiosk.service usbguard.service apparmor.service >/dev/null 2>&1 || true
