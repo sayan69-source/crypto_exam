@@ -16,12 +16,28 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import TypeDecorator
 
 from app.database import Base
 
-# Use String(36) instead of PostgreSQL UUID for SQLite compatibility
 # Use JSON instead of JSONB for SQLite compatibility
 # Use String instead of INET for SQLite compatibility
+
+
+class GUID(TypeDecorator):
+    """UUID-friendly id column. Stored as a dashed UUID string (length 36) for
+    SQLite compatibility, but binds UUID objects to that same string form — so
+    both ``Model.id == UUID(x)`` and ``Model.id == "x"`` match. Without this,
+    code that coerces ids to ``UUID(...)`` (path params, token sub) silently
+    matched no rows on SQLite, breaking every id-filtered lookup."""
+
+    impl = String(length=36)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return str(value)  # UUID or str → dashed string
 
 
 # ── Python ENUM Types ──
@@ -126,7 +142,7 @@ class User(Base):
     """
     __tablename__ = "users"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     email = Column(String(255), unique=True, nullable=True)
     phone = Column(String(15), nullable=True)
     role = Column(Enum(UserRole, name="user_role", create_type=True), nullable=False)
@@ -160,7 +176,7 @@ class Exam(Base):
     """Core exam record with full lifecycle state machine."""
     __tablename__ = "exams"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     name = Column(String(500), nullable=False)
     name_hi = Column(String(500), nullable=True)
     name_regional = Column(String(500), nullable=True)
@@ -170,7 +186,7 @@ class Exam(Base):
     duration_minutes = Column(Integer, nullable=False)
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     status = Column(Enum(ExamStatus, name="exam_status", create_type=True), nullable=False, default=ExamStatus.DRAFT)
-    setter_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    setter_id = Column(GUID, ForeignKey("users.id"), nullable=True)
     co_setter_ids = Column(JSON, nullable=True)
     sets_count = Column(Integer, default=4)
     negative_marking = Column(Numeric(4, 2), default=0.25)
@@ -207,8 +223,8 @@ class Question(Base):
     """IRT-calibrated question with Bloom's taxonomy and NCERT alignment."""
     __tablename__ = "questions"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
     set_label = Column(String(1), nullable=True)
     sequence_number = Column(Integer, nullable=True)
     text = Column(Text, nullable=False)
@@ -238,7 +254,7 @@ class Center(Base):
     """Exam center with geolocation and connectivity classification."""
     __tablename__ = "centers"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     name = Column(String(255), nullable=False)
     country = Column(String(100), default="India")
     state = Column(String(100), nullable=True)
@@ -264,8 +280,8 @@ class HardwareNode(Base):
     """Physical security node: TPM 2.0 + GPS + tamper detection."""
     __tablename__ = "hardware_nodes"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     serial_number = Column(String(100), unique=True, nullable=True)
     tpm_ek_cert_hash = Column(LargeBinary, nullable=True)
     gps_calibration = Column(JSON, nullable=True)
@@ -317,10 +333,10 @@ class Enrollment(Base):
     """Candidate-exam-center mapping with set assignment."""
     __tablename__ = "enrollments"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    candidate_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    candidate_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     set_label = Column(String(1), nullable=True)
     roll_number = Column(String(50), nullable=True)
     status = Column(Enum(EnrollmentStatus, name="enrollment_status", create_type=True), default=EnrollmentStatus.ENROLLED)
@@ -343,8 +359,8 @@ class Session(Base):
     """
     __tablename__ = "sessions"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    enrollment_id = Column(String(36), ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    enrollment_id = Column(GUID, ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     answers_encrypted = Column(JSON, nullable=True)  # In-session JSON, encrypted at final commit
@@ -369,15 +385,15 @@ class Anomaly(Base):
     """Anti-cheat event log with severity classification."""
     __tablename__ = "anomalies"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=True)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    session_id = Column(GUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=True)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     type = Column(Enum(AnomalyType, name="anomaly_type", create_type=True), nullable=True)
     severity = Column(Integer, nullable=True)
     details = Column(JSON, nullable=True)
     resolved = Column(Boolean, default=False)
-    resolved_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resolved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
@@ -390,13 +406,13 @@ class AdminAuditLog(Base):
     """Administrative action audit trail with 2-admin co-signature."""
     __tablename__ = "admin_audit_log"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    admin_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    admin_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=True)
     target_type = Column(String(50), nullable=True)
-    target_id = Column(String(36), nullable=True)
+    target_id = Column(GUID, nullable=True)
     reason = Column(Text, nullable=True)
-    co_admin_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    co_admin_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     ip_address = Column(String(45), nullable=True)
     on_chain_tx = Column(String(66), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -406,9 +422,9 @@ class DPDPAuditLog(Base):
     """DPDP Act 2023 compliance — data subject rights + admin action tracking."""
     __tablename__ = "dpdp_audit_log"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    principal_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    principal_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=True)
     resource_type = Column(String(50), nullable=True)
     resource_id = Column(String(100), nullable=True)
@@ -416,7 +432,7 @@ class DPDPAuditLog(Base):
     ip_address = Column(String(45), nullable=True)
     requested_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     fulfilled_at = Column(DateTime(timezone=True), nullable=True)
-    fulfilled_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    fulfilled_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     data_categories = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -434,10 +450,10 @@ class BiometricEnrollment(Base):
     """
     __tablename__ = "biometric_enrollments"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     # Derived biometrics (never raw)
     face_embedding = Column(JSON, nullable=True)          # list[float] feature vector
     fp_template_hash = Column(String(128), nullable=True) # hex digest of FP template
@@ -461,11 +477,11 @@ class CandidateVerification(Base):
     """
     __tablename__ = "candidate_verifications"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    candidate_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    invigilator_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    candidate_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    invigilator_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     hall_ticket = Column(String(100), nullable=True)
     face_match = Column(Boolean, default=False)
     face_confidence = Column(Numeric(5, 4), nullable=True)
@@ -489,9 +505,9 @@ class ShamirShard(Base):
     """Secret sharing shard metadata — hash only, never raw shard."""
     __tablename__ = "shamir_shards"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    holder_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    holder_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     shard_index = Column(Integer, nullable=True)
     shard_hash = Column(LargeBinary, nullable=True)
     is_submitted = Column(Boolean, default=False)
@@ -516,8 +532,8 @@ class SealedQuestionBundle(Base):
     """
     __tablename__ = "sealed_question_bundles"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
     questions_root = Column(String(66), nullable=False)   # 0x-prefixed hex — committed on-chain
     bundle_cid = Column(String(100), nullable=True)       # content-addressed pointer (IPFS) anchored on-chain
     question_count = Column(Integer, nullable=False, default=0)
@@ -547,9 +563,9 @@ class StaffRegistrationRequest(Base):
     """
     __tablename__ = "staff_registration_requests"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     role = Column(String(32), nullable=False)              # CENTER_ADMIN | CENTER_INVIGILATOR
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     center_name = Column(String(255), nullable=True)       # denormalised for display
     full_name = Column(String(255), nullable=False)
     face_embedding_hash = Column(String(64), nullable=False)
@@ -571,8 +587,8 @@ class OtpChallenge(Base):
     SHA-256 hash — and a challenge is consumed on first successful verify."""
     __tablename__ = "otp_challenges"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     code_hash = Column(String(64), nullable=False)
     phone = Column(String(20), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
