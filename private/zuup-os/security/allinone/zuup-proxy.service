@@ -1,0 +1,29 @@
+# ZUUP-OS all-in-one — single-origin reverse proxy (Caddy). This is what lets
+# the kiosk keep loading ONE origin (edge.local → 127.0.0.1 via /etc/hosts):
+# /api→edge, /admin→admin portal, everything else→exam-terminal. Same routing,
+# same Caddy, same config verified in the Docker proving ground. Demo app layer.
+[Unit]
+Description=ZUUP-OS all-in-one single-origin proxy
+After=zuup-portal-terminal.service zuup-portal-admin.service zuup-edge.service
+Wants=zuup-portal-terminal.service zuup-portal-admin.service
+
+[Service]
+Type=simple
+User=zuup-app
+# Bind :80 as a non-root service.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+# Caddy's data/config must be writable → RAM only.
+RuntimeDirectory=caddy
+Environment=XDG_CONFIG_HOME=/run/caddy
+Environment=XDG_DATA_HOME=/run/caddy
+ExecStart=/opt/zuup/caddy run --config /opt/zuup/Caddyfile --adapter caddyfile
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=zuup-session.target
