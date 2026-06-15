@@ -1,0 +1,121 @@
+# ════════════════════════════════════════════════════════════════════════
+# ZUUP-OS all-in-one — the entire offline centre stack on one host.
+#
+# This is the Docker proving ground for the single-USB demo: it runs exactly
+# the four processes the bundled image will run, behind one origin, so the
+# kiosk's `https://edge.local/` contract is reproduced verbatim:
+#
+#     proxy (Caddy)  :8080  ── the single origin the kiosk loads
+#       ├── /api/*   → edge          (Fastify §13 API)
+#       ├── /admin/* → centre-admin  (Next, basePath /admin)
+#       └── /*       → exam-terminal  (Next, the Login Gate + seats)
+#     postgres              ── the centre-scoped DB, seeded with students
+#
+# Everything is published ONLY to 127.0.0.1 — this mirrors the air-gapped
+# centre LAN (§6): no service is exposed on any external interface.
+#
+#   docker compose -f private/all-in-one/docker-compose.yml up --build
+#   open http://localhost:8080/?terminal=55555555-5555-5555-5555-555555555555
+#
+# All build contexts are the REPO ROOT (../../ from this file); the root
+# .dockerignore keeps the committed kernel tree out of the context.
+# ════════════════════════════════════════════════════════════════════════
+name: zuup-all-in-one
+
+x-edge-env: &edge-env
+  DATABASE_URL: postgres://zuup:zuup@postgres:5432/zuup_edge
+  CENTRE_ID: "11111111-1111-1111-1111-111111111111"
+  # Fixed dev secrets so tokens survive an edge restart (config.ts would
+  # otherwise mint ephemeral per-boot keys). NOT production material.
+  EDGE_TOKEN_SECRET: "11111111111111111111111111111111111111111111111111111111111111aa"
+  EDGE_BIND_SECRET: "22222222222222222222222222222222222222222222222222222222222222bb"
+  EDGE_NODE_SIGN_SEED: "33333333333333333333333333333333333333333333333333333333333333cc"
+  # Faster Argon for the 487-candidate demo seed (matches seed-demo FAST).
+  ARGON_TIME_COST: "2"
+  ARGON_MEMORY_KIB: "8192"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zuup
+      POSTGRES_PASSWORD: zuup
+      POSTGRES_DB: zuup_edge
+    volumes:
+      - edge_pg:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"   # host-only, mirrors the air-gapped VLAN
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zuup -d zuup_edge"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: apply migrations then seed the demo centre (1 admin, 14
+  # invigilators, 487 candidates, seats, a sealed NEET paper). Idempotent.
+  edge-init:
+    build:
+      context: ../..
+      dockerfile: private/all-in-one/edge.Dockerfile
+    environment: *edge-env
+    command: ["sh", "-c", "node src/migrate.ts && node src/seed-demo.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  edge:
+    build:
+      context: ../..
+      dockerfile: private/all-in-one/edge.Dockerfile
+    environment: *edge-env
+    depends_on:
+      edge-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    expose:
+      - "4000"
+
+  exam-terminal:
+    build:
+      context: ../../private/exam-terminal
+      dockerfile: ../all-in-one/exam-terminal.Dockerfile
+    # Same-origin /api/* is served by the proxy → edge; this rewrite target is
+    # only a dev fallback if the app is hit directly.
+    environment:
+      EDGE_URL: http://edge:4000
+    depends_on:
+      edge:
+        condition: service_healthy
+    expose:
+      - "3000"
+
+  centre-admin:
+    build:
+      context: ../..
+      dockerfile: private/all-in-one/centre-admin.Dockerfile
+    environment:
+      EDGE_URL: http://edge:4000
+    depends_on:
+      edge:
+        condition: service_healthy
+    expose:
+      - "3002"
+
+  proxy:
+    image: caddy:2-alpine
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - edge
+      - exam-terminal
+      - centre-admin
+
+volumes:
+  edge_pg:

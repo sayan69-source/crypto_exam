@@ -41,7 +41,16 @@ while (($#)); do
   esac
   shift
 done
-((${#STAGES[@]})) || STAGES=(00 10 20 30 40)
+# --allinone folds in stage 25 (the bundled centre stack). Only affects the
+# default run; an explicit stage list (e.g. `build-all.sh 25`) is respected.
+ALLINONE=0
+for e in "${EXTRA[@]+"${EXTRA[@]}"}"; do [[ "$e" == "--allinone" ]] && ALLINONE=1; done
+if ((${#STAGES[@]} == 0)); then
+  # The all-in-one is a heavy demo image; stop after stage 30 produces it (the
+  # thin-image QEMU smoke in stage 40 isn't tuned for the bundled stack — run it
+  # by hand with `build-all.sh 40 -- --allinone` if you want it).
+  if (( ALLINONE )); then STAGES=(00 10 20 25 30); else STAGES=(00 10 20 30 40); fi
+fi
 
 for s in "${STAGES[@]}"; do
   script="$HERE/${s}-"*.sh

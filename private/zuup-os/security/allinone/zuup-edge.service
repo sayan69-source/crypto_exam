@@ -1,0 +1,35 @@
+# ZUUP-OS all-in-one — Centre Edge API (Fastify §13), loopback only.
+# Demo app layer only; a production terminal talks to a SEPARATE Edge appliance
+# over WireGuard and ships none of this.
+[Unit]
+Description=ZUUP-OS all-in-one Centre Edge API
+After=zuup-db.service
+Requires=zuup-db.service
+
+[Service]
+Type=simple
+User=zuup-app
+WorkingDirectory=/opt/zuup/app/edge/private/edge-server
+# Loopback only — Caddy fronts it; nothing binds an external interface (§6).
+Environment=EDGE_HOST=127.0.0.1
+Environment=EDGE_PORT=4000
+Environment=DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5432/zuup_edge
+Environment=CENTRE_ID=11111111-1111-1111-1111-111111111111
+# Fixed demo secrets so tokens survive across service restarts (config.ts would
+# otherwise mint ephemeral per-boot keys). NOT production material.
+Environment=EDGE_TOKEN_SECRET=11111111111111111111111111111111111111111111111111111111111111aa
+Environment=EDGE_BIND_SECRET=22222222222222222222222222222222222222222222222222222222222222bb
+Environment=EDGE_NODE_SIGN_SEED=33333333333333333333333333333333333333333333333333333333333333cc
+Environment=ARGON_TIME_COST=2
+Environment=ARGON_MEMORY_KIB=8192
+ExecStart=/opt/zuup/node/bin/node src/index.ts
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=zuup-session.target

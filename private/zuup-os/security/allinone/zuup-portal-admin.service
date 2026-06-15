@@ -1,0 +1,26 @@
+# ZUUP-OS all-in-one — Centre Admin portal (§10.3), Next standalone built with
+# basePath /admin, loopback only. Demo app layer.
+[Unit]
+Description=ZUUP-OS all-in-one Centre Admin portal
+After=zuup-edge.service
+Wants=zuup-edge.service
+
+[Service]
+Type=simple
+User=zuup-app
+WorkingDirectory=/opt/zuup/app/admin
+Environment=NODE_ENV=production
+Environment=PORT=3002
+Environment=HOSTNAME=127.0.0.1
+Environment=EDGE_URL=http://127.0.0.1:4000
+ExecStart=/opt/zuup/node/bin/node private/centre-admin/server.js
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=zuup-session.target

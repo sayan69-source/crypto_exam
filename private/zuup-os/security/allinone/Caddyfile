@@ -1,0 +1,19 @@
+# Single-origin proxy for the in-image all-in-one. Identical routing to the
+# Docker proving ground (private/all-in-one/Caddyfile), but listening on :80 so
+# the kiosk can load http://edge.local (mapped to 127.0.0.1 in /etc/hosts).
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+	handle /admin* {
+		reverse_proxy 127.0.0.1:3002
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

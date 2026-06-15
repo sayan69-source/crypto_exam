@@ -1,0 +1,16 @@
+# ZUUP-OS all-in-one — ephemeral tmpfs PostgreSQL, seeded at boot.
+# Part of the demo app layer only; never present on a production terminal.
+[Unit]
+Description=ZUUP-OS all-in-one centre database (tmpfs, seeded)
+After=zuup-network.target
+Before=zuup-edge.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/zuup/zuup-allinone-db-init.sh
+ExecStop=/bin/sh -c 'B="$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)"; runuser -u postgres -- "$B/pg_ctl" -D /run/zuup/pgdata -m fast stop || true'
+TimeoutStartSec=120
+
+[Install]
+WantedBy=zuup-session.target

@@ -1,0 +1,9 @@
+# Keep the build context lean and, critically, keep the host's node_modules out
+# — they hold Windows/native swc binaries that would shadow the Linux ones the
+# image installs with `npm ci`.
+node_modules
+.next
+.git
+.env*
+README.md
+Dockerfile*
