@@ -70,10 +70,20 @@ find_part() { # $1 = GPT partition number → echoes candidate /dev nodes,
 # its verity tree to appear; removable (USB) candidates are preferred so we
 # never grab the internal disk's like-numbered partition.
 ROOTDEV=""; HASHDEV=""; _i=0
-while [ "$_i" -lt 10 ]; do            # ~5s: enough where the kernel DOES scan
+while [ "$_i" -lt 40 ]; do            # up to ~20s — real USB can be slow to attach
   ROOTDEV="$(find_part 2 | head -n1)"
   HASHDEV="$(find_part 3 | head -n1)"
+  # Method-1 ready: the kernel exposed both partitions.
   [ -n "$ROOTDEV" ] && [ -b "$ROOTDEV" ] && [ -n "$HASHDEV" ] && [ -b "$HASHDEV" ] && break
+  # Method-2 ready: on hardware that attaches the USB but never scans its GPT,
+  # the partitions never appear — only the whole removable disk. Once one is
+  # present (after a brief settle) proceed to the GPT byte-offset map below.
+  if [ "$_i" -ge 6 ]; then
+    for _d in /sys/block/sd* /sys/block/mmcblk*; do
+      [ -e "$_d/removable" ] || continue
+      [ "$(cat "$_d/removable" 2>/dev/null)" = "1" ] && break 2
+    done
+  fi
   /bin/busybox sleep 0.5
   _i=$((_i + 1))
 done

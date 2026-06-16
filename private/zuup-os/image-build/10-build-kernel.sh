@@ -16,7 +16,11 @@ SRC="$BUILD/src/linux-$KVER"
 # Dev images may add boot relaxations (e.g. USB-stick boot for laptop demos);
 # a production build never receives --dev, so those relaxations can't ship.
 DEV=0
-for a in "$@"; do [ "$a" = "--dev" ] && DEV=1; done
+# --allinone is a demo/dev image variant (it bundles the centre stack and boots
+# from a USB stick), so it needs the SAME dev kernel relaxations as --dev — above
+# all USB mass-storage, or the stick never enumerates as a block device and the
+# initramfs HALTs at verity open ("no matching root found on any disk").
+for a in "$@"; do case "$a" in --dev|--allinone) DEV=1 ;; esac; done
 
 [[ -d "$SRC" ]] || { echo "[zuup-os] kernel source missing — run stage 00 first" >&2; exit 1; }
 cd "$SRC"
