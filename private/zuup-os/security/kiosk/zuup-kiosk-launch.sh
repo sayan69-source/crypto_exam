@@ -62,9 +62,12 @@ TID="$(tr -d ' \n' < "$ID_FILE")"
 CAP="$(curl -fsS --max-time 8 "$EDGE/api/terminal/$TID/capability" 2>/dev/null \
         | sed -n 's/.*"capability":"\([A-Z_]*\)".*/\1/p')"
 
+# The Gate learns WHICH terminal it is from ?terminal=<id> (lib/edge.ts persists
+# it); the OS is the source of that id, so hand it over here. The Centre Admin
+# portal carries its station id in its own login form instead.
 case "$CAP" in
   ADMIN_STATION)       launch "$EDGE/admin/" ;;
-  INVIGILATOR_STATION) launch "$EDGE/" ;;
-  CANDIDATE_SEAT)      launch "$EDGE/" ;;
+  INVIGILATOR_STATION) launch "$EDGE/?terminal=$TID" ;;
+  CANDIDATE_SEAT)      launch "$EDGE/?terminal=$TID" ;;
   *)                   launch "$EDGE/locked" ;;
 esac

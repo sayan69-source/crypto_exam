@@ -1,0 +1,23 @@
+# Root build-context ignore. Only consulted by builds whose context IS the repo
+# root (the all-in-one edge + centre-admin images). The public/* and zuup-os
+# image builds use their own narrower contexts and are unaffected.
+#
+# The repo carries a full committed Linux kernel source tree under
+# private/zuup-os/image-build/out — gigabytes that must never enter a context.
+.git
+.gitignore
+**/node_modules
+**/.next
+**/dist
+**/out
+**/*.img
+**/*.iso
+**/*.log
+
+# Other apps not needed by the all-in-one root-context images.
+public
+private/zuup-os
+private/exam-terminal
+private/hardware
+private/lockdown-client
+memory

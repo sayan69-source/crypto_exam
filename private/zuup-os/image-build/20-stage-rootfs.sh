@@ -22,7 +22,15 @@ MIRROR="${ZUUP_MIRROR:-http://deb.debian.org/debian}"
 BROWSER_PKG="${ZUUP_BROWSER_PKG:-firefox-esr}"
 
 DEV=0
-[[ "${1:-}" == "--dev" || "${ZUUP_DEV:-0}" == "1" ]] && DEV=1
+ALLINONE=0
+for a in "$@"; do
+  case "$a" in
+    --dev)      DEV=1 ;;
+    --allinone) ALLINONE=1; DEV=1 ;;  # the all-in-one bundles its own Edge, so
+  esac                                # it takes the DEV boot path (no remote
+done                                  # WireGuard peer / TPM-attested Edge).
+[[ "${ZUUP_DEV:-0}" == "1" ]] && DEV=1
+[[ "${ZUUP_ALLINONE:-0}" == "1" ]] && { ALLINONE=1; DEV=1; }
 
 command -v mmdebstrap >/dev/null || { echo "[zuup-os] need mmdebstrap (use the builder container)" >&2; exit 1; }
 
@@ -58,6 +66,18 @@ if [[ "$FACE" == "cv" ]]; then
   echo "${ZUUP_IMAGE_MAX_MB:-600}" > "$BUILD/.image-max-mb"
 else
   rm -f "$BUILD/.image-max-mb"
+fi
+
+# ── all-in-one demo: fold the whole centre stack into the terminal ─────────
+# Adds PostgreSQL to the closed userland (Node + Caddy arrive as pinned
+# binaries in stage 25), raises the size ceiling for the bundled apps, and
+# leaves a marker stage 25 keys off. This NEVER touches the production variant.
+if [[ "$ALLINONE" == 1 ]]; then
+  PKGS="$PKGS,postgresql"
+  echo "${ZUUP_IMAGE_MAX_MB:-1600}" > "$BUILD/.image-max-mb"
+  : > "$BUILD/.allinone"
+else
+  rm -f "$BUILD/.allinone"
 fi
 
 echo "[zuup-os] mmdebstrap $SUITE → $ROOT (this pulls the userland)…"

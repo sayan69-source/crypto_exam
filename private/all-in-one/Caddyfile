@@ -1,0 +1,36 @@
+# Single-origin reverse proxy — the heart of the all-in-one. The kiosk Firefox
+# loads ONE origin (https://edge.local in production; http://localhost:8080
+# here) and this routes the three surfaces behind it, so the portal code's
+# same-origin `/api/*` and the `/admin/` hand-off work without CORS, exactly as
+# they will inside the bundled image.
+#
+# `handle` blocks are mutually exclusive and matched most-specific-first, so
+# /api and /admin win over the catch-all that serves the exam terminal.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	# §13 Centre Edge API (Fastify). Both portals call same-origin /api/*.
+	handle /api/* {
+		reverse_proxy edge:4000
+	}
+
+	# Centre Admin portal (Next, built with basePath /admin). The prefix is
+	# NOT stripped — the app expects to live under /admin.
+	handle /admin* {
+		reverse_proxy centre-admin:3002
+	}
+
+	# Everything else → the exam-terminal Login Gate, candidate + invigilator
+	# seats, and the /locked fail-closed wall.
+	handle {
+		reverse_proxy exam-terminal:3000
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

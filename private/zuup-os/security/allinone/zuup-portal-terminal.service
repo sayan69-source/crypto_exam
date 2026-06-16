@@ -1,0 +1,26 @@
+# ZUUP-OS all-in-one — exam-terminal portal (Login Gate, candidate + invigilator
+# surfaces, /locked). Next standalone server, loopback only. Demo app layer.
+[Unit]
+Description=ZUUP-OS all-in-one exam-terminal portal
+After=zuup-edge.service
+Wants=zuup-edge.service
+
+[Service]
+Type=simple
+User=zuup-app
+WorkingDirectory=/opt/zuup/app/terminal
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=EDGE_URL=http://127.0.0.1:4000
+ExecStart=/opt/zuup/node/bin/node server.js
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=zuup-session.target
