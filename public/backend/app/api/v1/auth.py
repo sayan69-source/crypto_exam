@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -279,6 +279,57 @@ async def register(
     logger.info(f"User registered: {email}, role={role}, by admin={current_user['user_id']}")
 
     return UserProfile.model_validate(user)
+
+
+class SetterSignup(BaseModel):
+    full_name: str = Field(min_length=2, max_length=255)
+    email: str = Field(min_length=4, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    institution: str | None = None
+    phone: str | None = None
+
+
+@router.post(
+    "/setter-signup",
+    status_code=status.HTTP_201_CREATED,
+    summary="Public setter self-registration (pending admin approval)",
+    description="A prospective question-setter applies for access. Creates an "
+                "INACTIVE setter account; an admin approves it before first login "
+                "(login is gated on is_active). No web role is granted self-serve.",
+)
+async def setter_signup(
+    body: SetterSignup,
+    req: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    email = body.email.strip().lower()
+    existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    user = User(
+        email=email,
+        full_name=body.full_name.strip(),
+        role=UserRole.SETTER,
+        password_hash=hash_password(body.password),
+        institution=(body.institution or None),
+        phone=(body.phone or None),
+        is_active=False,  # pending admin approval — login refuses inactive users
+        dpdp_consent=True,
+        dpdp_consent_at=datetime.now(timezone.utc),
+        dpdp_consent_ip=req.client.host if req else None,
+        dpdp_consent_version="1.0",
+    )
+    db.add(user)
+    await db.commit()
+
+    logger.info(f"Setter self-registration (pending approval): {email}")
+    return {
+        "ok": True,
+        "status": "PENDING_APPROVAL",
+        "message": "Your setter account is pending admin approval. "
+                   "You'll be able to sign in once an administrator approves it.",
+    }
 
 
 @router.get(

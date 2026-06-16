@@ -9,8 +9,19 @@
 'use client';
 
 import Link from 'next/link';
-import type { Exam } from '@/lib/api/types';
 import styles from './SectionLanding.module.css';
+
+/** Minimal exam shape this landing needs — works for both the rich catalogue
+ *  Exam and the live SetterExam from the backend. */
+export interface LandingExam {
+  id: string;
+  name: string;
+  status: string;
+  exam_body?: string | null;
+  sets_count?: number | null;
+  candidate_count?: number | null;
+  zk_proof_hash?: string | null;
+}
 
 const PILL: Record<string, { bg: string; color: string }> = {
   LIVE: { bg: '#ECFDF5', color: '#065F46' },
@@ -27,10 +38,10 @@ interface SectionLandingProps {
   title: string;
   subtitle: string;
   intro: string;
-  exams: Exam[];
+  exams: LandingExam[];
   basePath: string;
   ctaLabel: string;
-  meta?: (exam: Exam) => string;
+  meta?: (exam: LandingExam) => string;
 }
 
 export default function SetterSectionLanding({
@@ -67,7 +78,8 @@ export default function SetterSectionLanding({
                 <div className={styles.cardInfo}>
                   <span className={styles.cardName}>{exam.name}</span>
                   <span className={styles.cardMeta}>
-                    {exam.exam_body} · {exam.candidate_count?.toLocaleString('en-IN')} candidates
+                    {exam.exam_body ?? '—'}
+                    {exam.candidate_count != null ? ` · ${exam.candidate_count.toLocaleString('en-IN')} candidates` : ''}
                     {meta ? ` · ${meta(exam)}` : ''}
                   </span>
                 </div>

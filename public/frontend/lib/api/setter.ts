@@ -62,12 +62,46 @@ export interface ExamListResponse {
   per_page: number;
 }
 
+export interface SetterQuestion {
+  id: string;
+  set_label: string | null;
+  sequence_number: number | null;
+  text: string;
+  subject: string | null;
+  topic: string | null;
+  blooms_level: number | null;
+  irt_a: number | null;
+  irt_b: number | null;
+  irt_c: number | null;
+  is_accepted: boolean | null;
+  source: string | null;
+}
+
+export interface ExamQuestionsResponse {
+  exam_id: string;
+  exam_name: string;
+  total: number;
+  questions: SetterQuestion[];
+}
+
 export const setterApi = {
   /** The signed-in setter's own exams (backend filters by setter_id). */
   exams: () => req<ExamListResponse>('GET', '/exams?per_page=100'),
-  exam: (id: string) => req<SetterExam>('GET', `/exams/${id}`),
+  exam: (id: string) => req<SetterExam>('GET', `/exams/${encodeURIComponent(id)}`),
   createExam: (body: Record<string, unknown>) => req<SetterExam>('POST', '/exams', body),
+  /** An exam's real question bank + IRT parameters (setter/admin only). */
+  questions: (examId: string) =>
+    req<ExamQuestionsResponse>('GET', `/exams/${encodeURIComponent(examId)}/questions`),
   /** Public, on-chain verification data for an exam (no auth needed). */
   verify: (id: string) =>
     req<Record<string, unknown>>('GET', `/exams/${encodeURIComponent(id)}/verify`),
+  /** §lifecycle — generate the Groth16 ZK difficulty proof (setter/admin). */
+  generateZk: (id: string) =>
+    req<Record<string, unknown>>('POST', `/lifecycle/${encodeURIComponent(id)}/generate-zk`),
+  /** §lifecycle — lock the paper: encrypt + commit on-chain (setter/admin). */
+  lockExam: (id: string) =>
+    req<Record<string, unknown>>('POST', `/lifecycle/${encodeURIComponent(id)}/lock`),
+  /** Public self-registration — creates an INACTIVE setter pending admin approval. */
+  signup: (body: { full_name: string; email: string; password: string; institution?: string; phone?: string }) =>
+    req<{ ok: boolean; status: string; message: string }>('POST', '/auth/setter-signup', body),
 };

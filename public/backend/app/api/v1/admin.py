@@ -525,3 +525,48 @@ async def list_roles(
             "permissions": perms.get(role, ""),
         })
     return {"roles": items}
+
+
+@router.get("/setter-requests", summary="Pending setter self-registrations")
+async def list_setter_requests(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Setters who self-registered on the public site and await activation."""
+    rows = (await db.execute(
+        select(User)
+        .where(User.role == UserRole.SETTER, User.is_active.is_(False))
+        .order_by(User.created_at.desc())
+    )).scalars().all()
+    return {
+        "pending": [
+            {
+                "id": u.id,
+                "full_name": u.full_name,
+                "email": u.email,
+                "institution": u.institution,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in rows
+        ]
+    }
+
+
+@router.post("/setter-requests/{user_id}/approve", summary="Approve a pending setter")
+async def approve_setter(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Activate a self-registered setter so they can log in (is_active gate)."""
+    user = (await db.execute(
+        select(User).where(User.id == user_id, User.role == UserRole.SETTER)
+    )).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setter request not found")
+    if user.is_active:
+        return {"ok": True, "status": "ALREADY_ACTIVE"}
+    user.is_active = True
+    await db.commit()
+    logger.info(f"Setter approved: {user.email} by admin={current_user['user_id']}")
+    return {"ok": True, "status": "ACTIVE"}

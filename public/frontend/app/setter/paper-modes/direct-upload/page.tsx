@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { mockTrustedInstitutions } from '@/lib/api/mock-data';
+import { TRUSTED_INSTITUTIONS } from '@/lib/data/trusted-institutions';
 import { paperModesApi } from '@/lib/api/paper-modes';
 import RedTeamReportPanel from '@/components/setter/RedTeamReport';
 import type { RedTeamReport } from '@/lib/api/red-team';
@@ -37,12 +37,12 @@ export default function DirectUploadPage() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [redTeam, setRedTeam] = useState<RedTeamReport | null>(null);
 
-  const filteredInstitutions = mockTrustedInstitutions.filter(
+  const filteredInstitutions = TRUSTED_INSTITUTIONS.filter(
     inst => inst.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             inst.short_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const selectedInstitution = mockTrustedInstitutions.find(i => i.id === selectedInst);
+  const selectedInstitution = TRUSTED_INSTITUTIONS.find(i => i.id === selectedInst);
 
   const onSyllabusPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
