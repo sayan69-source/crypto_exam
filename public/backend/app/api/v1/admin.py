@@ -359,12 +359,49 @@ def _approval_view(r: StaffRegistrationRequest) -> dict:
     }
 
 
+def _assert_correct_approver(r: StaffRegistrationRequest, current_user: dict) -> None:
+    """
+    Enforce the §9 approval cascade rather than letting any web ADMIN sign off.
+
+        Centre Admin applicant  → only the SYSTEM ADMIN (tier-0) may approve
+        Invigilator applicant   → only that centre's CENTRE ADMIN may approve,
+                                  and the Centre Admin console runs INSIDE the
+                                  locked OS on the centre LAN — not here.
+
+    Before this, all three endpoints required only `UserRole.ADMIN`, so an
+    ordinary web administrator could approve a Centre Admin (a tier-0 decision)
+    and could approve invigilators for centres they have nothing to do with.
+    That collapses the cascade into a single trusted role, which is exactly the
+    thing the tiering exists to prevent.
+    """
+    role = (current_user.get("role") or "").upper()
+    if r.role == "CENTER_ADMIN":
+        if role != "SYSTEM_ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "reason": "SYSTEM_ADMIN_REQUIRED",
+                    "message": "A Centre Admin registration can only be approved by the System Admin (tier-0). Sign in at /sysadmin/login with your fingerprint.",
+                },
+            )
+        return
+
+    # CENTER_INVIGILATOR
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "reason": "APPROVE_AT_THE_CENTRE",
+            "message": "An invigilator is approved by their own Centre Admin, from the Centre Admin console inside the locked OS on the centre LAN. This request is carried to that centre by the provisioning bundle; it is not approvable from the public console.",
+        },
+    )
+
+
 @router.get("/staff-approvals", summary="Pending centre-staff registrations")
 async def list_staff_approvals(
     role: str = "CENTER_ADMIN",
     include_resolved: bool = False,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """List real centre-staff registration requests (default: pending Centre Admins)."""
     q = select(StaffRegistrationRequest).where(StaffRegistrationRequest.role == role)
@@ -379,7 +416,7 @@ async def list_staff_approvals(
 async def issue_staff_code(
     request_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """Approve a request and issue a real one-time activation code (returned once)."""
     r = (await db.execute(
@@ -387,6 +424,7 @@ async def issue_staff_code(
     )).scalar_one_or_none()
     if not r:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_REQUEST")
+    _assert_correct_approver(r, current_user)
 
     code = _generate_code()
     expires = datetime.now(timezone.utc) + timedelta(minutes=_CODE_TTL_MIN)
@@ -403,7 +441,7 @@ async def issue_staff_code(
 async def authorise_staff_fp(
     request_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """Mark the applicant's fingerprint as authorised for in-person enrolment."""
     r = (await db.execute(
@@ -411,6 +449,7 @@ async def authorise_staff_fp(
     )).scalar_one_or_none()
     if not r:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_REQUEST")
+    _assert_correct_approver(r, current_user)
     r.fingerprint_authorised = True
     await db.commit()
     return {"ok": True}

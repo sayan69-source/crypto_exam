@@ -68,6 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       '/for-setters', '/for-administrators', '/center-access', '/pipeline',
       '/exam',
       '/login', '/setter/login', '/setter/register', '/admin/login', '/invigilator/login', '/invigilator/register',
+      // Tier-0. Enrolment is IP-gated and login needs a fingerprint, so these
+      // guard themselves server-side; the route gate must not bounce them to
+      // the wrong portal before that check can run.
+      '/sysadmin/login', '/sysadmin/register',
       '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony',
       // Centre staff register on the PUBLIC site (centre LANs are internet-free,
       // ZUUP-OS INV-3); approval + in-person activation still gate every identity.
@@ -84,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace('/setter/login');
       } else if (pathname.startsWith('/admin')) {
         router.replace('/admin/login');
+      } else if (pathname.startsWith('/sysadmin')) {
+        router.replace('/sysadmin/login');
       } else if (pathname.startsWith('/invigilator')) {
         router.replace('/invigilator/login');
       } else {

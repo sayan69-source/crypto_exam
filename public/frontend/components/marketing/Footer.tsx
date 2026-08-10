@@ -58,6 +58,10 @@ export default function Footer() {
               <li><Link href="/staff-registration">Register as Invigilator</Link></li>
               <li><Link href="/center-access">Centre access &amp; login</Link></li>
               <li><Link href="/for-administrators">For administrators</Link></li>
+              {/* Tier-0. Listed like any other portal so it is findable, but
+                  enrolment is IP-restricted and login needs a fingerprint —
+                  the link being public costs nothing. */}
+              <li><Link href="/sysadmin/login">System Administration</Link></li>
             </ul>
           </div>
         </div>
