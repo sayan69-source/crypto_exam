@@ -2,7 +2,7 @@
   "name": "zuup-os",
   "version": "2.0.0",
   "private": true,
-  "description": "ZUUP-OS — Secure Examination Terminal OS & Multi-Portal Control Plane (monorepo root). See private/zuup_os_implementation_plan.md.",
+  "description": "ZUUP-OS \u2014 Secure Examination Terminal OS & Multi-Portal Control Plane (monorepo root). See private/zuup_os_implementation_plan.md.",
   "workspaces": [
     "packages/*",
     "private/centre-admin",
@@ -12,7 +12,9 @@
   "scripts": {
     "check:boundary": "node scripts/check-boundary.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "backend": "cd public/backend && .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "frontend": "npm --prefix public/frontend run dev"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

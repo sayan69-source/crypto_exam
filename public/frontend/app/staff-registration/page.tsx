@@ -15,13 +15,37 @@
  * authorises the fingerprint, and the applicant activates at a centre station
  * with code + live fingerprint (§9.4). This page cannot mint a working login.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { staffApi, type Centre } from "@/lib/api/staff";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
 
-export default function StaffRegistration() {
-  const [role, setRole] = useState<Role>("CENTER_INVIGILATOR");
+/**
+ * `useSearchParams` opts a component out of static prerendering unless it sits
+ * inside a Suspense boundary — Next fails the build otherwise. The exported
+ * page is therefore a thin shell and the form is the inner component.
+ */
+export default function StaffRegistrationPage() {
+  return (
+    <Suspense fallback={null}>
+      <StaffRegistration />
+    </Suspense>
+  );
+}
+
+function StaffRegistration() {
+  // `?role=` preselects which application this is. The footer used to link
+  // "Register as Centre Admin" and "Register as Invigilator" at the very same
+  // url, so both landed on the invigilator form and a would-be Centre Admin
+  // had to notice the toggle and change it — silently applying for the wrong
+  // role otherwise. Read with useSearchParams(): in Next 16 a client component
+  // must not read route state synchronously.
+  const search = useSearchParams();
+  const requested = search.get("role");
+  const [role, setRole] = useState<Role>(
+    requested === "CENTER_ADMIN" ? "CENTER_ADMIN" : "CENTER_INVIGILATOR",
+  );
   const [centres, setCentres] = useState<Centre[] | null>(null);
   const [relayDown, setRelayDown] = useState(false);
   const [centerId, setCenterId] = useState("");

@@ -28,6 +28,10 @@ export default function Footer() {
               <li><Link href="/#guarantees">Guarantees</Link></li>
               <li><Link href="/platform#architecture">Architecture</Link></li>
               <li><Link href="/#roles">For teams</Link></li>
+              <li><Link href="/for-setters">For setters</Link></li>
+              {/* Explainer, not a portal — it belongs beside the other
+                  explainers rather than next to the tier-0 login. */}
+              <li><Link href="/for-administrators">For administrators</Link></li>
             </ul>
           </div>
 
@@ -44,24 +48,39 @@ export default function Footer() {
           <div className="footer-col">
             <h5>Trust</h5>
             <ul>
-              <li><Link href="/#faq">Public audit</Link></li>
-              <li><Link href="/#faq">DPDP Act 2023</Link></li>
+              {/* Three of these used to point at the same /#faq anchor, so
+                  "DPDP Act 2023" and "Public audit" promised dedicated pages
+                  and delivered the homepage FAQ. Each now goes where its label
+                  says: the audit surface, the privacy notice that actually
+                  sets out the DPDP position, and the architecture section. */}
+              <li><Link href="/exam/audit">Public audit</Link></li>
+              <li><Link href="/privacy">DPDP Act 2023</Link></li>
               <li><Link href="/platform#architecture">Security model</Link></li>
               <li><Link href="/#faq">FAQ</Link></li>
             </ul>
           </div>
 
+          {/* Sign-in destinations only — no explainer pages.
+              This column used to mix them, which produced two entries reading
+              "For administrators" and "System Administration" side by side:
+              one a marketing page about the tier-1 console, the other the
+              tier-0 login. Indistinguishable from the outside, and neither was
+              centre staff. The explainer now sits under Platform, where the
+              other explainers are, and every link here goes to a real portal.
+              The two registration links also pointed at the SAME url; they now
+              deep-link the role so they are genuinely different. */}
           <div className="footer-col">
-            <h5>Centre staff</h5>
+            <h5>Sign in</h5>
             <ul>
-              <li><Link href="/staff-registration">Register as Centre Admin</Link></li>
-              <li><Link href="/staff-registration">Register as Invigilator</Link></li>
+              <li><Link href="/candidate-enrolment">Candidate enrolment</Link></li>
+              <li><Link href="/staff-registration?role=CENTER_ADMIN">Register as Centre Admin</Link></li>
+              <li><Link href="/staff-registration?role=CENTER_INVIGILATOR">Register as Invigilator</Link></li>
               <li><Link href="/center-access">Centre access &amp; login</Link></li>
-              <li><Link href="/for-administrators">For administrators</Link></li>
-              {/* Tier-0. Listed like any other portal so it is findable, but
-                  enrolment is IP-restricted and login needs a fingerprint —
+              <li><Link href="/admin/login">Administrator console</Link></li>
+              {/* Tier-0. Listed like any other portal so it is findable —
+                  enrolment is IP-restricted and login needs a fingerprint, so
                   the link being public costs nothing. */}
-              <li><Link href="/sysadmin/login">System Administration</Link></li>
+              <li><Link href="/sysadmin/login">System Administration · tier&nbsp;0</Link></li>
             </ul>
           </div>
         </div>
