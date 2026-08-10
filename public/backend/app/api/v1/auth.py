@@ -205,11 +205,21 @@ async def login(
         "phone_masked": mask_phone(user.phone),
         "ttl_seconds": settings.OTP_TTL_SECONDS,
     }
-    # Dev convenience ONLY: with NO gateway configured at all AND DEBUG on,
-    # return the code so the flow stays testable. Never happens in production —
-    # the 503 above fires first.
-    if delivered == "dev" and settings.DEBUG:
+    # Dev convenience ONLY, gated entirely on DEBUG (false in production).
+    #
+    # Returned whatever the channel, not just when no gateway exists. The
+    # seeded demo accounts use unroutable addresses like admin@cryptoexam.dev,
+    # so the moment real SMTP is configured their codes are posted into the
+    # void — and the developer who just set up email correctly is locked out of
+    # their own admin console by that success. With DEBUG off this key is never
+    # present, so production is unaffected.
+    if settings.DEBUG:
         resp["dev_code"] = code
+        if delivered != "dev":
+            logger.warning(
+                "DEBUG is on, so the OTP is also being returned in the API response. "
+                "Turn DEBUG off before exposing this server to anyone."
+            )
     return resp
 
 

@@ -107,11 +107,26 @@ class BlockchainService:
         self.chain_id = settings.POLYGON_CHAIN_ID
         self.contract_address = settings.CRYPTOEXAM_CONTRACT_ADDRESS
 
-        # Signer
-        if settings.DEPLOYER_PRIVATE_KEY:
-            self.account: Optional[LocalAccount] = Account.from_key(settings.DEPLOYER_PRIVATE_KEY)
+        # Signer.
+        #
+        # `.env.example` ships DEPLOYER_PRIVATE_KEY=<wallet_private_key> as a
+        # placeholder, and `Account.from_key` raises on anything that is not
+        # 32 hex bytes. Because this runs at import time, a config file the
+        # operator has not finished filling in took down the ENTIRE API — every
+        # endpoint, including the ones with nothing to do with the chain.
+        # An unconfigured signer disables writes; it must not stop the server.
+        self.account: Optional[LocalAccount] = None
+        raw_key = (settings.DEPLOYER_PRIVATE_KEY or "").strip()
+        if raw_key:
+            try:
+                self.account = Account.from_key(raw_key)
+            except Exception as exc:
+                logger.warning(
+                    "DEPLOYER_PRIVATE_KEY is set but not a valid key (%s) — blockchain "
+                    "writes disabled. Expected 64 hex characters, optionally 0x-prefixed.",
+                    type(exc).__name__,
+                )
         else:
-            self.account = None
             logger.warning("No DEPLOYER_PRIVATE_KEY — blockchain write operations disabled")
 
         self._contract: Optional[AsyncContract] = None

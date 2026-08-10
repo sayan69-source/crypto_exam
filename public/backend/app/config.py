@@ -3,8 +3,16 @@ CryptoExam Core — Application Configuration
 Centralized settings via pydantic-settings. All secrets from environment.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+# public/  — this file is public/backend/app/config.py, so up three levels.
+# Resolved from __file__ rather than the working directory so the server picks
+# up the same config whether it is started from the repo root, from
+# public/backend, or by a process manager with its own cwd.
+_REPO_PUBLIC_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -113,10 +121,23 @@ class Settings(BaseSettings):
         "http://localhost:3001",
     ]
 
+    # Look for `.env` in BOTH the backend directory and the repo's `public/`.
+    #
+    # `env_file: ".env"` alone resolves relative to the process's working
+    # directory, so it only ever found `public/backend/.env`. Every document in
+    # this repo — the README, the setup guide, `.env.example` — tells an
+    # operator to configure `public/.env`, which was therefore silently
+    # ignored: SMTP credentials could be filled in correctly and the server
+    # would still report "no gateway configured". Both paths are read, with the
+    # backend-local file winning where they overlap.
     model_config = {
-        "env_file": ".env",
+        "env_file": (
+            str(_REPO_PUBLIC_DIR / ".env"),   # public/.env  — the documented one
+            ".env",                            # public/backend/.env — local override
+        ),
         "env_file_encoding": "utf-8",
         "case_sensitive": True,
+        "extra": "ignore",
     }
 
 

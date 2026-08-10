@@ -92,6 +92,19 @@ def _build_message(to: str, code: str, ttl_seconds: int) -> EmailMessage:
     return msg
 
 
+def _smtp_password() -> str:
+    """
+    The App Password, with whitespace removed.
+
+    Google displays app passwords in four groups — `abcd efgh ijkl mnop` — and
+    copying that verbatim is the single most common way this configuration
+    fails: SMTP then rejects the login with a bare "Username and Password not
+    accepted", which points at the wrong thing entirely. The spaces are purely
+    presentational, so strip them rather than making the operator notice.
+    """
+    return "".join((get_settings().SMTP_PASSWORD or "").split())
+
+
 def _send_blocking(msg: EmailMessage) -> None:
     """smtplib is synchronous; the caller runs this in a worker thread."""
     s = get_settings()
@@ -103,7 +116,7 @@ def _send_blocking(msg: EmailMessage) -> None:
     if port == 465:
         with smtplib.SMTP_SSL(host, port, timeout=15, context=ssl.create_default_context()) as smtp:
             if s.SMTP_USER:
-                smtp.login(s.SMTP_USER, s.SMTP_PASSWORD or "")
+                smtp.login(s.SMTP_USER, _smtp_password())
             smtp.send_message(msg)
         return
 
@@ -112,7 +125,7 @@ def _send_blocking(msg: EmailMessage) -> None:
         smtp.starttls(context=ssl.create_default_context())
         smtp.ehlo()
         if s.SMTP_USER:
-            smtp.login(s.SMTP_USER, s.SMTP_PASSWORD or "")
+            smtp.login(s.SMTP_USER, _smtp_password())
         smtp.send_message(msg)
 
 
