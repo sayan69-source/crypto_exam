@@ -1,19 +1,56 @@
 # Single-origin proxy for the in-image all-in-one. Identical routing to the
 # Docker proving ground (private/all-in-one/Caddyfile), but listening on :80 so
 # the kiosk can load http://edge.local (mapped to 127.0.0.1 in /etc/hosts).
+#
+# Caddy is a single static binary with nothing to initialise, so it binds :80
+# within a second of boot — long before PostgreSQL has been created in tmpfs and
+# seeded and the two Next servers have started. That gap is what used to strand
+# the kiosk: Firefox never retries a navigation, so one connection refused at
+# t+3s left the terminal on an error page for the rest of the exam. The static
+# routes below close it — the origin now always answers something, and that
+# something replaces itself once the real surface is up.
 {
 	admin off
 	auto_https off
 }
 
 :80 {
+	# Document root for every static response below (the /kiosk surfaces and the
+	# error page). The reverse-proxied routes never consult it.
+	root * /opt/zuup/www
+
 	handle /api/* {
 		reverse_proxy 127.0.0.1:4000
 	}
+
+	# DEMO IMAGE ONLY — the operator role chooser and the origin liveness
+	# beacon, served straight off the read-only image. Static on purpose: these
+	# have to answer while the Node services are still booting, which is exactly
+	# when they are needed. Never present in the production image.
+	#
+	# Without the redirect a bare /kiosk misses the /kiosk/* matcher, falls to
+	# the catch-all and 404s on the exam portal — a confusing dead end for the
+	# one URL an operator might type from memory.
+	redir /kiosk /kiosk/ 308
+	handle /kiosk/* {
+		uri strip_prefix /kiosk
+		file_server
+	}
+
 	handle /admin* {
 		reverse_proxy 127.0.0.1:3002
 	}
 	handle {
 		reverse_proxy 127.0.0.1:3000
+	}
+
+	# Any upstream not yet listening (502) — or any 404 — gets the "centre
+	# starting" page instead of a bare proxy error. The header is load-bearing:
+	# that page polls the origin to decide when to reload, and without a marker
+	# it would see its own 200 and reload forever.
+	handle_errors {
+		header X-Zuup-Starting 1
+		rewrite * /starting.html
+		file_server
 	}
 }

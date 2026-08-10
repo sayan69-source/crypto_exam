@@ -35,7 +35,7 @@ STAGES=()
 EXTRA=()
 while (($#)); do
   case "$1" in
-    00|10|20|30|40) STAGES+=("$1") ;;
+    00|10|20|25|30|40) STAGES+=("$1") ;;
     --) shift; EXTRA=("$@"); break ;;
     *) EXTRA+=("$1") ;;
   esac

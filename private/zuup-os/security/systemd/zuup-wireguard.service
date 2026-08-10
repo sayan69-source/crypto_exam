@@ -16,6 +16,12 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/bin/wg-quick up /etc/zuup/wg0.conf
 ExecStop=/usr/bin/wg-quick down /etc/zuup/wg0.conf
+# Fail-closed: a terminal whose ONLY route (the Edge tunnel) will not come up
+# must power off, not idle at a failed target where zuup-network.target hangs
+# unreached. This closes the "degraded but alive" gap — the terminal is either
+# fully attested on the tunnel, or it is dark. Inert in the dev image, where
+# this unit's ExecStart is replaced by /bin/true and therefore never fails.
+FailureAction=poweroff-force
 
 NoNewPrivileges=yes
 ProtectSystem=strict

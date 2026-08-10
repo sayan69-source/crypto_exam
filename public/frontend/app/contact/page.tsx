@@ -7,17 +7,69 @@ import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
 
+// Same origin the rest of the site uses. Not hardcoded to a host: a deployed
+// build sets NEXT_PUBLIC_API_URL and the form follows it.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
 export default function ContactPage() {
   const formRef = useRef<HTMLFormElement>(null);
   const [sent, setSent] = useState(false);
+  const [reference, setReference] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  /**
+   * Send the enquiry to the HQ queue.
+   *
+   * This used to be `setSent(true)` and nothing else — the message was
+   * discarded in the browser while the sender was shown a confirmation. An
+   * examining body could ask for a briefing, be told it had been sent, and
+   * reach nobody. Now it POSTs to /api/v1/enquiries, and if that fails the
+   * sender is told it failed rather than thanked.
+   */
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formRef.current?.checkValidity()) {
       formRef.current?.reportValidity();
       return;
     }
-    setSent(true);
+    setSending(true);
+    setError(null);
+
+    const data = new FormData(formRef.current);
+    const get = (k: string) => String(data.get(k) ?? "").trim();
+
+    try {
+      const res = await fetch(`${API_BASE}/enquiries`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          full_name: [get("first"), get("last")].filter(Boolean).join(" "),
+          email: get("email"),
+          organisation: get("org") || null,
+          role_title: get("role") || null,
+          topic: "BRIEFING",
+          // The scale question is context for whoever answers, so it travels
+          // with the message rather than being dropped on the floor.
+          message: [get("message"), get("scale") ? `\n\nExpected scale: ${get("scale")}` : ""].join(""),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          body?.detail?.message ??
+            (res.status === 429
+              ? "Several enquiries have already come from this network in the last hour."
+              : "We could not record your enquiry. Please try again, or email us directly."),
+        );
+      }
+      setReference(body.reference ?? null);
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "We could not record your enquiry.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -142,13 +194,23 @@ export default function ContactPage() {
                       enquiry, in line with the DPDP Act, 2023.
                     </span>
                   </label>
+                  {error && (
+                    <div className={s.formError} role="alert">
+                      <Icon name="alert-triangle" size={17} strokeWidth={1.8} />
+                      <div>
+                        <strong>Your enquiry was not sent.</strong>
+                        <span>{error}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className={s.formActions}>
                     <span className={s.formMeta}>
                       <span className="dot" style={{ background: "var(--color-success)" }} />
                       Encrypted in transit · TLS 1.3
                     </span>
-                    <button className="btn btn-primary btn-lg" type="submit">
-                      Send enquiry <Icon name="arrow-right" size={16} />
+                    <button className="btn btn-primary btn-lg" type="submit" disabled={sending}>
+                      {sending ? "Sending…" : "Send enquiry"}
+                      {!sending && <Icon name="arrow-right" size={16} />}
                     </button>
                   </div>
                 </form>
@@ -157,8 +219,14 @@ export default function ContactPage() {
               {sent && (
                 <div className={`${s.sentState} ${s.sentStateShow}`}>
                   <Icon name="check-circle-2" size={40} />
-                  <h3>Thank you — your enquiry is on its way.</h3>
+                  <h3>Thank you — your enquiry has been received.</h3>
                   <p>A member of the programme team will be in touch within two working days.</p>
+                  {reference && (
+                    <p className={s.sentRef}>
+                      Your reference is <code>{reference}</code>. Quote it in any follow-up —
+                      it is how we find your enquiry without asking for your details again.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

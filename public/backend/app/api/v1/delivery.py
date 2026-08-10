@@ -64,9 +64,15 @@ def _publish_to_content_store(bundle_dict: dict) -> str:
         if addr:
             with ipfshttpclient.connect(addr) as client:
                 return "ipfs://" + client.add_bytes(canonical)
-    except Exception:  # noqa: BLE001 — no IPFS in dev; deterministic CID still anchors content
+    except Exception:  # noqa: BLE001 — no IPFS node wired up in dev
         pass
-    return "ipfs://b" + digest  # content-addressed stand-in (sha256 of the bundle)
+    # NOT an IPFS CID. A real CID is a multibase-encoded multihash; this is a
+    # bare sha256 hex string, so `ipfs://b<sha256>` resolves nowhere and any
+    # gateway returns 404. It is still a sound CONTENT ADDRESS — the terminal
+    # verifies bundles against the questions root, not against this — so the
+    # demo works; but the scheme has to say what it is, or a reader reasonably
+    # concludes the bundle is on IPFS when it is not.
+    return "sha256://" + digest
 
 
 # ── Schemas ──
@@ -247,7 +253,7 @@ async def verify_question(exam_id: UUID, body: VerifyRequest, db: AsyncSession =
     committed on-chain set. Anyone can call this to audit a delivered question.
     """
     from crypto.question_sealing import question_leaf
-    from crypto.merkle import verify_inclusion
+    from crypto.question_sealing import verify_question_inclusion
 
     row = (await db.execute(
         select(SealedQuestionBundle).where(SealedQuestionBundle.exam_id == exam_id)
@@ -258,7 +264,7 @@ async def verify_question(exam_id: UUID, body: VerifyRequest, db: AsyncSession =
     sealed = {"iv": body.iv, "ct": body.ct, "tag": body.tag}
     leaf = question_leaf(body.question_id, sealed)
     root_bytes = bytes.fromhex(row.questions_root[2:])
-    ok = verify_inclusion(leaf, body.proof, root_bytes)
+    ok = verify_question_inclusion(leaf, body.proof, root_bytes)
     return {
         "examId": str(exam_id),
         "questionId": body.question_id,

@@ -14,6 +14,11 @@ Description=ZUUP-OS locked examination surface
 # masked on this image, so seatd is the one that hands cage the seat.
 After=zuup-network.target zuup-attest.service zuup-biometric.service seatd.service
 Requires=zuup-network.target zuup-attest.service seatd.service
+# Restart=always below is only as good as the rate limiter above it: with the
+# default burst systemd would give up after five quick restarts and leave the
+# terminal on a black screen with no way back. An examination surface has no
+# acceptable "stopped" state — keep trying, forever.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -31,6 +36,20 @@ Environment=HOME=/tmp/firefox
 # air-gapped LAN, so there is no untrusted web content to isolate from anyway.
 Environment=MOZ_DISABLE_CONTENT_SANDBOX=1
 Environment=MOZ_DISABLE_GMP_SANDBOX=1
+# Cage is a Wayland compositor and this image ships no X server and no Xwayland.
+# Firefox picks its GDK backend at startup and only defaults to Wayland on newer
+# builds, so an ESR that guessed X11 would exit with "cannot open display" and
+# crash-loop behind a black screen. Pin the backend rather than depend on the
+# browser's default.
+Environment=MOZ_ENABLE_WAYLAND=1
+Environment=GDK_BACKEND=wayland
+Environment=XDG_SESSION_TYPE=wayland
+# wlroots refuses a software renderer unless told otherwise. On a terminal whose
+# GPU has no in-kernel driver the display still exists (simpledrm over the UEFI
+# framebuffer) but EGL has no hardware to bind — allowing llvmpipe is what keeps
+# the kiosk on screen instead of dying at compositor start. The launcher falls
+# back further, to the pixman renderer, if cage still exits immediately.
+Environment=WLR_RENDERER_ALLOW_SOFTWARE=1
 ExecStartPre=/bin/mkdir -p /tmp/firefox
 ExecStart=/usr/lib/zuup/zuup-kiosk-launch.sh
 Restart=always

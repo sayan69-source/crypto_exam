@@ -1,0 +1,126 @@
+<!doctype html>
+<!--
+  ZUUP-OS all-in-one — the page the proxy serves while an upstream is not yet
+  answering (Caddyfile `handle_errors`).
+
+  Why it exists: Caddy binds :80 in about a second, but PostgreSQL has to be
+  initialised in tmpfs and seeded, the Edge has to migrate, and two Next servers
+  have to boot — up to a couple of minutes on a laptop. Without this page the
+  kiosk's first navigation lands on a bare 502 (or, worse, a connection refused
+  the browser will never retry) and the terminal is stuck there for good.
+
+  With it, the origin ALWAYS answers something, and that something re-loads
+  itself the moment the real surface is ready.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZUUP-OS · centre starting</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #f6f8fb; color: #0f172a;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 32px;
+  }
+  main { max-width: 560px; width: 100%; }
+  .state {
+    display: inline-block;
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: #92400e; background: #fef3c7; border: 1px solid #fcd34d;
+    padding: 6px 10px; border-radius: 999px; margin-bottom: 20px;
+  }
+  h1 { margin: 0 0 10px; font-size: 25px; font-weight: 650; letter-spacing: -.01em; }
+  p { margin: 0 0 20px; color: #64748b; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 13px 16px;
+    font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; flex: none; }
+  li.up   .dot { background: #10b981; }
+  li.down .dot { background: #f59e0b; }
+  li .label { flex: 1; color: #334155; }
+  li .status { color: #94a3b8; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  li.up .status { color: #059669; }
+  footer { margin-top: 22px; font-size: 13px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<main>
+  <span class="state">Centre stack starting</span>
+  <h1>Bringing the examination centre up.</h1>
+  <p>
+    The database is being created in memory and seeded, and the portals are
+    booting. This screen replaces itself as soon as the surface you asked for is
+    ready — nothing to do but wait.
+  </p>
+  <ul>
+    <li id="svc-edge"><span class="dot"></span><span class="label">Centre Edge API</span><span class="status">waiting</span></li>
+    <li id="svc-exam"><span class="dot"></span><span class="label">Examination portal</span><span class="status">waiting</span></li>
+    <li id="svc-admin"><span class="dot"></span><span class="label">Centre Admin portal</span><span class="status">waiting</span></li>
+  </ul>
+  <footer id="note">Checking every 2 seconds…</footer>
+</main>
+
+<script>
+  // Each probe is a plain same-origin request through the proxy. A 2xx alone is
+  // NOT proof the upstream is live: when it is down the proxy answers with THIS
+  // page, which is a perfectly good 200. The `X-Zuup-Starting` header the proxy
+  // stamps on its error responses (Caddyfile `handle_errors`) is what tells the
+  // two apart — without it the page would see its own body and reload forever.
+  var CHECKS = [
+    { el: "svc-edge",  url: "/api/health", key: "edge"  },
+    { el: "svc-exam",  url: "/",           key: "exam"  },
+    { el: "svc-admin", url: "/admin/",     key: "admin" }
+  ];
+  var elapsed = 0;
+
+  // Which upstream does the URL the browser is actually parked on need? Only
+  // that one gates the reload — a slow admin portal must not hold up an
+  // invigilator whose console is already serving.
+  function needed() {
+    var p = location.pathname;
+    if (p.indexOf("/admin") === 0) return "admin";
+    if (p.indexOf("/api") === 0) return "edge";
+    return "exam";
+  }
+
+  function mark(id, up) {
+    var li = document.getElementById(id);
+    li.className = up ? "up" : "down";
+    li.querySelector(".status").textContent = up ? "ready" : "starting";
+  }
+
+  function tick() {
+    elapsed += 2;
+    var want = needed();
+    Promise.all(CHECKS.map(function (c) {
+      return fetch(c.url, { cache: "no-store", redirect: "follow" })
+        .then(function (r) {
+          var up = r.ok && !r.headers.get("x-zuup-starting");
+          mark(c.el, up);
+          return c.key === want && up;
+        })
+        .catch(function () { mark(c.el, false); return false; });
+    })).then(function (results) {
+      // Reload the ORIGINAL url — the browser is still pointed at whatever
+      // surface failed, so this lands on the real page the moment it exists.
+      if (results.some(Boolean)) location.reload();
+      else if (elapsed >= 240) {
+        document.getElementById("note").textContent =
+          "Still starting after " + elapsed + " seconds. If this does not clear, " +
+          "a service on the centre stack has failed to start.";
+      }
+    });
+  }
+
+  tick();
+  setInterval(tick, 2000);
+</script>
+</body>
+</html>

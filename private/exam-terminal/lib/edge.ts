@@ -124,8 +124,19 @@ export interface SeatStateResponse {
 export const seatState = (terminalId: string) =>
   call<SeatStateResponse>(`/seat/${encodeURIComponent(terminalId)}/state`, { auth: false });
 
-export const candidateLogin = (body: { terminalId: string; roll: string; dob: string }) =>
-  call<{ ok: boolean; state: string }>("/candidate/login", { method: "POST", body: JSON.stringify(body), auth: false });
+/**
+ * Roll + DOB login for this seat. On success the Edge returns the CANDIDATE
+ * session that authorises everything after it — the bundle, the beacon and the
+ * submission. Stored here so the caller cannot forget to arm it; without it
+ * those three routes answer 403 NO_CANDIDATE_SESSION.
+ */
+export async function candidateLogin(body: { terminalId: string; roll: string; dob: string }) {
+  const r = await call<{ ok: boolean; state: string; token?: string }>(
+    "/candidate/login", { method: "POST", body: JSON.stringify(body), auth: false },
+  );
+  if (r.token) setToken(r.token);
+  return r;
+}
 
 // ── §10.7 question delivery (Edge serves the keyless bundle + gated beacon) ─
 import type { SealedBundle } from "@/lib/question-crypto";
@@ -138,7 +149,7 @@ export interface BundleResponse {
 }
 /** Fetch the sealed, keyless question bundle for this seat's exam. */
 export const questionBundle = (examId: string, terminalId: string) =>
-  call<BundleResponse>(`/exam/${encodeURIComponent(examId)}/bundle?terminalId=${encodeURIComponent(terminalId)}`, { auth: false });
+  call<BundleResponse>(`/exam/${encodeURIComponent(examId)}/bundle?terminalId=${encodeURIComponent(terminalId)}`);
 
 export interface BeaconResponse {
   ok: boolean;
@@ -148,7 +159,7 @@ export interface BeaconResponse {
 }
 /** Poll for the T₀ beacon. Throws EdgeError 425 while still before T₀. */
 export const examBeacon = (examId: string, terminalId: string) =>
-  call<BeaconResponse>(`/exam/${encodeURIComponent(examId)}/beacon?terminalId=${encodeURIComponent(terminalId)}`, { auth: false });
+  call<BeaconResponse>(`/exam/${encodeURIComponent(examId)}/beacon?terminalId=${encodeURIComponent(terminalId)}`);
 
 // ── §11 answer pipeline (seal happens client-side, lib/answer-seal.ts) ─────
 /** The System Admin SEALING key (public half) + the centre node pubkey. */
@@ -170,4 +181,4 @@ export const submitAnswer = (body: {
   iv: string;
   tag: string;
   wrappedDk: string;
-}) => call<{ ok: boolean; receipt: Receipt }>("/answer/submit", { method: "POST", body: JSON.stringify(body), auth: false });
+}) => call<{ ok: boolean; receipt: Receipt }>("/answer/submit", { method: "POST", body: JSON.stringify(body) });

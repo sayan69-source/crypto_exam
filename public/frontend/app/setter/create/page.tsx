@@ -5,18 +5,91 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getAuthToken } from '@/lib/api/client';
 import styles from './create.module.css';
 
 const STEPS = ['Exam Identity', 'Configuration', 'IRT & Bloom\'s Targets', 'Review & Create'];
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 export default function SetterCreatePage() {
+  const router = useRouter();
   const [step, setStep] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '', examBody: 'NTA', duration: 180,
     subjects: [{ name: 'Physics', questionCount: 30 }],
     negativeMark: 0.25, setsCount: 4,
     targetMeanB: 0.0, targetStdB: 1.0, minA: 0.5, maxC: 0.25,
   });
+
+  /**
+   * Actually create the exam.
+   *
+   * The button on the review step had no handler at all: a setter filled in
+   * four steps, pressed "Create Exam", and nothing happened — no request, no
+   * error, no navigation. The wizard now POSTs to /exams/ and takes the setter
+   * to the generation screen for the exam it just made.
+   */
+  async function createExam() {
+    if (!formData.name.trim()) {
+      setError('Give the exam a name before creating it.');
+      setStep(0);
+      return;
+    }
+    setCreating(true);
+    setError(null);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${API_BASE}/exams/`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          exam_body: formData.examBody,
+          exam_type: 'ONLINE_CBT',
+          duration_minutes: formData.duration,
+          // Scheduled a week out by default; the admin console moves it. The
+          // API requires a date, so the wizard must send one rather than fail.
+          scheduled_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+          // The blueprint the generation pipeline reads: subject → question count.
+          subject_taxonomy: Object.fromEntries(
+            formData.subjects
+              .filter((s) => s.name.trim() && s.questionCount > 0)
+              .map((s) => [s.name.trim(), s.questionCount]),
+          ),
+          irt_config: {
+            target_mean_b: formData.targetMeanB,
+            target_std_b: formData.targetStdB,
+            min_a: formData.minA,
+            max_c: formData.maxC,
+            tolerance: Math.max(0.5, formData.targetStdB),
+          },
+          blooms_config: {},
+          sets_count: formData.setsCount,
+          negative_marking: formData.negativeMark,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string'
+            ? body.detail
+            : body.detail?.[0]?.msg ?? `Could not create the exam (${res.status}).`,
+        );
+      }
+      router.push(`/setter/generate/${body.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create the exam.');
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <div className={styles.page}>
@@ -104,7 +177,12 @@ export default function SetterCreatePage() {
               <span className={styles.reviewLabel}>Sets</span><span className={styles.reviewValue}>{formData.setsCount}</span>
               <span className={styles.reviewLabel}>Subjects</span><span className={styles.reviewValue}>{formData.subjects.map(s => `${s.name} (${s.questionCount}Q)`).join(', ')}</span>
             </div>
-            <button className={styles.createBtn}>Create Exam →</button>
+            {error && (
+              <p role="alert" className={styles.createError}>{error}</p>
+            )}
+            <button className={styles.createBtn} onClick={createExam} disabled={creating}>
+              {creating ? 'Creating…' : 'Create Exam →'}
+            </button>
           </div>
         )}
       </div>

@@ -7,12 +7,14 @@
  * `buildApp` returns a Fastify instance so it can be driven with `app.inject()`
  * in tests (no socket) and served for real from index.ts.
  */
+import { randomBytes } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import type { EdgeConfig } from "./config.ts";
 import type { Pool } from "./db.ts";
 import { withTx } from "./db.ts";
 import { appendAudit } from "./audit.ts";
 import { verifyToken, issueToken, DEFAULT_IDLE_MS, type TokenClaims } from "./lib/token.ts";
+
 import { evaluateMatchAll, DEFAULT_POLICY } from "./lib/match-all.ts";
 import { verifyDob } from "./lib/dob.ts";
 import {
@@ -22,14 +24,67 @@ import {
   canApprove,
   type Role,
 } from "./services/approval.ts";
-import { assignRandomSeat, NoFreeSeatError } from "./services/assignment-service.ts";
+import {
+  assignRandomSeat,
+  NoFreeSeatError,
+  RollAlreadySeatedError,
+  RollNotPresentError,
+} from "./services/assignment-service.ts";
 import { GENESIS, nextRoot } from "./lib/merkle-chain.ts";
 import { makeNodeSigner } from "./lib/node-sign.ts";
 import { sha256, toHex, constantTimeEqual, utf8, canonicalJson } from "./lib/crypto.ts";
 import * as repo from "./repo.ts";
 import { ingestBundle, type ProvisioningBundle } from "./services/provisioning.ts";
 
+class BadHex extends Error {}
+
+/**
+ * Decode hex, or refuse it.
+ *
+ * `Buffer.from(s, "hex")` never throws: it stops at the first invalid pair and
+ * returns however many bytes it managed, so `"zz"` became an EMPTY buffer and
+ * `"aabbZZccdd"` became two bytes. `/api/answer/submit` only checked that the
+ * strings were non-empty, so a submission of four junk fields was accepted and
+ * committed to the ledger — and then blew up at HQ during RSA unwrap, where one
+ * poisoned row used to abort the decrypt of every other candidate in the exam.
+ *
+ * `expectBytes` pins the fields whose length is fixed by the construction, so a
+ * truncated IV or tag is caught here rather than at the HSM.
+ */
+function hexStrict(s: unknown, field: string, expectBytes?: number): Uint8Array {
+  if (typeof s !== "string" || s.length === 0 || s.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(s)) {
+    throw new BadHex(`INVALID_HEX:${field}`);
+  }
+  const b = new Uint8Array(Buffer.from(s, "hex"));
+  if (expectBytes !== undefined && b.length !== expectBytes) {
+    throw new BadHex(`BAD_LENGTH:${field}:expected ${expectBytes} bytes, got ${b.length}`);
+  }
+  return b;
+}
+
+/** Lenient decode, for fields that are opaque blobs with no fixed length. */
 const hex = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, "hex"));
+
+/**
+ * How long a candidate session lives (§13.3).
+ *
+ * Longer than the staff idle window because a candidate cannot re-authenticate
+ * mid-paper: there is no invigilator at the seat and re-entering roll + DOB
+ * during an exam is exactly the interruption the seat binding exists to avoid.
+ * Bounded by the paper's own duration in practice — the seat goes SUBMITTED and
+ * refuses a second envelope regardless.
+ */
+const CANDIDATE_SESSION_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * How long a terminal's TPM attestation counts as current (§7.1).
+ *
+ * The boot chain attests once at start-up, so this has to cover a working
+ * session; short enough that a machine which was rebooted into something else
+ * cannot ride an old verdict.
+ */
+const ATTESTATION_TTL_MS = 12 * 60 * 60 * 1000;
+
 
 export interface AppDeps {
   pool: Pool;
@@ -41,17 +96,140 @@ export interface AppDeps {
 export function buildApp(deps: AppDeps): FastifyInstance {
   const { pool, config } = deps;
   const now = deps.now ?? (() => Date.now());
-  const app = Fastify({ logger: false });
+  // `trustProxy` pinned to loopback, not `true`.
+  //
+  // The login gate takes the source IP from the connection, so this decides
+  // whether `req.ip` can be set by whoever is talking to us. The all-in-one
+  // image fronts the Edge with Caddy on 127.0.0.1, so exactly one hop is
+  // trusted to speak for the client; trusting `true` would let any caller
+  // assert its own address with an `X-Forwarded-For` header and turn the IP
+  // factor into another self-assertion.
+  const app = Fastify({ logger: false, trustProxy: ["127.0.0.1", "::1"] });
 
   // ── helpers ──────────────────────────────────────────────────────────
-  const auth = (req: FastifyRequest): TokenClaims | null => {
+  /**
+   * Authenticate a request — signature, expiry, AND current identity state.
+   *
+   * `token.ts` has always documented the session as "re-validated server-side
+   * on every call"; it wasn't. Only the HMAC and `exp` were checked, so
+   * `/api/admin/identity/:id/revoke` flipped a column while the revoked holder
+   * kept working for the rest of the 8-minute idle window — during exactly the
+   * live incident revocation exists for. The claims are also compared against
+   * the row, so a token cannot outlive a role or centre change.
+   *
+   * Candidate sessions (§13.3) are not staff identities; their state lives on
+   * the seat binding and is checked by the routes that use them.
+   */
+  const auth = async (req: FastifyRequest): Promise<TokenClaims | null> => {
     const h = req.headers.authorization;
     if (!h || !h.startsWith("Bearer ")) return null;
-    return verifyToken(config.tokenSecret, h.slice(7), now());
+    const claims = verifyToken(config.tokenSecret, h.slice(7), now());
+    if (!claims) return null;
+    if (claims.role === "CANDIDATE") return claims;
+
+    const ident = await repo.getIdentity(pool, claims.sub);
+    if (!ident || ident.revoked || ident.status !== "ACTIVE") return null;
+    if (ident.role !== claims.role) return null;
+    if ((ident.centerId ?? null) !== (claims.centre ?? null)) return null;
+    return claims;
   };
 
   const deny = (reply: import("fastify").FastifyReply, code: number, reason: string) =>
     reply.code(code).send({ ok: false, reason });
+
+  // ── §8.2 login challenges ────────────────────────────────────────────
+  //
+  // The elapsed-time factor has to be measured by the party that cares about
+  // it. It used to arrive as `elapsedMs` in the request body, so "I completed
+  // all four factors in 0 ms" was simply asserted. A login now starts by
+  // taking a nonce, and the Edge times the round trip itself.
+  const LOGIN_CHALLENGE_TTL_MS = 60_000;
+  const challenges = new Map<string, { terminalId: string; issuedAt: number }>();
+
+  const issueChallenge = (terminalId: string): { nonce: string; issuedAt: number } => {
+    // Opportunistic sweep — the map is only ever as big as the logins in flight.
+    for (const [k, v] of challenges) {
+      if (now() - v.issuedAt > LOGIN_CHALLENGE_TTL_MS) challenges.delete(k);
+    }
+    const nonce = toHex(randomBytes(16));
+    const issuedAt = now();
+    challenges.set(nonce, { terminalId, issuedAt });
+    return { nonce, issuedAt };
+  };
+
+  /**
+   * Consume a login nonce and return how long the client actually took.
+   *
+   * One-shot: the nonce is deleted whether or not it was valid for this
+   * terminal, so a captured challenge cannot be replayed. `null` means no
+   * usable challenge, which the caller must treat as a failed factor rather
+   * than as "assume it was quick".
+   */
+  const consumeChallenge = (nonce: unknown, terminalId: string): number | null => {
+    if (typeof nonce !== "string") return null;
+    const rec = challenges.get(nonce);
+    challenges.delete(nonce);
+    if (!rec || rec.terminalId !== terminalId) return null;
+    const elapsed = now() - rec.issuedAt;
+    return elapsed > LOGIN_CHALLENGE_TTL_MS ? null : elapsed;
+  };
+
+  app.post("/api/login/challenge", async (req, reply) => {
+    const b = req.body as { terminalId?: string };
+    if (!b?.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    const { nonce, issuedAt } = issueChallenge(b.terminalId);
+    return { ok: true, nonce, issuedAt, ttlMs: LOGIN_CHALLENGE_TTL_MS };
+  });
+
+  /**
+   * Assemble the §8.2 factor set from what the SERVER knows.
+   *
+   * Previously every field — the source IP, the TPM verdict, the elapsed time,
+   * and both biometric scores — was read straight out of the request body, so
+   * `evaluateMatchAll` (which is itself correct, and fails closed on NaN) was
+   * being handed the attacker's own answers. One unauthenticated POST claiming
+   * `faceScore: 1, tpmValid: true` returned a real SYSTEM_ADMIN token.
+   *
+   * Now: the IP comes from the connection, the elapsed time from a nonce this
+   * server issued, and the TPM verdict from a persisted attestation row. The
+   * biometric scores still arrive from the terminal — closing that needs the
+   * on-device daemon to sign its output with a key the browser cannot reach,
+   * which is a ZUUP-OS change; `biometricSignatureRequired` is the switch that
+   * will enforce it, and until then the residual exposure is documented rather
+   * than hidden.
+   */
+  const gatherFactors = async (
+    req: FastifyRequest,
+    b: { terminalId: string; faceScore: number; fpScore: number; challengeNonce?: string },
+  ): Promise<{ faceScore: number; fpScore: number; sourceIp: string; tpmValid: boolean; elapsedMs: number }> => {
+    const elapsed = consumeChallenge(b.challengeNonce, b.terminalId);
+    return {
+      faceScore: b.faceScore,
+      fpScore: b.fpScore,
+      // Fastify resolves this from the socket, or from the pinned proxy hop.
+      sourceIp: req.ip,
+      // A fresh, passing attestation for THIS terminal — not the client's word.
+      tpmValid: await repo.hasFreshAttestation(pool, b.terminalId, now(), ATTESTATION_TTL_MS),
+      // No challenge → no measurement → a value that cannot pass the ≤20 s box.
+      elapsedMs: elapsed ?? Number.POSITIVE_INFINITY,
+    };
+  };
+
+  /**
+   * A candidate session, valid only for the seat it was issued to.
+   *
+   * The `tid` check is the point: a token minted for seat A must not act on
+   * seat B, so a candidate cannot submit for the machine next to them even with
+   * a genuine session of their own.
+   */
+  const requireCandidate = async (
+    req: FastifyRequest,
+    terminalId: string,
+  ): Promise<TokenClaims | null> => {
+    const claims = await auth(req);
+    if (!claims || claims.role !== "CANDIDATE") return null;
+    return claims.tid === terminalId ? claims : null;
+  };
 
   // ════════════════════════ §13.1 identity / gate ════════════════════════
   // Fail-closed liveness for the Login Gate (INV-10). LAN, no auth.
@@ -164,13 +342,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // §9.1 — invigilator login (face + fp + IP + TPM match-all → INV-4).
   app.post("/api/invigilator/login", async (req, reply) => {
     const b = req.body as {
-      terminalId: string; observedIp: string;
-      faceScore: number; fpScore: number; tpmValid: boolean; elapsedMs: number;
+      terminalId: string;
+      faceScore: number; fpScore: number;
+      /** From POST /api/login/challenge — the Edge times the round trip itself. */
+      challengeNonce?: string;
     };
     const ident = await repo.findInvigilatorByStation(pool, b.terminalId);
     const verdict = ident
       ? evaluateMatchAll(
-          { faceScore: b.faceScore, fpScore: b.fpScore, sourceIp: b.observedIp, tpmValid: b.tpmValid, elapsedMs: b.elapsedMs },
+          await gatherFactors(req, b),
           { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
           DEFAULT_POLICY,
         )
@@ -240,13 +420,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // §10.3 — Centre Admin login (same match-all rule as the invigilator, §8.2).
   app.post("/api/admin/login", async (req, reply) => {
     const b = req.body as {
-      terminalId: string; observedIp: string;
-      faceScore: number; fpScore: number; tpmValid: boolean; elapsedMs: number;
+      terminalId: string;
+      faceScore: number; fpScore: number;
+      /** From POST /api/login/challenge — the Edge times the round trip itself. */
+      challengeNonce?: string;
     };
     const ident = await repo.findStaffByStation(pool, "CENTER_ADMIN", b.terminalId);
     const verdict = ident
       ? evaluateMatchAll(
-          { faceScore: b.faceScore, fpScore: b.fpScore, sourceIp: b.observedIp, tpmValid: b.tpmValid, elapsedMs: b.elapsedMs },
+          await gatherFactors(req, b),
           { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
           DEFAULT_POLICY,
         )
@@ -272,21 +454,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // The System Admin is the root of trust (§3.1): it approves Centre Admins and
   // oversees the whole estate. It is centre-less (centre = null) and never sees
   // an answer plaintext here — decryption is HQ + HSM only (hq/vault.ts, §11.4).
-  const requireSystemAdmin = (req: FastifyRequest): TokenClaims | null => {
-    const c = auth(req);
+  const requireSystemAdmin = async (req: FastifyRequest): Promise<TokenClaims | null> => {
+    const c = await auth(req);
     return c && c.role === "SYSTEM_ADMIN" ? c : null;
   };
 
   // §10.3-equivalent — System Admin login (same match-all rule, HQ-bound, §8.2).
   app.post("/api/system/login", async (req, reply) => {
     const b = req.body as {
-      terminalId: string; observedIp: string;
-      faceScore: number; fpScore: number; tpmValid: boolean; elapsedMs: number;
+      terminalId: string;
+      faceScore: number; fpScore: number;
+      /** From POST /api/login/challenge — the Edge times the round trip itself. */
+      challengeNonce?: string;
     };
     const ident = await repo.findStaffByStation(pool, "SYSTEM_ADMIN", b.terminalId);
     const verdict = ident
       ? evaluateMatchAll(
-          { faceScore: b.faceScore, fpScore: b.fpScore, sourceIp: b.observedIp, tpmValid: b.tpmValid, elapsedMs: b.elapsedMs },
+          await gatherFactors(req, b),
           { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
           DEFAULT_POLICY,
         )
@@ -310,13 +494,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // §13.5 — pending Centre Admin registrations across ALL centres (tier-0 queue).
   app.get("/api/system/approvals/pending", async (req, reply) => {
-    if (!requireSystemAdmin(req)) return deny(reply, 403, "FORBIDDEN");
+    if (!await requireSystemAdmin(req)) return deny(reply, 403, "FORBIDDEN");
     return { pending: await repo.listPendingCenterAdminApprovals(pool) };
   });
 
   // §13.5 — per-centre oversight rollup (counts only; no PII, no ciphertext).
   app.get("/api/system/centres", async (req, reply) => {
-    if (!requireSystemAdmin(req)) return deny(reply, 403, "FORBIDDEN");
+    if (!await requireSystemAdmin(req)) return deny(reply, 403, "FORBIDDEN");
     return { centres: await repo.systemOverview(pool) };
   });
 
@@ -325,7 +509,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // canApprove(SYSTEM_ADMIN, CENTER_ADMIN_REGISTRATION) — a Centre Admin token
   // is refused here even if it reaches this route.
   app.post("/api/system/approvals/:id/issue-code", async (req, reply) => {
-    const claims = requireSystemAdmin(req);
+    const claims = await requireSystemAdmin(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     const { id } = req.params as { id: string };
     const record = await repo.getApproval(pool, id);
@@ -343,7 +527,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.post("/api/system/approvals/:id/authorise-fp", async (req, reply) => {
-    const claims = requireSystemAdmin(req);
+    const claims = await requireSystemAdmin(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     const { id } = req.params as { id: string };
     const record = await repo.getApproval(pool, id);
@@ -363,7 +547,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // ═══════════════════ §13.4 centre admin (approvals + counts) ════════════
   // §9.4 — issue the one-time code (shown ONLY to the approver here).
   app.post("/api/admin/approvals/:id/issue-code", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims) return deny(reply, 401, "NO_SESSION");
     const { id } = req.params as { id: string };
     const record = await repo.getApproval(pool, id);
@@ -382,7 +566,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // §9.2 step 5 — toggle "Authorise & bind fingerprint".
   app.post("/api/admin/approvals/:id/authorise-fp", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims) return deny(reply, 401, "NO_SESSION");
     const { id } = req.params as { id: string };
     const record = await repo.getApproval(pool, id);
@@ -399,13 +583,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get("/api/admin/approvals/pending", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     return { pending: await repo.listPendingApprovals(pool, claims.centre) };
   });
 
   app.get("/api/admin/centre/counts", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     const examId = (req.query as { examId?: string }).examId ?? null;
     return await repo.centreCounts(pool, claims.centre, examId);
@@ -413,13 +597,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // §10.3 blind courier — held bundles as hashes only (INV-6).
   app.get("/api/admin/ledger", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     return { bundles: await repo.listLedgerHashes(pool, claims.centre) };
   });
 
   app.post("/api/admin/identity/:id/revoke", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     const { id } = req.params as { id: string };
     const target = await repo.getIdentity(pool, id);
@@ -436,7 +620,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // exam window has closed AND every present candidate has submitted. The
   // Centre Admin sees the live status (how many submissions are still pending).
   app.get("/api/admin/egress/status", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     const examId = (req.query as { examId?: string }).examId;
     if (!examId) return deny(reply, 400, "MISSING_EXAM");
@@ -449,7 +633,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // candidate has not submitted, or before the window closes — this is what
   // keeps the centre internet-free for the entire duration of the exam.
   app.post("/api/admin/egress/open", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     const examId = (req.body as { examId?: string })?.examId;
     if (!examId) return deny(reply, 400, "MISSING_EXAM");
@@ -474,7 +658,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // refuses until egress has been authorised for this exam (window closed + all
   // present candidates submitted), so answers cannot leak mid-exam (§6, INV-3).
   app.post("/api/admin/ledger/export", async (req, reply) => {
-    const claims = auth(req);
+    const claims = await auth(req);
     if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
     const examId = (req.body as { examId?: string })?.examId;
     if (!examId) return deny(reply, 400, "MISSING_EXAM");
@@ -520,13 +704,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   // ════════════════════ §13.2 invigilator console ════════════════════════
-  const requireInvigilator = (req: FastifyRequest): TokenClaims | null => {
-    const c = auth(req);
+  const requireInvigilator = async (req: FastifyRequest): Promise<TokenClaims | null> => {
+    const c = await auth(req);
     return c && c.role === "CENTER_INVIGILATOR" && c.centre ? c : null;
   };
 
   app.get("/api/centre/roster", async (req, reply) => {
-    const claims = requireInvigilator(req);
+    const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     const examId = (req.query as { examId?: string }).examId;
     if (!examId) return deny(reply, 400, "MISSING_EXAM");
@@ -535,7 +719,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // §9.5 — candidate check-in (invigilator verifies face + fingerprint).
   app.post("/api/candidate/checkin", async (req, reply) => {
-    const claims = requireInvigilator(req);
+    const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     const b = req.body as { examId: string; roll: string; faceScore: number; fpScore: number };
     const bioOk = b.faceScore >= DEFAULT_POLICY.tauFace && b.fpScore >= DEFAULT_POLICY.tauFp;
@@ -556,7 +740,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // §9.6 — random seat auto-assignment (atomic, fail-closed).
   app.post("/api/seat/assign", async (req, reply) => {
-    const claims = requireInvigilator(req);
+    const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     const b = req.body as { examId: string; roll: string };
     try {
@@ -569,13 +753,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return { ok: true, seatNo: result.seatNo, terminalId: result.terminalId };
     } catch (err) {
       if (err instanceof NoFreeSeatError) return reply.code(409).send({ ok: false, reason: "NO_FREE_SEAT" });
+      // The invigilator needs to know WHICH precondition failed: a roll that is
+      // not checked in is a different problem from one that already has a seat.
+      if (err instanceof RollNotPresentError) return reply.code(409).send({ ok: false, reason: err.message });
+      if (err instanceof RollAlreadySeatedError) return reply.code(409).send({ ok: false, reason: err.message });
       throw err;
     }
   });
 
   // §10.2 — live seat map for THIS centre (feeds the invigilator dashboard).
   app.get("/api/centre/seatmap", async (req, reply) => {
-    const claims = requireInvigilator(req);
+    const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     return { seats: await repo.seatMap(pool, claims.centre!) };
   });
@@ -583,7 +771,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // §13.2 — raise an anomaly/incident. The hash-chained audit log IS the
   // incident store, so a raised incident can never be silently removed.
   app.post("/api/incident", async (req, reply) => {
-    const claims = requireInvigilator(req);
+    const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
     const b = req.body as { seatNo?: string; type?: string; severity?: string; note?: string };
     if (!b?.type) return deny(reply, 400, "MISSING_TYPE");
@@ -618,11 +806,47 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   // §9.7 — candidate roll + DOB login, terminal-bound (INV-5).
-  const attempts = new Map<string, number>(); // simple per-terminal rate-limit
+  //
+  // The attempt counter is a sliding window with an expiry, and it is bounded.
+  // It used to be an unbounded `Map<string, number>` with no reset: three bad
+  // logins locked a seat until the process restarted, and since the key is an
+  // attacker-supplied `terminalId`, an unauthenticated client could lock every
+  // seat in the hall before the exam started — or grow the map without limit
+  // with random ids until the process ran out of memory.
+  const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+  const MAX_ATTEMPTS = 5;
+  const MAX_TRACKED_SEATS = 5_000;
+  const attempts = new Map<string, { count: number; firstAt: number }>();
+
+  /** Current strike count for a seat, forgetting anything past the window. */
+  const strikes = (terminalId: string): number => {
+    const rec = attempts.get(terminalId);
+    if (!rec) return 0;
+    if (now() - rec.firstAt > LOCKOUT_WINDOW_MS) {
+      attempts.delete(terminalId);
+      return 0;
+    }
+    return rec.count;
+  };
+  const strike = (terminalId: string): void => {
+    const rec = attempts.get(terminalId);
+    if (rec && now() - rec.firstAt <= LOCKOUT_WINDOW_MS) {
+      rec.count += 1;
+      return;
+    }
+    if (attempts.size >= MAX_TRACKED_SEATS) {
+      // Drop the oldest window rather than grow without bound. A real hall has
+      // hundreds of seats, so reaching this means someone is spraying ids.
+      for (const [k, v] of attempts) if (now() - v.firstAt > LOCKOUT_WINDOW_MS) attempts.delete(k);
+      if (attempts.size >= MAX_TRACKED_SEATS) attempts.delete(attempts.keys().next().value!);
+    }
+    attempts.set(terminalId, { count: 1, firstAt: now() });
+  };
+
   app.post("/api/candidate/login", async (req, reply) => {
     const b = req.body as { terminalId: string; roll: string; dob: string };
-    const used = attempts.get(b.terminalId) ?? 0;
-    if (used >= 3) {
+    if (!b?.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    if (strikes(b.terminalId) >= MAX_ATTEMPTS) {
       await withTx(pool, (c) =>
         appendAudit(c, { centerId: null, actorId: null, action: "CANDIDATE_LOCKED", target: b.terminalId, details: { roll: b.roll } }),
       );
@@ -633,7 +857,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     // INV-5: the seat accepts ONLY the roll bound to it — a foreign roll is
     // refused even with a correct DOB.
     if (!binding || binding.candidateRoll !== b.roll) {
-      attempts.set(b.terminalId, used + 1);
+      strike(b.terminalId);
       await withTx(pool, (c) =>
         appendAudit(c, { centerId: null, actorId: null, action: "CANDIDATE_LOGIN_DENIED", target: b.terminalId, details: { reason: "ROLL_NOT_BOUND_TO_SEAT", roll: b.roll } }),
       );
@@ -642,7 +866,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
     const cand = await repo.getCandidateByRoll(pool, binding.examId, b.roll);
     if (!cand || !cand.dobHash || !verifyDob(b.dob, cand.dobHash)) {
-      attempts.set(b.terminalId, used + 1);
+      strike(b.terminalId);
       await withTx(pool, (c) =>
         appendAudit(c, { centerId: null, actorId: null, action: "CANDIDATE_LOGIN_DENIED", target: b.terminalId, details: { reason: "DOB_MISMATCH", roll: b.roll } }),
       );
@@ -650,11 +874,30 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }
 
     attempts.delete(b.terminalId);
+    const term = await repo.terminalForSubmit(pool, b.terminalId);
     await withTx(pool, async (c) => {
       await repo.consumeBindingAttend(c, b.terminalId);
-      await appendAudit(c, { centerId: null, actorId: null, action: "CANDIDATE_ATTENDED", target: b.terminalId, details: { roll: b.roll } });
+      await appendAudit(c, {
+        // Attribute the row to the centre. Every candidate event used to be
+        // written with a null centre, putting the whole estate's activity on
+        // ONE audit chain — see the advisory lock in audit.ts.
+        centerId: term?.centerId ?? null, actorId: null,
+        action: "CANDIDATE_ATTENDED", target: b.terminalId, details: { roll: b.roll },
+      });
     });
-    return { ok: true, state: "ATTENDED" };
+
+    // Issue the session the rest of the exam runs on. Everything after this
+    // point (bundle, beacon, submit) is gated on it, so possession of a seat id
+    // is no longer possession of the seat.
+    const token = issueToken(config.tokenSecret, {
+      sub: `cand:${binding.examId}:${b.roll}`,
+      tid: b.terminalId,
+      tpm: "attested",
+      role: "CANDIDATE",
+      centre: term?.centerId ?? null,
+      exp: now() + CANDIDATE_SESSION_MS,
+    });
+    return { ok: true, state: "ATTENDED", token };
   });
 
   // ═══════════════ §11 encrypted answer pipeline (Phase 10) ═══════════════
@@ -677,6 +920,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const { examId } = req.params as { examId: string };
     const terminalId = (req.query as { terminalId?: string }).terminalId;
     if (!terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    if (!await requireCandidate(req, terminalId)) return deny(reply, 403, "NO_CANDIDATE_SESSION");
     const binding = await repo.getLatestBinding(pool, terminalId);
     if (!binding || binding.examId !== examId) return deny(reply, 403, "SEAT_NOT_BOUND_TO_EXAM");
     const bundle = await repo.getQuestionBundle(pool, examId);
@@ -690,6 +934,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const { examId } = req.params as { examId: string };
     const terminalId = (req.query as { terminalId?: string }).terminalId;
     if (!terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    if (!await requireCandidate(req, terminalId)) return deny(reply, 403, "NO_CANDIDATE_SESSION");
     const binding = await repo.getLatestBinding(pool, terminalId);
     if (!binding || binding.examId !== examId) return deny(reply, 403, "SEAT_NOT_BOUND_TO_EXAM");
     const released = await repo.getBeaconIfReleased(pool, examId, now());
@@ -702,6 +947,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const b = req.body as { terminalId: string; ct: string; iv: string; tag: string; wrappedDk: string };
     if (!b?.terminalId || !b.ct || !b.iv || !b.tag || !b.wrappedDk) return deny(reply, 400, "MISSING_FIELDS");
 
+    // The seat must prove it is the seat. Without this the only thing
+    // authenticating a submission was a `terminalId` string in the body, so
+    // anyone reachable on the LAN could enumerate seats via /api/seat/:id/state,
+    // submit junk for one, and leave the real candidate permanently locked out
+    // at SEAT_NOT_IN_EXAM(SUBMITTED) — with the ledger holding a valid,
+    // node-signed commitment to the attacker's envelope.
+    const session = await requireCandidate(req, b.terminalId);
+    if (!session) return deny(reply, 403, "NO_CANDIDATE_SESSION");
+
     const term = await repo.terminalForSubmit(pool, b.terminalId);
     if (!term) return deny(reply, 404, "UNKNOWN_TERMINAL");
     // Only a seat whose candidate authenticated may commit; SUBMITTED refuses
@@ -713,7 +967,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const binding = await repo.getLatestBinding(pool, b.terminalId);
     if (!binding) return deny(reply, 409, "NO_BINDING_FOR_SEAT");
 
-    const ct = hex(b.ct), iv = hex(b.iv), tag = hex(b.tag), wrappedDk = hex(b.wrappedDk);
+    let ct: Uint8Array, iv: Uint8Array, tag: Uint8Array, wrappedDk: Uint8Array;
+    try {
+      // Lengths are fixed by the AES-GCM construction; a short IV or tag is a
+      // malformed envelope, and catching it here keeps it out of the ledger.
+      ct = hexStrict(b.ct, "ct");
+      iv = hexStrict(b.iv, "iv", 12);
+      tag = hexStrict(b.tag, "tag", 16);
+      wrappedDk = hexStrict(b.wrappedDk, "wrappedDk");
+    } catch (e) {
+      if (e instanceof BadHex) return deny(reply, 400, e.message);
+      throw e;
+    }
     // Never trust a client-supplied leaf — recompute over the wire bytes.
     const leaf = sha256(ct, iv, tag, wrappedDk);
 

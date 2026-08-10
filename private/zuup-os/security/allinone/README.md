@@ -19,11 +19,56 @@ is present in the production image. The variant takes the `--dev` boot path
     ├── zuup-portal-terminal   exam-terminal (Next)           127.0.0.1:3000
     ├── zuup-portal-admin      centre-admin  (Next, /admin)   127.0.0.1:3002
     ├── zuup-proxy.service     Caddy single origin            edge.local:80
-    └── zuup-kiosk.service     Cage+Firefox → http://edge.local/?terminal=<id>
+    └── zuup-kiosk.service     Cage+Firefox → http://edge.local/kiosk/
 ```
 
 `edge.local` resolves to `127.0.0.1` (`/etc/hosts`), so the kiosk launcher needs
 no change — it loads one origin exactly as it would a real Centre Edge.
+
+## Coming up in the right order
+
+Caddy binds `:80` within a second of boot. PostgreSQL has to be created in tmpfs
+and seeded, the Edge has to migrate, and two Next servers have to start — up to
+a couple of minutes on a laptop. Firefox **never retries a failed navigation**
+and the kiosk has no reload control, so a browser launched into that gap used to
+park on "Unable to connect" for the rest of the exam. Three things close it:
+
+- The launcher **probes the origin before it starts the browser**
+  (`ZUUP_KIOSK_READY_BUDGET`, 240 s here) instead of launching blind.
+- The proxy answers **`www/starting.html`** for any upstream that is not
+  listening yet (`handle_errors`), so the origin is never dead — that page shows
+  which service is still coming up and reloads itself when the real one is
+  ready.
+- If the origin never answers at all, the kiosk shows a **local diagnostic page**
+  (`../kiosk/no-centre.html`) naming the origin, the image variant and the
+  terminal id, rather than a blank screen. It keeps probing `/kiosk/up.js` and
+  hands over the moment the centre appears.
+
+## The three operator roles on one machine
+
+A production terminal is **one** role, fixed by the identity baked into its
+signed image and confirmed by the Edge. This laptop is standing in for a whole
+centre, so the all-in-one drop-in pins the kiosk to a role chooser
+(`www/index.html`, served at `/kiosk/`) instead:
+
+| Role | Station | Opens |
+|---|---|---|
+| Centre Invigilator | `INV-1` · `55555555-…-555555555555` | Gate → roster, check-in, seat assignment |
+| Centre Admin | `ADM-1` · `22222222-…-222222222222` | `/admin/` → approvals, counts, ledger, egress |
+| Candidate seat | `A-77` · `77777777-…-777777777777` | Gate → waits for assignment, then roll+DOB login |
+
+The chooser **grants nothing**. It only selects which terminal identity the
+browser presents; the Edge still answers with that terminal's capability and
+each portal still runs its own match-all login against the seeded identity bound
+to that station. Seat assignment is uniformly random (§9.6), so the chooser also
+lists the seats that are **currently ASSIGNED** — reusing the invigilator's own
+session token from the same tab, not a new unauthenticated endpoint — letting
+you open whichever seat the console just handed out.
+
+<kbd>Alt</kbd>+<kbd>Home</kbd> returns to the chooser from any surface (the
+launcher sets it as the profile homepage); <kbd>Alt</kbd>+<kbd>←</kbd> goes back
+one step. Neither the chooser nor this pinning exists in the production image —
+`ZUUP_KIOSK_URL` is unset there and the capability lookup is the only router.
 
 ### Persists nothing (INV-2)
 
@@ -54,10 +99,14 @@ Then write it to a stick and boot the laptop, exactly as before:
 dd if=out/zuup-os.img of=/dev/sdX bs=4M oflag=direct
 ```
 
-The terminal boots as the seeded **INVIGILATOR_STATION**
-(`55555555-…-555555555555`): the Login Gate enables the invigilator console —
-the 487-candidate roster, one-by-one check-in, and seat assignment. Re-image
-with a different baked `terminal-id` (stage 25, step 5) to demo another role.
+The terminal boots into the role chooser at `http://edge.local/kiosk/`, with the
+seeded **INVIGILATOR_STATION** (`55555555-…-555555555555`) as its baked identity
+— so the invigilator console (487-candidate roster, one-by-one check-in, seat
+assignment) is one click away, and the other two roles are the clicks beside it.
+
+To make the image behave like a production terminal instead — one role, no
+chooser — drop `ZUUP_KIOSK_URL` from `kiosk-allinone.conf`; the launcher then
+routes purely on the capability the Edge reports for the baked `terminal-id`.
 
 ## Notes / known gaps
 

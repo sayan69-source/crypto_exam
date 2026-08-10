@@ -570,3 +570,103 @@ async def approve_setter(
     await db.commit()
     logger.info(f"Setter approved: {user.email} by admin={current_user['user_id']}")
     return {"ok": True, "status": "ACTIVE"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Public enquiries — the HQ side of the contact form
+# ═══════════════════════════════════════════════════════════════════
+
+class EnquiryUpdate(BaseModel):
+    status: str
+    internal_note: str | None = None
+
+
+@router.get("/enquiries", summary="Enquiries from the public site")
+async def list_enquiries(
+    status_filter: str | None = None,
+    page: int = 1,
+    per_page: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    The queue the contact form feeds.
+
+    Until this existed the form discarded every submission client-side, so an
+    examination board could request a briefing, be told it was sent, and reach
+    nobody. Newest first, because an unanswered enquiry ages badly.
+    """
+    from app.models import Enquiry, EnquiryStatus
+
+    stmt = select(Enquiry).order_by(Enquiry.created_at.desc())
+    if status_filter:
+        try:
+            stmt = stmt.where(Enquiry.status == EnquiryStatus(status_filter.upper()))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unknown status {status_filter!r}")
+
+    per_page = max(1, min(per_page, 200))
+    total = (await db.execute(
+        select(func.count()).select_from(stmt.subquery())
+    )).scalar() or 0
+    rows = (await db.execute(
+        stmt.limit(per_page).offset((max(1, page) - 1) * per_page)
+    )).scalars().all()
+
+    counts = dict((await db.execute(
+        select(Enquiry.status, func.count()).group_by(Enquiry.status)
+    )).all())
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "counts": {s.value: counts.get(s, 0) for s in EnquiryStatus},
+        "items": [
+            {
+                "id": str(e.id),
+                "reference": e.reference,
+                "fullName": e.full_name,
+                "email": e.email,
+                "phone": e.phone,
+                "organisation": e.organisation,
+                "roleTitle": e.role_title,
+                "topic": e.topic,
+                "message": e.message,
+                "status": e.status.value,
+                "internalNote": e.internal_note,
+                "receivedAt": e.created_at.isoformat() if e.created_at else None,
+                "handledAt": e.handled_at.isoformat() if e.handled_at else None,
+            }
+            for e in rows
+        ],
+    }
+
+
+@router.patch("/enquiries/{enquiry_id}", summary="Update an enquiry's status")
+async def update_enquiry(
+    enquiry_id: str,
+    body: EnquiryUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Move an enquiry along the queue and record who touched it."""
+    from app.models import Enquiry, EnquiryStatus
+
+    try:
+        new_status = EnquiryStatus(body.status.upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown status {body.status!r}")
+
+    row = (await db.execute(select(Enquiry).where(Enquiry.id == enquiry_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Enquiry not found")
+
+    row.status = new_status
+    row.handled_by = current_user["user_id"]
+    row.handled_at = datetime.now(timezone.utc)
+    if body.internal_note is not None:
+        row.internal_note = body.internal_note.strip() or None
+
+    logger.info("Enquiry %s → %s by admin=%s", row.reference, new_status.value, current_user["user_id"])
+    return {"ok": True, "reference": row.reference, "status": new_status.value}

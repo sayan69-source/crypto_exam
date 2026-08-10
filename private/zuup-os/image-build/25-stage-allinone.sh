@@ -47,10 +47,21 @@ check_sha256() { # file  expected-sha256  label
 }
 
 # ── 1. the app bundle → /opt/zuup/app (edge, terminal, admin, seed.sql) ────
+# Historical bundles carry the apps under an `app/` parent while seed.sql and
+# manifest.txt sit at the tar root; flat bundles have everything at the root.
+# The transform strips the parent so BOTH layouts land identically — extracting
+# verbatim double-nested the apps (/opt/zuup/app/app/…) and every service died
+# at boot with 200/CHDIR while the seed.sql assert still passed.
 echo "[zuup-os] stage 25: unpacking app bundle → /opt/zuup/app …"
 mkdir -p "$ROOT/opt/zuup/app"
-zstd -dc "$BUNDLE" | tar -C "$ROOT/opt/zuup/app" -xf -
+zstd -dc "$BUNDLE" | tar -C "$ROOT/opt/zuup/app" --transform 's|^app/|./|' -xf -
 [[ -f "$ROOT/opt/zuup/app/seed.sql" ]] || { echo "[zuup-os] bundle missing seed.sql" >&2; exit 1; }
+# Assert the exact paths the systemd units start in/exec — not just seed.sql.
+for need in app/edge/private/edge-server app/terminal/server.js \
+            app/admin/private/centre-admin/server.js; do
+  [[ -e "$ROOT/opt/zuup/$need" ]] \
+    || { echo "[zuup-os] bundle layout broken: /opt/zuup/$need missing" >&2; exit 1; }
+done
 
 # ── 2. pinned Node 24 runtime (official glibc linux-x64 build) ─────────────
 NODE_VER="${ZUUP_NODE_VER:-v24.14.0}"
@@ -85,6 +96,30 @@ install -D -m 0755 "$TMP/caddy" "$ROOT/opt/zuup/caddy"
 echo "[zuup-os] stage 25: installing the app-layer units …"
 inst 0755 "$AIO/zuup-allinone-db-init.sh"      usr/lib/zuup/zuup-allinone-db-init.sh
 inst 0644 "$AIO/Caddyfile"                      opt/zuup/Caddyfile
+# §11.2 answer-sealing key — the PUBLIC half only. Assert it exists rather than
+# letting the image ship without it: a missing key is invisible until a
+# candidate tries to submit, and then the whole answer pipeline is dead.
+HQ_PUB="${ZUUP_HQ_PUBLIC_PEM:-$ZOS/../hq-demo-key/hq-demo-public.pem}"
+[[ -f "$HQ_PUB" ]] || {
+  cat >&2 <<EOF
+[zuup-os] stage 25: sealing key not found at $HQ_PUB
+          The keypair is gitignored; generate it on the HOST first (the repo
+          mounts read-only here, so this stage cannot create it):
+              node private/hq-demo-key/ensure-keys.mjs
+          It is also generated automatically by build-artifacts.sh.
+EOF
+  exit 1
+}
+grep -q 'BEGIN PUBLIC KEY' "$HQ_PUB" \
+  || { echo "[zuup-os] stage 25: $HQ_PUB is not an SPKI PUBLIC key — a centre must never carry a private key (INV-6)" >&2; exit 1; }
+inst 0644 "$HQ_PUB"                             opt/zuup/hq-public.pem
+# Static surfaces the proxy serves off the image itself, so they answer while
+# the Node services are still booting: the operator role chooser, the "centre
+# starting" page the proxy substitutes for a dead upstream, and the liveness
+# beacon the kiosk's diagnostic page probes.
+for f in index.html starting.html up.js; do
+  inst 0644 "$AIO/www/$f" "opt/zuup/www/$f"
+done
 for u in zuup-db zuup-edge zuup-portal-terminal zuup-portal-admin zuup-proxy; do
   inst 0644 "$AIO/$u.service" "etc/systemd/system/$u.service"
 done
@@ -99,6 +134,9 @@ grep -q 'edge.local' "$ROOT/etc/hosts" 2>/dev/null || \
 # the Gate opens the invigilator console (the 487-candidate roster, one-by-one
 # check-in + seat assignment). Re-image with a different id to demo another role.
 printf '55555555-5555-5555-5555-555555555555\n' > "$ROOT/etc/zuup/terminal-id"
+# Runtime marker (stage 20 wrote `dev`): this image DOES carry a centre, so a
+# terminal that reaches none has a stack failure, not a missing appliance.
+printf 'allinone\n' > "$ROOT/etc/zuup/image-variant"
 
 # ── 6. unprivileged service account for the node apps + Caddy ──────────────
 chroot "$ROOT" useradd --system --no-create-home --shell /usr/sbin/nologin zuup-app 2>/dev/null || true

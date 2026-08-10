@@ -47,6 +47,28 @@ class Settings(BaseSettings):
     # ── Cryptography ──
     DRAND_CHAIN_HASH: str = "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
 
+    # ── Fail-closed switches (default OFF — a missing capability must be an
+    #    error, never a convincing-looking substitute) ──────────────────────
+    #
+    # Each of these used to be an unconditional silent fallback, which is the
+    # worst possible shape for a security claim: the guarantee disappears and
+    # nothing says so. They are now opt-in, loudly labelled in every response
+    # they touch, and must never be set in a demo that claims the guarantee.
+    #
+    # The time-lock is derived from the drand beacon. Without drand the
+    # fallback was sha256(current_unix_second) — computable by anyone for any
+    # future second, which means the paper unlocks early for whoever bothers.
+    ALLOW_INSECURE_DRAND_FALLBACK: bool = False
+    # Groth16 proving needs a compiled circuit + proving key. Without them the
+    # code returned hardcoded field elements shaped like a proof.
+    ALLOW_SIMULATED_ZK_PROOF: bool = False
+    # On-chain anchoring needs an RPC and a deployed contract. Without them the
+    # code returned sha256(payload) shaped like a transaction hash.
+    ALLOW_SIMULATED_CHAIN_TX: bool = False
+    # Mode 1 question "generation" without an LLM emits one grammatical frame
+    # per topic whose correct answer is always "A", tagged ai_generated=True.
+    ALLOW_TEMPLATE_QUESTIONS: bool = False
+
     # ── AI / LLM ──
     LLM_BASE_URL: str = "http://localhost:11434/v1"
     LLM_MODEL: str = "llama3.1:70b"

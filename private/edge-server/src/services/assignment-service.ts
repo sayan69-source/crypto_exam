@@ -17,6 +17,22 @@ import type { PoolClient } from "../db.ts";
 import { hmacSha256, utf8 } from "../lib/crypto.ts";
 import { appendAudit } from "../audit.ts";
 
+/** The roll is not a checked-in candidate for this exam at this centre. */
+export class RollNotPresentError extends Error {
+  constructor(roll: string) {
+    super(`ROLL_NOT_PRESENT:${roll}`);
+    this.name = "RollNotPresentError";
+  }
+}
+
+/** The roll already holds a live seat binding — one candidate, one seat. */
+export class RollAlreadySeatedError extends Error {
+  constructor(roll: string) {
+    super(`ROLL_ALREADY_SEATED:${roll}`);
+    this.name = "RollAlreadySeatedError";
+  }
+}
+
 export class NoFreeSeatError extends Error {
   constructor() {
     super("NO_FREE_SEAT");
@@ -47,6 +63,26 @@ export async function assignRandomSeat(
   client: PoolClient,
   input: AssignInput,
 ): Promise<AssignResult> {
+  // The roll must belong to a candidate who is actually here. Nothing checked
+  // this, so any string could be bound to a seat — and the same roll could hold
+  // several seats at once, which with a candidate session per seat means
+  // several live papers for one person.
+  const enrolled = await client.query(
+    `SELECT 1 FROM enrollments
+      WHERE center_id = $1 AND exam_id = $2 AND roll_number = $3 AND status = 'PRESENT'
+      LIMIT 1`,
+    [input.centreId, input.examId, input.candidateRoll],
+  );
+  if (!enrolled.rowCount) throw new RollNotPresentError(input.candidateRoll);
+
+  const already = await client.query(
+    `SELECT 1 FROM seat_bindings
+      WHERE exam_id = $1 AND candidate_roll = $2 AND consumed_at IS NULL
+      LIMIT 1`,
+    [input.examId, input.candidateRoll],
+  );
+  if (already.rowCount) throw new RollAlreadySeatedError(input.candidateRoll);
+
   const sel = await client.query(
     `SELECT id, seat_no FROM terminals
        WHERE center_id = $1

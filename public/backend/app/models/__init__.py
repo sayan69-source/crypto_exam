@@ -596,3 +596,53 @@ class OtpChallenge(Base):
     attempts = Column(Integer, default=0)
     delivery = Column(String(20), default="sms")   # sms | dev
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EnquiryStatus(str, enum.Enum):
+    NEW = "NEW"
+    IN_REVIEW = "IN_REVIEW"
+    ANSWERED = "ANSWERED"
+    CLOSED = "CLOSED"
+
+
+class Enquiry(Base):
+    """
+    An enquiry from the public site — "request a briefing", exam questions,
+    press, procurement.
+
+    This table exists because the contact form previously had no destination at
+    all: `handleSubmit` set a "sent" flag in React state and discarded the
+    message. An examination board would have filled in the form, been told it
+    was sent, and waited for a reply nobody could have known to write. For a
+    system whose whole argument is "don't take our word for it", silently
+    dropping the one channel the public has is the worst possible defect.
+
+    DPDP note: this holds contact details the enquirer chose to give us, so it
+    is personal data with a purpose (answering them) and a retention duty. It is
+    deliberately NOT joined to any exam, candidate or centre record.
+    """
+    __tablename__ = "enquiries"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    reference = Column(String(20), unique=True, nullable=False, index=True)
+    full_name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False)
+    phone = Column(String(32), nullable=True)
+    organisation = Column(String(255), nullable=True)
+    role_title = Column(String(255), nullable=True)
+    topic = Column(String(64), nullable=False, default="GENERAL")
+    message = Column(Text, nullable=False)
+
+    status = Column(
+        Enum(EnquiryStatus, name="enquiry_status", create_type=True),
+        nullable=False,
+        default=EnquiryStatus.NEW,
+        index=True,
+    )
+    handled_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    handled_at = Column(DateTime(timezone=True), nullable=True)
+    internal_note = Column(Text, nullable=True)
+
+    # Kept for abuse handling only, never shown alongside the message body.
+    source_ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)

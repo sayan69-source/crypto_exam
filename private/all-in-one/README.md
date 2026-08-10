@@ -8,10 +8,17 @@ processes the bundled image will run, behind one origin, so the kiosk's
 ```
             proxy (Caddy) :8080      ← the single origin the kiosk loads
               ├── /api/*   → edge            Fastify §13 API
+              ├── /kiosk/* → static           role chooser + liveness beacon
               ├── /admin/* → centre-admin     Next, built with basePath /admin
               └── /*       → exam-terminal     Next: Login Gate, seats, /locked
             postgres                  ← centre-scoped DB, seeded with students
 ```
+
+`/kiosk/*` is served straight from `../zuup-os/security/allinone/www` — the same
+files the OS image bakes into `/opt/zuup/www`, mounted rather than copied so the
+two cannot drift. Any upstream that is not listening yet gets that directory's
+`starting.html` instead of a bare 502, which is what keeps the kiosk off an
+error page it can never retry out of.
 
 Everything is published **only** to `127.0.0.1`, mirroring the air-gapped exam
 VLAN (§6): no service is reachable from any external interface.
@@ -29,9 +36,13 @@ from `?terminal=`):
 
 | Role                 | Terminal id (seed)                       | URL |
 |----------------------|------------------------------------------|-----|
+| **all three, pick one** | —                                     | http://localhost:8080/kiosk/ |
 | Invigilator station  | `55555555-5555-5555-5555-555555555555`   | http://localhost:8080/?terminal=55555555-5555-5555-5555-555555555555 |
 | Candidate seat       | `77777777-7777-7777-7777-777777777777`   | http://localhost:8080/?terminal=77777777-7777-7777-7777-777777777777 |
 | Centre Admin portal  | station `22222222-…-222222222222`        | http://localhost:8080/admin/ |
+
+`/kiosk/` is the role chooser the bundled image boots into — the same page, so
+whatever you verify here is what the USB does.
 
 The seed creates the centre **DL-IITD** with 1 active Centre Admin, 14 active
 invigilators (2 pending), **487 candidates** (461 marked PRESENT), free/assigned

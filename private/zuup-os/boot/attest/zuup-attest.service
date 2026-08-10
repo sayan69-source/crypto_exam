@@ -14,6 +14,11 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/lib/zuup/zuup-attest.sh
 TimeoutStartSec=90
+# The script self-poweroffs on every deny/unreachable path; FailureAction is the
+# belt-and-suspenders for the cases the script cannot reach itself — a crash, a
+# hang tripping TimeoutStartSec=90, or an OOM kill. Either way: no attestation,
+# no power. Inert in the dev image (ExecStart replaced by /bin/true).
+FailureAction=poweroff-force
 
 # ── §7.5 hardening: this unit talks to ONE host and reads ONE device ────────
 NoNewPrivileges=yes

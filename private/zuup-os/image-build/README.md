@@ -115,4 +115,14 @@ attestation (`../boot/attest`) can pass. See `../docs/DEPLOYMENT_GUIDE.md`.
 | `ZUUP_DB_KEY` / `ZUUP_DB_CRT` | ephemeral dev | Secure Boot db signing key (HSM) |
 | `ZUUP_BROWSER_PKG` | `firefox-esr` | the locked kiosk browser package |
 | `ZUUP_SUITE` | `trixie` | Debian suite for the rootfs |
-| `ZUUP_SMOKE_TIMEOUT` | `180` | QEMU smoke-boot budget (seconds) |
+| `ZUUP_SMOKE_TIMEOUT` | `900` | QEMU smoke-boot budget (seconds; TCG is ~10x slower than host) |
+
+Runtime tunables read by the kiosk launcher (set via a systemd drop-in on the
+image, not at build time):
+
+| Env | Default | Meaning |
+|---|---|---|
+| `ZUUP_EDGE_URL` | `https://edge.local` | the single origin the kiosk loads |
+| `ZUUP_KIOSK_URL` | — | pin the kiosk to one URL, bypassing capability routing (demo images only) |
+| `ZUUP_KIOSK_READY_BUDGET` | `180` | seconds to wait for that origin to answer HTTP before showing the local diagnostic page |
+| `ZUUP_KIOSK_CAP_TRIES` / `ZUUP_KIOSK_CAP_SLEEP` | `10` / `3` | retry window for the Edge capability lookup |

@@ -29,6 +29,23 @@ export async function appendAudit(
   client: PoolClient,
   entry: { centerId: string | null; actorId: string | null; action: string; target?: string | null; details?: unknown },
 ): Promise<void> {
+  // Serialise appends to THIS chain for the rest of the transaction.
+  //
+  // Read-tail-then-insert without a lock lets two concurrent requests read the
+  // same tail and both chain off it; `verifyAuditChain` then walks by seq, finds
+  // the second row's prev_hash pointing at the first's predecessor, and reports
+  // tampering. Every candidate-login row is written with centerId null, so a
+  // hall logging in together shares one chain and forks it within seconds —
+  // turning the tamper-evidence signal into permanent noise, which is worse
+  // than no signal because nobody trusts the alarm when it finally matters.
+  //
+  // Advisory rather than `FOR UPDATE` for the same reason repo.lockChainTail
+  // gives: there is no row to lock when the chain is empty.
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended(COALESCE($1, 'GLOBAL-AUDIT'), 0))`,
+    [entry.centerId],
+  );
+
   const prevRes = await client.query(
     `SELECT entry_hash FROM secure_audit_log
        WHERE center_id IS NOT DISTINCT FROM $1

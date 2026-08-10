@@ -1,0 +1,10 @@
+{
+  "network": "localhost",
+  "chainId": 31337,
+  "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+  "zkVerifier": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "deployTx": "0x0947bffa300cadd3ee5f3b60cb81f614502f6a5546bf3aa74b9d3b582d430bdf",
+  "blockNumber": 10,
+  "deployedAt": "2026-08-09T17:13:20.696Z"
+}

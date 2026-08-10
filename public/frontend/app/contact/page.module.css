@@ -156,3 +156,34 @@
   .faqGrid { grid-template-columns: 1fr; gap: var(--space-xl); }
   .form { grid-template-columns: 1fr; }
 }
+
+/* An enquiry that failed to send must look like a failure, not a quiet no-op —
+   the old form always showed the success state regardless. */
+.formError {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  border-radius: 10px;
+  color: var(--color-danger);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.formError strong { display: block; margin-bottom: 2px; }
+.formError span { color: var(--color-text-muted, inherit); }
+
+.sentRef {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.sentRef code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}

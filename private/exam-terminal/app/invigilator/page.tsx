@@ -30,6 +30,7 @@ import {
   captureProbe,
   invigilatorLogin,
   registerInvigilator,
+  type CaptureSource,
 } from "@/lib/identity";
 
 // Demo defaults provisioned by seed-demo.ts.
@@ -53,11 +54,19 @@ function Login({ onAuthed }: { onAuthed: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [capture, setCapture] = useState<CaptureSource | null>(null);
+
+  // Whether this station has capture hardware at all. The Docker proving ground
+  // has no camera, so it says so and stands the scores in; a real terminal never
+  // sets this, and a missing daemon there denies rather than pretends.
+  const simulate = process.env.NEXT_PUBLIC_SIMULATE_BIOMETRICS === "true";
 
   async function login(spoof: "ip" | "face" | null) {
     setBusy(true);
     setError(null);
-    const verdict = await invigilatorLogin(captureProbe({ terminalId: stationId, observedIp, spoof }));
+    const probe = await captureProbe({ terminalId: stationId, observedIp, spoof, simulate });
+    setCapture(probe.source);
+    const verdict = await invigilatorLogin(probe);
     setBusy(false);
     if (verdict.ok) return onAuthed();
     setError(`Denied · ${(verdict.failures ?? ["UNKNOWN"]).join(", ")}`);
@@ -79,6 +88,12 @@ function Login({ onAuthed }: { onAuthed: () => void }) {
             <input value={stationId} onChange={(e) => setStationId(e.target.value)} style={field} />
             <label style={label}>Edge-observed LAN IP</label>
             <input value={observedIp} onChange={(e) => setObservedIp(e.target.value)} style={field} />
+            {capture && (
+              <p style={{ fontSize: 13, marginTop: 12, color: capture.face === "device" && capture.finger === "device" ? "#15803d" : "#b45309" }}>
+                Face: {capture.face} · Fingerprint: {capture.finger}
+                {capture.detail ? ` — ${capture.detail}` : ""}
+              </p>
+            )}
             {error && <p role="alert" style={{ color: "#dc2626", fontSize: 14, marginTop: 12 }}>{error}</p>}
             <button disabled={busy} onClick={() => login(null)} style={btnPrimary}>
               {busy ? "Verifying…" : "Capture face + fingerprint & login"}

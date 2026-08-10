@@ -79,8 +79,14 @@ async function main() {
       [
         DEMO.examId,
         Buffer.from(bundle.questionsRoot, "hex"),
-        "ipfs://b" + bundle.questionsRoot.slice(0, 32),
-        "0xseed" + bundle.questionsRoot.slice(0, 8),
+        // Neither of these is real, and both used to LOOK real. `ipfs://b…`
+        // resolves nowhere (a CID is a multihash, not a truncated root) and
+        // `0xseed…` is not a transaction. The demo does not need them to be
+        // real — the terminal verifies the bundle against questionsRoot, not
+        // against either of these — but a surface that renders them must be
+        // able to tell that this exam was never anchored.
+        "sha256://" + bundle.questionsRoot.slice(0, 32),
+        null, // no lockExam tx: this seeded paper was never committed on chain
         JSON.stringify(bundle),
         4_100_000,
         hkdfSalt,

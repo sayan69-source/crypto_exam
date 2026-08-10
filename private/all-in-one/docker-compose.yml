@@ -33,6 +33,14 @@ x-edge-env: &edge-env
   # Faster Argon for the 487-candidate demo seed (matches seed-demo FAST).
   ARGON_TIME_COST: "2"
   ARGON_MEMORY_KIB: "8192"
+  # §11.2 — the System Admin answer-sealing PUBLIC key. Unset, the Edge answers
+  # SEALING_KEY_NOT_PROVISIONED and no candidate can submit anything. Passed as
+  # a path because a PEM is multi-line; mounted read-only below. PUBLIC half
+  # only — a centre never holds a private key (INV-6).
+  SYSTEM_ADMIN_PUBLIC_KEY_PEM_FILE: /run/secrets/hq-public.pem
+
+x-edge-keys: &edge-keys
+  - ../hq-demo-key/hq-demo-public.pem:/run/secrets/hq-public.pem:ro
 
 services:
   postgres:
@@ -58,6 +66,7 @@ services:
       context: ../..
       dockerfile: private/all-in-one/edge.Dockerfile
     environment: *edge-env
+    volumes: *edge-keys
     command: ["sh", "-c", "node src/migrate.ts && node src/seed-demo.ts"]
     depends_on:
       postgres:
@@ -69,6 +78,7 @@ services:
       context: ../..
       dockerfile: private/all-in-one/edge.Dockerfile
     environment: *edge-env
+    volumes: *edge-keys
     depends_on:
       edge-init:
         condition: service_completed_successfully
@@ -110,6 +120,11 @@ services:
     image: caddy:2-alpine
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The same static surfaces the OS image bakes into /opt/zuup/www: the
+      # operator role chooser, the "centre starting" page the proxy substitutes
+      # for a dead upstream, and the liveness beacon. Mounted from the image
+      # tree rather than copied, so the two can never drift.
+      - ../zuup-os/security/allinone/www:/srv/kiosk:ro
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

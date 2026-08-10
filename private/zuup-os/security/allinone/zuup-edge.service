@@ -22,6 +22,13 @@ Environment=EDGE_BIND_SECRET=222222222222222222222222222222222222222222222222222
 Environment=EDGE_NODE_SIGN_SEED=33333333333333333333333333333333333333333333333333333333333333cc
 Environment=ARGON_TIME_COST=2
 Environment=ARGON_MEMORY_KIB=8192
+# §11.2 — the System Admin answer-sealing PUBLIC key. Without it every terminal
+# gets SEALING_KEY_NOT_PROVISIONED and no candidate can submit an answer at all.
+# Passed as a FILE path, not a value: a PEM is multi-line and systemd's
+# Environment= cannot carry one intact. The PUBLIC half only — a centre never
+# holds a private key, which is what makes a compromised centre yield ciphertext
+# (INV-6). The matching private half lives in the System Admin portal process.
+Environment=SYSTEM_ADMIN_PUBLIC_KEY_PEM_FILE=/opt/zuup/hq-public.pem
 ExecStart=/opt/zuup/node/bin/node src/index.ts
 Restart=always
 RestartSec=2

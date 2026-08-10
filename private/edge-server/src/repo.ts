@@ -282,11 +282,23 @@ export async function findInvigilatorByStation(q: Q, terminalId: string): Promis
   return findStaffByStation(q, "CENTER_INVIGILATOR", terminalId);
 }
 
-/** Look up the privileged staff (invigilator/centre admin) bound to a station. */
+/**
+ * Look up the ACTIVE privileged staff (invigilator/centre admin) at a station.
+ *
+ * The status filter is load-bearing. Without it "newest row wins" resolved to
+ * whatever was registered last, and `/api/invigilator/register` is open and
+ * takes an arbitrary `boundTerminalId` — so anyone on the LAN could register a
+ * PENDING_APPROVAL identity against the real invigilator's station and that
+ * station's genuine holder would then fail login as IDENTITY_NOT_ACTIVE,
+ * permanently. Resolving only to an active, unrevoked holder makes the shadow
+ * row inert. (A partial unique index enforces one active holder per station;
+ * see migrations.)
+ */
 export async function findStaffByStation(q: Q, role: string, terminalId: string): Promise<IdentityRow | null> {
   const res = await q.query(
     `SELECT * FROM staff_identities
        WHERE role = $1 AND bound_terminal_id = $2
+         AND status = 'ACTIVE' AND revoked_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
     [role, terminalId],
   );
@@ -740,8 +752,13 @@ export async function egressStatus(q: Q, centerId: string, examId: string, now: 
     `SELECT count(*) n FROM enrollments WHERE center_id=$1 AND exam_id=$2 AND status = 'PRESENT'`,
     [centerId, examId],
   );
+  // DISTINCT seats, not rows. A bare count is a total the ledger can be padded
+  // to: submit junk envelopes for every attended seat and `pendingCount` clamps
+  // to 0, so the uplink opens on a false "everyone is done" the moment the
+  // window closes. Counting seats ties the figure to the hall.
   const submitted = await q.query(
-    `SELECT count(*) n FROM answer_ledger WHERE center_id=$1 AND exam_id=$2`,
+    `SELECT count(DISTINCT seat_no) n FROM answer_ledger
+      WHERE center_id=$1 AND exam_id=$2 AND seat_no IS NOT NULL`,
     [centerId, examId],
   );
   const presentCount = Number(present.rows[0].n);
@@ -777,6 +794,39 @@ export async function attestTerminal(q: Q, terminalId: string, providedPcr: unkn
   const res = await q.query(`SELECT golden_pcr FROM terminals WHERE id=$1`, [terminalId]);
   if (!res.rowCount) return false;
   const golden = res.rows[0].golden_pcr;
-  if (golden == null) return false;
-  return JSON.stringify(golden) === JSON.stringify(providedPcr);
+  const ok = golden != null && JSON.stringify(golden) === JSON.stringify(providedPcr);
+  // Record it. The verdict used to be returned and discarded, so the login gate
+  // had nothing to consult and took the client's word for `tpmValid` instead.
+  await q.query(
+    `UPDATE terminals SET last_attest_at = now(), last_attest_ok = $2 WHERE id = $1`,
+    [terminalId, ok],
+  );
+  return ok;
+}
+
+/**
+ * Did this terminal pass attestation recently enough to log in on?
+ *
+ * The TPM factor of the §8.2 match-all rule. Fail-closed: an unknown terminal,
+ * one that has never attested, one whose last attestation failed, or one whose
+ * attestation has aged out all return false.
+ */
+export async function hasFreshAttestation(
+  q: Q,
+  terminalId: string,
+  now: number,
+  ttlMs: number,
+): Promise<boolean> {
+  const res = await q.query(
+    `SELECT last_attest_ok, last_attest_at FROM terminals WHERE id = $1`,
+    [terminalId],
+  );
+  if (!res.rowCount) return false;
+  const { last_attest_ok, last_attest_at } = res.rows[0] as {
+    last_attest_ok: boolean | null;
+    last_attest_at: Date | string | null;
+  };
+  if (last_attest_ok !== true || last_attest_at == null) return false;
+  const at = new Date(last_attest_at).getTime();
+  return Number.isFinite(at) && now - at <= ttlMs;
 }

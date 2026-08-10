@@ -27,6 +27,13 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "-w", "system-admin"],
       "port": 3004
+    },
+    {
+      "name": "kiosk-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "3010"],
+      "port": 3010,
+      "cwd": "private/zuup-os/security"
     }
   ]
 }

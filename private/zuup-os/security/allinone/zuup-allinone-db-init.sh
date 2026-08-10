@@ -18,8 +18,19 @@ PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
 [ -f "$SEED" ]  || { echo "zuup-db: seed dump $SEED missing" >&2; exit 1; }
 
 # Fresh, empty, postgres-owned tmpfs data dir.
+#
+# Give the cluster its OWN tmpfs rather than borrowing whatever /run happens to
+# be sized at. The image's fstab caps /run at 64 MB, which an initdb plus the
+# 487-candidate restore would overrun — and a database that runs out of space
+# mid-restore takes the Edge, both portals and therefore the entire examination
+# surface down with it. The mount is still RAM only, so INV-2 is untouched.
+if mountpoint -q "$SOCKDIR" 2>/dev/null; then umount "$SOCKDIR" || true; fi
 rm -rf "$SOCKDIR"
-install -d -m 0750 -o postgres -g postgres "$SOCKDIR"
+mkdir -p "$SOCKDIR"
+mount -t tmpfs -o rw,nosuid,nodev,size="${ZUUP_DB_TMPFS_SIZE:-1G}",mode=0750 tmpfs "$SOCKDIR" \
+  || echo "zuup-db: dedicated tmpfs unavailable — falling back to /run" >&2
+chown postgres:postgres "$SOCKDIR"
+chmod 0750 "$SOCKDIR"
 install -d -m 0700 -o postgres -g postgres "$PGDATA"
 
 run() { runuser -u postgres -- "$@"; }

@@ -1,0 +1,133 @@
+<!doctype html>
+<!--
+  ZUUP-OS kiosk diagnostic surface.
+
+  Shown ONLY when the kiosk launcher waited out its budget and the centre origin
+  never answered HTTP. It exists because the alternative — Firefox's own "Server
+  not found" page, or a black screen — tells an invigilator standing in front of
+  the terminal nothing at all, and a locked image has no shell to debug from.
+
+  It is a local file:// page baked into the read-only image: no network, no
+  scripts from anywhere, nothing that could serve as an escape surface. The one
+  thing it does is keep probing the origin, and switch itself over the moment
+  the centre appears.
+
+  Placeholders are substituted by zuup-kiosk-launch.sh at launch time.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZUUP-OS · centre unreachable</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0; height: 100%;
+    background: #0b0f14; color: #e6edf3;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 780px; margin: 0 auto;
+    min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+    padding: 40px 28px;
+  }
+  .state {
+    display: inline-block; align-self: flex-start;
+    font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: #f85149; border: 1px solid #f8514955; border-radius: 999px;
+    padding: 7px 12px; margin-bottom: 22px;
+  }
+  h1 { margin: 0 0 12px; font-size: 30px; font-weight: 650; letter-spacing: -.01em; }
+  p  { margin: 0 0 16px; color: #9aa7b8; }
+  dl {
+    margin: 24px 0; padding: 18px 20px;
+    background: #111823; border: 1px solid #1e2a3a; border-radius: 10px;
+    display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px;
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  dt { color: #6e7d90; }
+  dd { margin: 0; color: #e6edf3; overflow-wrap: anywhere; }
+  h2 { margin: 26px 0 10px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #6e7d90; }
+  ol { margin: 0; padding-left: 20px; color: #9aa7b8; }
+  li { margin-bottom: 10px; }
+  code { color: #79c0ff; font-size: 13px; }
+  footer {
+    margin-top: 30px; padding-top: 18px; border-top: 1px solid #1e2a3a;
+    font-size: 13px; color: #6e7d90;
+  }
+  #probe { color: #d29922; }
+</style>
+</head>
+<body>
+<main>
+  <span class="state">Centre unreachable · terminal idle</span>
+  <h1>This terminal reached no centre.</h1>
+  <p>
+    The examination surface never loaded because nothing answered at the centre
+    origin. The terminal is otherwise healthy — the kernel, the verified root
+    filesystem and the kiosk compositor all came up.
+  </p>
+
+  <dl>
+    <dt>origin</dt><dd>@@EDGE@@</dd>
+    <dt>image variant</dt><dd>@@VARIANT@@</dd>
+    <dt>terminal id</dt><dd>@@TERMINAL@@</dd>
+  </dl>
+
+  <h2>Most likely causes</h2>
+  <ol>
+    <li>
+      <strong>The image has no centre stack.</strong> Only the
+      <code>allinone</code> variant carries the Edge, the portals and the
+      database on the stick. A <code>dev</code> or <code>production</code>
+      image expects a separate Centre Edge appliance on the LAN.
+    </li>
+    <li>
+      <strong>The centre stack failed to start.</strong> On an
+      <code>allinone</code> image the database, the Edge API, both portals and
+      the proxy start at boot; if one of them fails, nothing binds the origin.
+    </li>
+    <li>
+      <strong>No route to the Edge.</strong> On a production terminal the only
+      path to the centre is the WireGuard tunnel; without it the firewall drops
+      everything by design.
+    </li>
+  </ol>
+
+  <footer>
+    <span id="probe">Still probing @@EDGE@@ — this screen will switch over
+    automatically the moment the centre answers.</span>
+  </footer>
+</main>
+
+<script>
+  // Probe by loading a script FROM the origin: unlike an image or a fetch from
+  // a file:// page, `onload` here fires only on a real HTTP 200, so a refused
+  // connection can never be mistaken for a live centre. The all-in-one image
+  // serves /kiosk/up.js as a static file straight from the proxy, so this
+  // answers as soon as the origin is listening — before the portals finish
+  // booting — and up.js itself performs the hand-off.
+  var ORIGIN = "@@EDGE@@";
+  // Where to go once the centre answers. up.js reads this global rather than
+  // deciding for itself, so the same static file works whether this terminal's
+  // allowed surface is the role chooser, the Gate, or the admin portal.
+  window.ZUUP_KIOSK_RECOVER = "@@RECOVER@@";
+  var tries = 0;
+  function probe() {
+    tries++;
+    var s = document.createElement("script");
+    s.src = ORIGIN + "/kiosk/up.js?t=" + Date.now();
+    s.onerror = function () {
+      s.remove();
+      document.getElementById("probe").textContent =
+        "No answer from " + ORIGIN + " after " + tries +
+        " attempt" + (tries === 1 ? "" : "s") + ". Retrying every 5 seconds.";
+    };
+    document.head.appendChild(s);
+  }
+  probe();
+  setInterval(probe, 5000);
+</script>
+</body>
+</html>

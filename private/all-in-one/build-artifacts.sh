@@ -26,6 +26,12 @@ trap 'rm -rf "$STAGE"' EXIT
 
 dc() { docker compose -f "$COMPOSE" "$@"; }
 
+# The §11 answer-sealing keypair is gitignored (a private key does not belong in
+# a repo), so a fresh clone has none — and without it the Edge answers
+# SEALING_KEY_NOT_PROVISIONED and no candidate can submit. Create it here, once,
+# before anything mounts it. Idempotent: an existing pair is left alone.
+node "$REPO/private/hq-demo-key/ensure-keys.mjs"
+
 echo "[bundle] 1/4 building the three app images (cached if unchanged)…"
 dc build edge exam-terminal centre-admin
 
@@ -62,6 +68,11 @@ EOF
 
 echo "[bundle] 4/4 packing → $OUT/zuup-app-bundle.tar.zst …"
 mkdir -p "$OUT"
-tar -C "$STAGE" -cf - app seed.sql manifest.txt \
+# Pack FLAT (edge/, terminal/, admin/, seed.sql, manifest.txt at the tar root):
+# stage 25 extracts straight into /opt/zuup/app, so a parent `app/` dir here
+# double-nests the services' WorkingDirectory paths and the image boots with
+# every app unit in a 200/CHDIR crash-loop.
+mv "$STAGE/seed.sql" "$STAGE/manifest.txt" "$STAGE/app/"
+tar -C "$STAGE/app" -cf - edge terminal admin seed.sql manifest.txt \
   | zstd -q -19 -o "$OUT/zuup-app-bundle.tar.zst" -f
 echo "[bundle] done: $(du -h "$OUT/zuup-app-bundle.tar.zst" | cut -f1)  ($OUT/zuup-app-bundle.tar.zst)"

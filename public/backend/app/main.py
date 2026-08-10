@@ -196,11 +196,27 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll
+from app.api.v1 import enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
+from app.database import commit_before_response
+
+# A `yield` dependency's teardown runs after the response is sent, so without
+# this a caller can read back its own write and miss it — POST /delivery/seal
+# followed immediately by GET /delivery/root returned 404 for a row that was
+# moments from existing. Applied centrally so no new router can forget it.
+for _router in (
+    about.router, auth.router, exams.router, sessions.router, crypto.router,
+    delivery.router, blockchain.router, admin.router, invigilator.router,
+    question_modes.router, broadcast.router, complaint.router, emergency.router,
+    ceremony.router, generation_router, lifecycle_router, sys_ledger.router,
+    enquiries.router,
+    staff_reg.router, provisioning.router, enroll.router,
+):
+    commit_before_response(_router)
 
 app.include_router(about.router, prefix="/api/v1/about", tags=["About / Transparency (public)"])
+app.include_router(enquiries.router, prefix="/api/v1/enquiries", tags=["Public enquiries"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])

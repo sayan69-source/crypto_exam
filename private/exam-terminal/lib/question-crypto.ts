@@ -78,10 +78,39 @@ async function questionAesKey(masterSeed: Uint8Array, examId: string, questionId
 async function sha256(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', data as BufferSource));
 }
-async function hashPair(l: Uint8Array, r: Uint8Array): Promise<Uint8Array> { return sha256(concat(l, r)); }
+/**
+ * Domain tags + length prefixes. MUST stay byte-identical to
+ * edge-server/src/lib/question-seal.ts — the two are deliberate independent
+ * implementations, which is good design and also means a one-sided change
+ * silently breaks the pipeline. `question-seal.test.ts` pins them together.
+ *
+ * Why they exist: `SHA-256(id ‖ iv ‖ ct ‖ tag)` over two variable-length fields
+ * with no separators is not injective (slide the id/iv boundary and a different
+ * question_id yields the same leaf), and an untagged 64-byte leaf preimage is
+ * indistinguishable from an internal node — the Merkle second-preimage
+ * weakness. Both were demonstrated against the old construction.
+ */
+const LEAF_TAG = 0x00;
+const NODE_TAG = 0x01;
+
+function u32be(n: number): Uint8Array {
+  return new Uint8Array([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
+}
+
+async function hashPair(l: Uint8Array, r: Uint8Array): Promise<Uint8Array> {
+  return sha256(concat(new Uint8Array([NODE_TAG]), l, r));
+}
 
 async function questionLeaf(id: string, s: { iv: string; ct: string; tag: string }): Promise<Uint8Array> {
-  return sha256(concat(enc.encode(id), fromHex(s.iv), fromHex(s.ct), fromHex(s.tag)));
+  const idBytes = enc.encode(id);
+  const iv = fromHex(s.iv), ct = fromHex(s.ct), tag = fromHex(s.tag);
+  return sha256(concat(
+    new Uint8Array([LEAF_TAG]),
+    u32be(idBytes.length), idBytes,
+    u32be(iv.length), iv,
+    u32be(ct.length), ct,
+    u32be(tag.length), tag,
+  ));
 }
 
 async function verifyInclusion(leaf: Uint8Array, proof: SealedItem['proof'], rootHex: string): Promise<boolean> {
@@ -93,10 +122,22 @@ async function verifyInclusion(leaf: Uint8Array, proof: SealedItem['proof'], roo
   return toHex(cur) === (rootHex.startsWith('0x') ? rootHex.slice(2) : rootHex);
 }
 
-/** Verify EVERY question in a bundle is committed to `root` (no decryption). */
+/**
+ * Verify EVERY question in a bundle is committed to `root` (no decryption).
+ *
+ * `maxProofSteps` bounds the work a hostile bundle can demand: each step is a
+ * SHA-256, and nothing capped the array, so a multi-million-step proof was a
+ * free CPU stall on a kiosk that has an exam to run. A genuine proof is at most
+ * ⌈log₂(count)⌉ steps.
+ */
 export async function verifyBundleAgainstRoot(bundle: SealedBundle, rootHex: string): Promise<boolean> {
   if ((bundle.questionsRoot || '').toLowerCase() !== rootHex.toLowerCase()) return false;
+  // The declared count must match what arrived, or `count` commits to nothing.
+  if (typeof bundle.count !== 'number' || bundle.count !== bundle.items.length) return false;
+
+  const maxProofSteps = Math.ceil(Math.log2(Math.max(2, bundle.items.length))) + 1;
   for (const item of bundle.items) {
+    if (!Array.isArray(item.proof) || item.proof.length > maxProofSteps) return false;
     const leaf = await questionLeaf(item.question_id, item);
     if (!(await verifyInclusion(leaf, item.proof, rootHex))) return false;
   }

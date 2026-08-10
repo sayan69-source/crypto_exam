@@ -584,3 +584,47 @@ table {
   .footer-main { grid-template-columns: 1fr 1fr; gap: var(--space-xl); }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
 }
+
+/* ===== MOBILE NAV =====
+   The toggle button existed with no handler, so below 900px — where .nav-links
+   is hidden — the site had no navigation at all. This is the panel it opens. */
+.mobile-nav {
+  display: none;
+}
+@media (max-width: 900px) {
+  .mobile-nav {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    background: var(--bg-page, #fff);
+    border-top: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--border-soft);
+    box-shadow: 0 18px 40px rgb(15 23 42 / 0.12);
+    padding: var(--space-md) var(--space-lg) var(--space-lg);
+    max-height: calc(100dvh - 100%);
+    overflow-y: auto;
+    z-index: 60;
+  }
+  .mobile-nav ul { list-style: none; margin: 0 0 var(--space-md); padding: 0; }
+  .mobile-nav li + li { border-top: 1px solid var(--border-soft); }
+  .mobile-nav a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    /* Comfortably past the 44px minimum touch target. */
+    padding: 15px 2px;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium, 500);
+    color: var(--text-strong);
+    text-decoration: none;
+  }
+  .mobile-nav a[aria-current="page"] { color: var(--color-accent, #c9a227); }
+  .mobile-nav a svg { color: var(--text-faint); flex: none; }
+  .mobile-nav-cta { width: 100%; justify-content: center; }
+}
+/* The panel is positioned against the header, so the header must be the
+   containing block. */
+.site-nav { position: relative; }

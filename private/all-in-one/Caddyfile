@@ -12,9 +12,23 @@
 }
 
 :8080 {
+	# Document root for every static response below (the /kiosk surfaces and the
+	# error page). The reverse-proxied routes never consult it.
+	root * /srv/kiosk
+
 	# §13 Centre Edge API (Fastify). Both portals call same-origin /api/*.
 	handle /api/* {
 		reverse_proxy edge:4000
+	}
+
+	# The operator role chooser + the origin liveness beacon, served straight
+	# off disk so they answer before any Node service has booted. Same files,
+	# same path as the image serves from /opt/zuup/www — this proving ground
+	# exists to be the same bytes, so it routes them the same way.
+	redir /kiosk /kiosk/ 308
+	handle /kiosk/* {
+		uri strip_prefix /kiosk
+		file_server
 	}
 
 	# Centre Admin portal (Next, built with basePath /admin). The prefix is
@@ -27,6 +41,15 @@
 	# seats, and the /locked fail-closed wall.
 	handle {
 		reverse_proxy exam-terminal:3000
+	}
+
+	# An upstream that is not listening yet gets the "centre starting" page
+	# rather than a bare 502 the browser would sit on. The marker header is what
+	# lets that page tell a real upstream 200 from its own.
+	handle_errors {
+		header X-Zuup-Starting 1
+		rewrite * /starting.html
+		file_server
 	}
 
 	log {

@@ -150,7 +150,12 @@ fi
 # ── 4. RAM-only writable surfaces (INV-2). The real fstab (rootfs/overlay.
 #       fstab) re-asserts these; mounting them here means even early systemd
 #       cannot touch a persistent medium. ───────────────────────────────────
-for d in tmp run var/log; do
+# /tmp must be sticky-world-writable (1777) from the FIRST mount: systemd sees
+# it already mounted and never re-applies overlay.fstab's options, so a 0755
+# here would silently deny /tmp to every non-root process for the whole boot.
+/bin/busybox mount -t tmpfs -o rw,nosuid,nodev,noexec,mode=1777 tmpfs /newroot/tmp \
+  || fail "tmpfs tmp"
+for d in run var/log; do
   /bin/busybox mount -t tmpfs -o rw,nosuid,nodev,noexec,mode=0755 tmpfs "/newroot/$d" \
     || fail "tmpfs $d"
 done

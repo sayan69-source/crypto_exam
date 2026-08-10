@@ -101,6 +101,23 @@ async function post<T>(path: string): Promise<T> {
   return res.json();
 }
 
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.message || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export interface DpdpLog {
   id: string;
   user_id: string;
@@ -160,6 +177,32 @@ export interface BlockchainStatus {
   error?: string;
 }
 
+export type EnquiryStatus = 'NEW' | 'IN_REVIEW' | 'ANSWERED' | 'CLOSED';
+
+export interface Enquiry {
+  id: string;
+  reference: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  organisation: string | null;
+  roleTitle: string | null;
+  topic: string;
+  message: string;
+  status: EnquiryStatus;
+  internalNote: string | null;
+  receivedAt: string | null;
+  handledAt: string | null;
+}
+
+export interface EnquiriesResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  counts: Record<EnquiryStatus, number>;
+  items: Enquiry[];
+}
+
 export const adminApi = {
   dashboard: () => get<AdminDashboard>('/admin/dashboard'),
   nodes: () => get<AdminNodesResponse>('/admin/nodes'),
@@ -176,4 +219,13 @@ export const adminApi = {
     post<{ ok: boolean; code: string; expiresAt: string; ttlMinutes: number }>(`/admin/staff-approvals/${id}/issue-code`),
   authoriseStaffFp: (id: string) =>
     post<{ ok: boolean }>(`/admin/staff-approvals/${id}/authorise-fp`),
+  // Enquiries from the public contact form. Before this existed the form
+  // discarded submissions in the browser, so nothing ever reached HQ.
+  enquiries: (status?: EnquiryStatus) =>
+    get<EnquiriesResponse>(`/admin/enquiries${status ? `?status_filter=${status}` : ''}`),
+  updateEnquiry: (id: string, status: EnquiryStatus, internalNote?: string) =>
+    patch<{ ok: boolean; reference: string; status: EnquiryStatus }>(
+      `/admin/enquiries/${id}`,
+      { status, internal_note: internalNote ?? null },
+    ),
 };

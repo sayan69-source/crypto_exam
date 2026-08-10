@@ -19,6 +19,9 @@ COPY packages/exam-ui/package.json packages/exam-ui/package.json
 COPY private/centre-admin/package.json private/centre-admin/package.json
 COPY private/edge-server/package.json private/edge-server/package.json
 COPY private/system-admin/package.json private/system-admin/package.json
+# npm's default is 2 retries with a short timeout, which loses this layer to a
+# single transient registry blip — and it is a 400-second layer. Retry harder.
+RUN npm config set fetch-retries 6  && npm config set fetch-retry-mintimeout 20000  && npm config set fetch-retry-maxtimeout 180000  && npm config set fetch-timeout 900000
 RUN npm ci --no-audit --no-fund
 
 # Edge source + SQL migrations + demo seed.

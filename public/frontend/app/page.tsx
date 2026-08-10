@@ -104,9 +104,9 @@ export default function LandingPage() {
               <em>built&nbsp;for&nbsp;India.</em>
             </h1>
             <p className={s.heroLead}>
-              CryptoExam Core delivers high-stakes examinations that are verifiable end to end —
-              from the moment a paper is sealed to the instant a candidate submits. Integrity is
-              not promised. It is proven, on-chain, for anyone to inspect.
+              High-stakes examinations, verifiable end to end — from the sealing of the paper to
+              the candidate&rsquo;s final submission. Integrity is not promised. It is proven
+              on-chain, for anyone to inspect.
             </p>
             <div className={s.heroCta}>
               <Link className="btn btn-accent btn-lg" href="/contact">
@@ -172,6 +172,71 @@ export default function LandingPage() {
       </div>
 
       {/* ===== EXAM HALL VISUAL ===== */}
+      {/* ===== QUICK ACCESS =====
+          The homepage used to make every visitor read six sections of prose
+          before reaching anything they could act on — the role cards sat
+          seventh of nine. An examination controller with ten minutes bounced.
+          This strip puts the five real destinations directly under the hero,
+          one line each, so arriving and getting somewhere are the same step. */}
+      <section className={s.quickNav} aria-labelledby="quicknav-title">
+        <div className="wrap">
+          <h2 id="quicknav-title" className={s.quickNavTitle}>
+            Where would you like to go?
+          </h2>
+          <ul className={s.quickGrid}>
+            {[
+              {
+                icon: "search-check",
+                title: "Verify an examination",
+                desc: "Check any sealed paper against the chain. No login.",
+                href: "/pipeline",
+                primary: true,
+              },
+              {
+                icon: "building-2",
+                title: "For examining bodies",
+                desc: "Request a briefing on running your exam here.",
+                href: "/contact",
+              },
+              {
+                icon: "graduation-cap",
+                title: "Candidates",
+                desc: "Enrol, and see how centre check-in works.",
+                href: "/candidate-enrolment",
+              },
+              {
+                icon: "badge-check",
+                title: "Centre staff",
+                desc: "Register as a Centre Admin or Invigilator.",
+                href: "/center-access",
+              },
+              {
+                icon: "flask-conical",
+                title: "Question setters",
+                desc: "Author papers in the sealed workbench.",
+                href: "/for-setters",
+              },
+            ].map((q) => (
+              <li key={q.title}>
+                <Link
+                  href={q.href}
+                  className={`${s.quickCard} ${q.primary ? s.quickCardPrimary : ""}`}
+                >
+                  <span className={s.quickIco}>
+                    <Icon name={q.icon} size={19} strokeWidth={1.7} />
+                  </span>
+                  <span className={s.quickText}>
+                    <strong>{q.title}</strong>
+                    <span>{q.desc}</span>
+                  </span>
+                  <Icon name="arrow-right" size={16} className={s.quickArrow} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       <section className={`${s.hallBand} reveal`} aria-label="Computer-based testing at examination centres">
         <div className={`wrap ${s.hallInner}`}>
           <div
@@ -196,16 +261,13 @@ export default function LandingPage() {
                 Trust in examinations has always depended on people behaving well.
               </h2>
               <p className={s.leadColSpace}>
-                Every year, millions of candidates sit examinations whose outcomes shape their
-                careers. Yet the systems that protect those exams still rest on locked rooms,
-                sealed envelopes and the good conduct of everyone in the chain. When that chain
-                breaks — a leaked paper, an altered answer sheet, a contested result — there is
-                rarely a way to prove what actually happened.
+                Locked rooms, sealed envelopes, and the good conduct of everyone in the chain.
+                When that chain breaks — a leaked paper, an altered sheet, a contested result —
+                there is rarely a way to prove what actually happened.
               </p>
               <p className={s.leadColSpace}>
-                CryptoExam Core replaces institutional trust with mathematical proof. Each stage
-                of the examination lifecycle produces evidence that anyone can verify
-                independently, without needing to trust the examining body, the centre, or us.
+                We replace that trust with proof. Every stage produces evidence anyone can
+                verify independently — without trusting the board, the centre, or us.
               </p>
             </div>
             <div className={s.problemList}>
@@ -353,10 +415,10 @@ export default function LandingPage() {
           </div>
           <div className={s.rolesGrid}>
             {[
-              { icon: "graduation-cap", title: "Candidate", tag: "Centre-computer only", desc: "A focused, distraction-free exam environment with biometric check-in, real-time autosave, and a printable cryptographic receipt for every submission. Runs only on examination-centre terminals.", href: "/center-access", linkText: "How candidate access works" },
-              { icon: "flask-conical", title: "Setter", tag: "Workbench", desc: "A dense authoring workbench for composing papers, generating ZK difficulty proofs, running red-team review, and sealing question banks under lock.", href: "/for-setters", linkText: "View setter workbench" },
-              { icon: "badge-check", title: "Invigilator", tag: "Centre staff only", desc: "Biometric verification of candidates at the centre, live roster management, and a one-tap channel to raise alerts and incident reports. Operated from centre devices only.", href: "/center-access", linkText: "How invigilator access works" },
-              { icon: "radar", title: "Administrator", tag: "Mission control", desc: "A real-time command console for centres, candidates, nodes and emergencies — with dual-control authorisation for every sensitive action.", href: "/for-administrators", linkText: "View admin console" },
+              { icon: "graduation-cap", title: "Candidate", tag: "Centre-computer only", desc: "Biometric check-in, autosave, and a cryptographic receipt for every submission.", href: "/center-access", linkText: "How candidate access works" },
+              { icon: "flask-conical", title: "Setter", tag: "Workbench", desc: "Compose papers, prove difficulty in zero-knowledge, and seal the bank under lock.", href: "/for-setters", linkText: "View setter workbench" },
+              { icon: "badge-check", title: "Invigilator", tag: "Centre staff only", desc: "Verify candidates at the centre, manage the roster, raise incidents in one tap.", href: "/center-access", linkText: "How invigilator access works" },
+              { icon: "radar", title: "Administrator", tag: "Mission control", desc: "Live command over centres, nodes and emergencies — dual-control on every sensitive action.", href: "/for-administrators", linkText: "View admin console" },
             ].map((role) => (
               <article className={`card card-hover ${s.roleCard} reveal`} key={role.title}>
                 <div className={s.roleHead}>

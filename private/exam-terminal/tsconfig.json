@@ -13,6 +13,11 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // lib/chain-bridge.ts is imported both by the Next build and directly by
+    // `node --test` (which resolves ESM specifiers literally and needs the
+    // extension). Allowing it keeps one source file usable from both without a
+    // separate build step — noEmit is already on, so nothing is emitted anyway.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",

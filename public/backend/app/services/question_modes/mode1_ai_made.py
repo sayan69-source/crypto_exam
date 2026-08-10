@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 
+from app.config import get_settings
 from app.services.pdf_ingestion import pdf_parser
 from app.services.question_modes import _irt
 from app.services.question_modes.mode3_human import _parse_questions
@@ -24,7 +25,20 @@ from app.services.question_modes.mode2_hybrid import _parse_syllabus
 logger = logging.getLogger(__name__)
 
 
+class TemplateGenerationRefused(Exception):
+    """No generator is configured, and template text will not be passed off as one."""
+
+    def __init__(self, reason: str, message: str, **context):
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+        self.context = {k: v for k, v in context.items() if v is not None}
+
+
 class Mode1AIMadeService:
+    def __init__(self) -> None:
+        self.settings = get_settings()
+
     async def run(
         self,
         seed_questions: bytes | str | None,
@@ -96,12 +110,41 @@ class Mode1AIMadeService:
         return {k: v for k, v in plan.items() if v > 0}
 
     def _generate_for_topic(self, topic: str, count: int, difficulty: str) -> list[dict]:
-        """Deterministic synthesiser placeholder (swap for an LLM call)."""
+        """
+        Template synthesiser — NOT question generation.
+
+        This emits one grammatical frame with the topic substituted in, and the
+        correct answer is always "A". It exists so the surrounding pipeline
+        (blueprint → generate → IRT → dedup) is runnable with no LLM. It is not
+        exam content and must never reach a paper that anyone sits.
+
+        It used to run unconditionally and tag its output `ai_generated: True`,
+        which is how template text could be presented as an AI-written paper.
+        It is now opt-in and every item carries `is_template: True` so any
+        surface downstream can refuse it. Plug an LLM in here for real content.
+        """
+        if not self.settings.ALLOW_TEMPLATE_QUESTIONS:
+            raise TemplateGenerationRefused(
+                "NO_QUESTION_GENERATOR",
+                (
+                    "Mode 1 has no language model configured, and the built-in synthesiser "
+                    "produces template text whose answer is always 'A'. Refusing to emit it "
+                    "as generated questions. Configure an LLM (OPENAI_API_KEY or LLM_BASE_URL), "
+                    "or set ALLOW_TEMPLATE_QUESTIONS=true to run the pipeline end-to-end with "
+                    "placeholder items clearly marked as such."
+                ),
+                topic=topic,
+            )
+
+        logger.warning(
+            "ALLOW_TEMPLATE_QUESTIONS is set — emitting %d TEMPLATE items for topic %r. "
+            "These are not questions and the answer is always 'A'.", count, topic,
+        )
         topic = re.sub(r'\s+', ' ', topic).strip().rstrip('.')[:80] or "General"
         out = []
         for i in range(count):
             out.append({
-                "question": f"[{difficulty}] On the topic of {topic}, which of the following statements is correct? (item {i + 1})",
+                "question": f"[TEMPLATE · not a real question] [{difficulty}] On the topic of {topic}, which of the following statements is correct? (item {i + 1})",
                 "A": f"A correct principle of {topic}.",
                 "B": f"A common misconception about {topic}.",
                 "C": f"An unrelated property mistakenly linked to {topic}.",
@@ -109,7 +152,10 @@ class Mode1AIMadeService:
                 "correct": "A",
                 "topic": topic,
                 "bloom_level": 2 if difficulty == "EASY" else 3 if difficulty == "MEDIUM" else 4,
-                "ai_generated": True,
+                # Not `ai_generated`: nothing generated this. The flag travels
+                # with the item so a paper built from templates is detectable.
+                "is_template": True,
+                "ai_generated": False,
             })
         return out
 

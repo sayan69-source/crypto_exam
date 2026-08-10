@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/admin/centre-admin-approvals', label: 'Centre-Admin Approvals', icon: 'user-check' },
   { href: '/admin/answer-vault', label: 'Answer Vault', icon: 'lock' },
   { href: '/admin/candidates', label: 'Candidates', icon: 'users-round' },
+  { href: '/admin/enquiries', label: 'Enquiries', icon: 'mail' },
   { href: '/admin/emergency', label: 'Emergency', icon: 'siren', emergency: true },
   { href: '/admin/roles', label: 'Roles', icon: 'key-round' },
   { href: '/admin/reports', label: 'Reports', icon: 'file-check' },

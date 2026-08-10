@@ -50,9 +50,25 @@ zuup_os_implementation_plan.md
 *.key
 !*.key.example
 
-# Circuit build artifacts (large, reproducible)
+# Circuit build artifacts.
+#
+# The proving key, verifying key and witness calculators ARE tracked: the
+# Groth16Verifier in contracts/src/ZKVerifier.sol is exported from one specific
+# proving key, so a fresh `build.sh` run would produce keys that the deployed
+# verifier rejects. Shipping the keys keeps "clone it and the proof verifies"
+# true, and keeps the on-chain verifier matched to them.
+#
+# Intermediates (the ceremony transcript, r1cs, symbol table, pre-contribution
+# zkey) are large and rebuildable, so they stay out.
+#
+# `build/` above would otherwise swallow the whole directory before any of the
+# rules below are reached — git does not descend into an excluded directory.
+!public/circuits/build/
 public/circuits/build/*.wtns
 public/circuits/build/pot*.ptau
+public/circuits/build/*.r1cs
+public/circuits/build/*.sym
+public/circuits/build/difficulty_proof_0000.zkey
 
 # Python
 *.egg
@@ -82,3 +98,13 @@ private/zuup-os/image-build/out/
 
 # ZUUP-OS terminal walkthrough zip (local demo only, never tracked)
 zuup-os-terminal.zip
+
+# ── ZK circuit build artifacts ──
+# The final proving key, verification key, r1cs and witness generator ARE
+# committed: the zkey and contracts/src/ZKVerifier.sol must move together or
+# on-chain verification silently breaks (see public/circuits/README-ZK.md).
+# The Powers-of-Tau files are 31 MB of regenerable ceremony input — rebuild
+# them with `npm run build` in public/circuits rather than storing them.
+public/circuits/build/*.ptau
+public/circuits/build/difficulty_proof_0000.zkey
+public/circuits/build/*.sym

@@ -14,6 +14,9 @@ RemainAfterExit=yes
 ExecStart=/usr/sbin/nft -f /etc/zuup/nftables.conf
 # re-assert on reload; never flush to permissive
 ExecReload=/usr/sbin/nft -f /etc/zuup/nftables.conf
+# Fail-closed: if the default-drop ruleset cannot load, the terminal must go
+# dark, never continue toward the Gate with an unknown firewall state.
+FailureAction=poweroff-force
 
 NoNewPrivileges=yes
 ProtectSystem=strict

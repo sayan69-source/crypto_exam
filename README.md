@@ -49,18 +49,36 @@ This is not an isolated incident:
 | 1 | **No human sees the paper before T₀** | AES-GCM-256 encryption → HKDF key derivation → key released only at drand beacon T₀ |
 | 2 | **Answer records are immutable** | SHA-256 Merkle root committed to Polygon PoS — any modification changes the root |
 | 3 | **Paper difficulty is machine-verifiable** | ZK-SNARK (CIRCOM + Groth16) proof on-chain — proves IRT compliance without revealing questions |
+| 4 | **The paper is committed before anyone can read it** | Per-question AES-GCM seal + a domain-separated Merkle root; the terminal refuses any question not committed to that root |
+| 5 | **A compromised centre yields ciphertext only** | Answers are sealed to an HQ key the centre never holds; HQ verifies a per-centre signing key it registered out of band |
 
 
 ## Verify on Blockchain
 
 **No login. No API key. No trust required.**
 
+The contract, the ZK verifier and the full lock → prove → commit path are
+deployed and exercised **on a local Hardhat chain today**, with the deployment
+recorded in `public/contracts/deployments/localhost.json`:
+
 ```
-Contract:  [address] on Polygon Amoy (Chain ID: 80002)
-Demo TX:   [hash]
+CryptoExamCore  0x8A791620dd6260079BF849Dc5567aDC3F2FdC318   (chainId 31337)
+ZKVerifier      0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
 ```
 
-Open [amoy.polygonscan.com](https://amoy.polygonscan.com/), paste the TX hash, and verify the `ZKProofSubmitted` event — timestamped **hours before any candidate saw a question**.
+Reproduce it end to end:
+
+```bash
+cd public/contracts && npx hardhat node        # terminal 1
+npx hardhat run deploy/01_deploy.ts --network localhost   # terminal 2
+npx hardhat run deploy/02_lock_demo_exam.ts --network localhost
+```
+
+> **Amoy is not deployed yet, and the badge above is aspirational.** It needs a
+> funded key in `public/.env` (`DEPLOYER_PRIVATE_KEY` is still the placeholder
+> `<wallet_private_key>`) plus faucet MATIC. Everything else is ready: the same
+> scripts target `--network amoy` unchanged. We would rather ship a README that
+> says "local chain" than print a contract address nobody can look up.
 
 ---
 
@@ -69,8 +87,8 @@ Open [amoy.polygonscan.com](https://amoy.polygonscan.com/), paste the TX hash, a
 ### One-Command Setup
 
 ```bash
-git clone https://github.com/[team]/cryptoexam-core
-cd cryptoexam-core
+git clone https://github.com/sayan69-source/crypto_exam.git
+cd crypto_exam
 cp .env.example .env
 docker compose up -d
 ```
@@ -121,6 +139,31 @@ code to the account's registered phone — *step 2 OTP*):
 # Optional — Smart Contracts (the public↔private blockchain bridge)
 cd public/contracts && npm install && npx hardhat compile && npx hardhat test
 ```
+
+### Run the test suites
+
+Everything below is run, not asserted. Current state on `main`:
+
+| Suite | Command | Result |
+|---|---|---|
+| Backend (crypto, Merkle, drand, sealing, commitment vectors) | `cd public/backend && pytest tests/ -q` | **77 passed** |
+| Edge server (+ security regression suite) | `npm test -w edge-server` | **73 passed**, 17 skipped |
+| Exam terminal (seal/open, chain bridge, identity) | `cd private/exam-terminal && node --test --experimental-strip-types "lib/*.test.ts"` | **15 passed** |
+| Contracts | `cd public/contracts && npx hardhat test` | **32 passed** |
+
+The 17 skipped Edge tests are the Postgres integration suite — they need
+`DATABASE_URL` set (`npm run db:up -w edge-server` brings one up).
+
+### The ZK circuit is built, not described
+
+`public/circuits/build/` holds real Groth16 artifacts: `difficulty_proof.r1cs`,
+`difficulty_proof_final.zkey`, `verification_key.json` and the witness
+generator. `contracts/src/ZKVerifier.sol` is generated from that exact zkey.
+
+> **They must move together.** Regenerating the zkey without re-exporting the
+> Solidity verifier makes on-chain verification fail silently. See
+> `public/circuits/README-ZK.md`. The Powers-of-Tau files (31 MB) are gitignored
+> — rebuild with `npm run build` in `public/circuits`.
 
 ---
 
@@ -322,6 +365,37 @@ worthless, and the network being down cannot stop an exam.
 | CBSE Class 10/12 | CBSE | 35M+ | Blockchain audit trail |
 
 **Total addressable:** 40M+ candidates/year across 1,000+ examinations.
+
+---
+
+## Honest status
+
+Two documents in this repo exist to stop the README overclaiming. Both are
+worth reading before evaluating anything above.
+
+**[`SECURITY-REVIEW.md`](SECURITY-REVIEW.md)** — a full adversarial review of the
+private half (4 critical, 5 high, 10 medium findings), each verified against the
+source, plus a remediation table. Everything critical is fixed; what is still
+open is listed by name. The proof-of-concept suite lives at
+`private/edge-server/src/test/SECURITY-POC.test.ts` and has been inverted into
+regression tests — a `[FIXED]` case fails if the vulnerability returns.
+
+**[`PRODUCTION-READINESS.md`](PRODUCTION-READINESS.md)** — what genuinely works
+versus what is stubbed, and what only you can do (fund a deployer key, run the
+image on real hardware, point a camera at a real face).
+
+Three things this README will not pretend about:
+
+| Claim | Reality |
+|---|---|
+| Polygon Amoy anchoring | **Not deployed.** Local Hardhat chain only — needs a funded key. |
+| Biometric matching | The OpenCV engine (`face_engine_cv.py`, YuNet + SFace) is real and serves 127.0.0.1:7700. Verified against real faces by the operator, not in CI. |
+| IRT difficulty calibration | Authored values, not estimates from candidate responses. Real calibration needs response data — see [`QUESTION-PIPELINE-DESIGN.md`](QUESTION-PIPELINE-DESIGN.md) §7. |
+
+The backend refuses to fabricate what it cannot produce: four `ALLOW_*` switches
+in `app/config.py` all default to **False**, so a missing drand beacon returns
+503 rather than a locally computed substitute, and an unbuilt circuit returns
+`ZK_CIRCUIT_NOT_BUILT` rather than a plausible-looking proof.
 
 ---
 

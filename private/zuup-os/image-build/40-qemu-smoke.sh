@@ -20,7 +20,11 @@ set -euo pipefail
 
 BUILD="${BUILD:-/build}"
 IMG="$BUILD/zuup-os.img"
-TIMEOUT="${ZUUP_SMOKE_TIMEOUT:-180}"
+# TCG (no KVM in the builder container) runs ~7-10x slower than host speed;
+# the dev image reaches the kiosk at ~90 guest-seconds, so 180s of wall clock
+# never even left the initramfs. 900s observes the kiosk long enough to prove
+# it STAYS up (the crash-loop check needs post-start runway).
+TIMEOUT="${ZUUP_SMOKE_TIMEOUT:-900}"
 VARIANT="$(cat "$BUILD/.rootfs-variant" 2>/dev/null || echo production)"
 
 GOAL=""
@@ -76,8 +80,24 @@ have() { grep -aqE "$1" "$SERIAL"; }
 pass() { echo "[zuup-os] SMOKE PASS — $1"; exit 0; }
 fail() { echo "[zuup-os] SMOKE FAIL — $1 (full log: $SERIAL)" >&2; exit 1; }
 
-# Boot integrity is required for BOTH goals: verity must open and hand off.
-have "Linux version|systemd\[1\]" || fail "kernel/PID1 never started (UKI or virtio issue)"
+# Boot integrity: verity must open and hand off to PID 1. HOW we observe that
+# depends on the console policy baked into the signed UKI:
+#   • gate (dev image)      → console=ttyS0, so the serial log MUST show the
+#                             kernel banner / systemd; an empty log is a real
+#                             boot failure.
+#   • failclosed (prod)     → console=null by design (a real terminal shows
+#                             nothing, ever), so the serial log is legitimately
+#                             empty. Here the integrity signal is QEMU's own
+#                             exit: `-no-reboot` turns the attestation poweroff
+#                             into a clean exit 0, which can only happen if the
+#                             kernel booted, verity opened, systemd ran, and the
+#                             fail-closed path executed. A timeout (RC 124) or a
+#                             non-zero exit with an empty log = never booted.
+if [[ "$GOAL" == gate ]] || grep -aqE "Linux version|systemd\[1\]" "$SERIAL"; then
+  have "Linux version|systemd\[1\]" || fail "kernel/PID1 never started (UKI or virtio issue)"
+elif [[ "$QEMU_RC" -ne 0 ]]; then
+  fail "silent (console=null) image did not cleanly power off — RC=$QEMU_RC (never booted, or hung instead of failing closed)"
+fi
 
 # A dependency/unit failure anywhere on the session path is a HARD fail. This
 # must be checked BEFORE the success patterns: the failure lines themselves
@@ -87,6 +107,20 @@ if grep -aqE "Dependency failed for (zuup-session|zuup-kiosk|zuup-network)|Faile
   echo "── failing units ──" >&2
   grep -aE "Dependency failed|Failed to start zuup" "$SERIAL" | sed -E 's/\x1b\[[0-9;:]*m//g' | sort -u >&2
   fail "a unit on the session path failed (see above)"
+fi
+
+# "Started zuup-kiosk…" is printed for Type=simple the moment the fork
+# succeeds — BEFORE the exec inside the sandbox can fail — so a kiosk that
+# crash-loops right after starting (the 226/NAMESPACE class of bug) would
+# otherwise sail past the positive-start match below. A namespace failure is
+# always a config defect; a climbing restart counter means the surface never
+# stayed up. Two restarts are tolerated (first-boot DRM/seat races heal).
+if grep -aqE "zuup-kiosk\.service: Failed (to set up mount namespacing|at step NAMESPACE)" "$SERIAL" \
+   || grep -aqE "zuup-kiosk\.service: Scheduled restart job, restart counter is at ([3-9]|[0-9]{2,})" "$SERIAL"; then
+  echo "── kiosk crash-loop evidence ──" >&2
+  grep -aE "zuup-kiosk\.service: (Failed|Main process exited|Scheduled restart)" "$SERIAL" \
+    | sed -E 's/\x1b\[[0-9;:]*m//g' | sort -u | head -8 >&2
+  fail "zuup-kiosk started but did not STAY up (crash-loop)"
 fi
 
 case "$GOAL" in

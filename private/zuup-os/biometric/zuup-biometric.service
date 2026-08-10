@@ -11,6 +11,11 @@ Before=zuup-session.target
 
 [Service]
 Type=simple
+# /run/biometric is a dedicated 128 MB tmpfs (rootfs/overlay.fstab) mounted
+# 0700 root:root — tmpfs uid=/gid= can't name the dynamic zuup-bio uid, so
+# hand the mount to the service user here ('+' = run as root) or the daemon's
+# os.chdir(/run/biometric) dies with PermissionError and crash-loops.
+ExecStartPre=+/bin/chown zuup-bio:zuup-bio /run/biometric
 ExecStart=/usr/bin/python3 /usr/lib/zuup/zuup-biometricd.py
 Restart=always
 RestartSec=2

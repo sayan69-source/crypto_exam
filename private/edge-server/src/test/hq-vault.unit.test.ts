@@ -27,6 +27,8 @@ const hq = generateKeyPairSync("rsa", {
 
 const signer = makeNodeSigner(new Uint8Array(32).fill(7));
 const CENTRE = "11111111-1111-1111-1111-111111111111";
+// HQ pins each centre's signing key out of band; ingest refuses an unknown centre.
+const REGISTRY = new Map([[CENTRE, signer.publicKey]]);
 const EXAM = "44444444-4444-4444-4444-444444444444";
 
 function rec(i: number): AnswerRecord {
@@ -68,7 +70,7 @@ async function buildBundle(count: number): Promise<SyncBundle> {
 
 test("HQ ingest verifies the node sig + chain, decrypts R, emits a PII-free anchor", async () => {
   const bundle = await buildBundle(3);
-  const result = ingest(bundle, hq.privateKey);
+  const result = ingest(bundle, hq.privateKey, REGISTRY);
 
   // every record decrypted back to its canonical R
   assert.equal(result.decrypted.length, 3);
@@ -92,7 +94,7 @@ test("HQ rejects a tampered ciphertext (manifest signature no longer matches)", 
   const bundle = await buildBundle(2);
   const ct = bundle.manifest.records[0]!.ciphertext;
   bundle.manifest.records[0]!.ciphertext = (ct[0] === "0" ? "1" : "0") + ct.slice(1);
-  assert.throws(() => ingest(bundle, hq.privateKey), (e) => e instanceof IngestError);
+  assert.throws(() => ingest(bundle, hq.privateKey, REGISTRY), (e) => e instanceof IngestError);
 });
 
 test("HQ rejects a tampered chain root with the node sig forged off the bad root", async () => {
@@ -104,7 +106,7 @@ test("HQ rejects a tampered chain root with the node sig forged off the bad root
   const manifestHash = sha256(utf8.encode(canonicalJson(bundle.manifest)));
   bundle.manifestHash = toHex(manifestHash);
   bundle.nodeSig = toHex(signer.signRoot(manifestHash));
-  assert.throws(() => ingest(bundle, hq.privateKey), (e) => /CHAIN_BROKEN/.test((e as Error).message));
+  assert.throws(() => ingest(bundle, hq.privateKey, REGISTRY), (e) => /CHAIN_BROKEN/.test((e as Error).message));
 });
 
 test("HQ rejects the wrong HSM key (RSA-OAEP unwrap fails)", async () => {
@@ -114,7 +116,7 @@ test("HQ rejects the wrong HSM key (RSA-OAEP unwrap fails)", async () => {
     publicKeyEncoding: { type: "spki", format: "pem" },
     privateKeyEncoding: { type: "pkcs8", format: "pem" },
   });
-  assert.throws(() => ingest(bundle, wrong));
+  assert.throws(() => ingest(bundle, wrong, REGISTRY));
 });
 
 test("assertNoPii throws when an anchor field smells like an identifier", () => {

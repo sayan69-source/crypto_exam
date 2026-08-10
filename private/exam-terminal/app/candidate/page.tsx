@@ -31,6 +31,8 @@ import {
 } from "@/lib/edge";
 import { sealRecord, receiptNonce, type AnswerRecord, type ResponseEntry } from "@/lib/answer-seal";
 import { deriveMasterSeed, openQuestion, verifyBundleAgainstRoot, type SealedBundle, type SealedItem } from "@/lib/question-crypto";
+import { verifyRootProvenance, type RootProvenance } from "@/lib/chain-bridge";
+import { chainReader, pinnedRoots, CHAIN_EXPLORER } from "@/lib/chain-config";
 
 type Phase = "BOOT" | "WAIT_ASSIGN" | "LOGIN" | "EXAM" | "SEALING" | "RECEIPT" | "ERROR";
 
@@ -181,10 +183,66 @@ function LoginCard({ terminalId, onAttended }: { terminalId: string; onAttended:
 // Question states for the TCS-iON-style palette.
 type QState = "NOT_VISITED" | "NOT_ANSWERED" | "ANSWERED" | "MARKED" | "ANSWERED_MARKED";
 
+/**
+ * States, in plain words, where the root this paper was checked against came
+ * from — and does not overstate it.
+ *
+ * The paper is always verified against `questionsRoot` question by question.
+ * But that root travels in the same response as the paper, so on its own the
+ * check proves the Edge is self-consistent, not that the paper is the one the
+ * public side committed. Saying "blockchain-verified" when nothing consulted a
+ * blockchain is the kind of claim that collapses under the first hard question,
+ * so the screen reports what actually happened.
+ */
+function RootProvenanceBadge({ provenance }: { provenance: RootProvenance | null }) {
+  if (!provenance) return null;
+  const style: React.CSSProperties = {
+    marginTop: 16, display: "inline-block", padding: "8px 12px", borderRadius: 8,
+    fontSize: 12, lineHeight: 1.5, textAlign: "left", maxWidth: 420,
+  };
+
+  if (provenance.kind === "CHAIN") {
+    return (
+      <div style={{ ...style, background: "#d1fae5", border: "1px solid #6ee7b7", color: "#065f46" }}>
+        <strong>Root confirmed on-chain.</strong> This paper matches the commitment
+        recorded before the exam — checked against the chain, not against the centre.
+        {provenance.chainTx && (
+          <>
+            {" "}
+            <a href={CHAIN_EXPLORER + provenance.chainTx} target="_blank" rel="noreferrer" style={{ color: "#065f46" }}>
+              view transaction
+            </a>
+          </>
+        )}
+      </div>
+    );
+  }
+  if (provenance.kind === "PINNED") {
+    return (
+      <div style={{ ...style, background: "#dbeafe", border: "1px solid #93c5fd", color: "#1e40af" }}>
+        <strong>Root matches this terminal&apos;s provisioning.</strong> The hall is
+        sealed, so the chain cannot be reached — but the root was written into this
+        machine&apos;s signed image before exam day and the centre cannot alter it.
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...style, background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }}>
+      <strong>Root as reported by this centre.</strong> Every question was verified
+      against it, but the root itself has not been independently confirmed on this
+      terminal — no chain route and no provisioned root.
+    </div>
+  );
+}
+
 function ExamCard({ terminalId, examId, onError }: { terminalId: string; examId: string; onError: (m: string) => void }) {
   // ── §10.7 sealed delivery state ──────────────────────────────────────────
   const [loadState, setLoadState] = useState<"LOADING" | "BEFORE_T0" | "READY">("LOADING");
   const [bundle, setBundle] = useState<SealedBundle | null>(null);
+  // Where the root this paper was checked against actually came from. Displayed,
+  // never assumed: verifying a bundle against a root the same server supplied
+  // proves only self-consistency, and the surface must not imply otherwise.
+  const [provenance, setProvenance] = useState<RootProvenance | null>(null);
   const master = useRef<Uint8Array | null>(null);
   const itemById = useRef<Map<string, SealedItem>>(new Map());
   const [questions, setQuestions] = useState<LiveQuestion[]>([]);
@@ -213,6 +271,20 @@ function ExamCard({ terminalId, examId, onError }: { terminalId: string; examId:
         if (stop) return;
         const ok = await verifyBundleAgainstRoot(b.bundle, b.questionsRoot);
         if (!ok) return onError("Question bundle failed its on-chain integrity check (§10.7) — refusing to render.");
+
+        // Then establish where that root came from. A mismatch against the chain
+        // or against the root provisioned into this image THROWS and the paper
+        // never renders; "could not reach the chain" does not throw — it downgrades
+        // the claim the screen makes.
+        try {
+          setProvenance(await verifyRootProvenance(examId, b.questionsRoot, {
+            chain: chainReader() ?? undefined,
+            pinnedRoots: pinnedRoots(),
+            chainTx: b.chainTx ?? undefined,
+          }));
+        } catch (e) {
+          return onError((e as Error).message);
+        }
         b.bundle.items.forEach((it) => itemById.current.set(it.question_id, it));
         setBundle(b.bundle);
 
@@ -364,6 +436,7 @@ function ExamCard({ terminalId, examId, onError }: { terminalId: string; examId:
                 ? "The paper arrived as sealed ciphertext and is being checked, question by question, against the blockchain-committed root. Nothing renders unless every question matches."
                 : "The paper is verified and held sealed on this device. It can only be decrypted at the synchronized start beacon (T₀) — the same instant for every candidate in the country. This screen advances on its own."}
             </p>
+            <RootProvenanceBadge provenance={provenance} />
           </div>
         </div>
       </div>

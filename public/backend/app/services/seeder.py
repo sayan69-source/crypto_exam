@@ -496,6 +496,20 @@ async def _seed_questions(db: AsyncSession, exams: list[Exam]) -> int:
         if exam.status == ExamStatus.DRAFT:
             continue
 
+        # Draw IRT parameters INSIDE the exam's own declared constraints. They
+        # used to come from fixed ranges that ignored irt_config, so a seeded
+        # exam declaring min_a=1.0 could contain a question with a=0.93 — and
+        # the difficulty proof then correctly refused to prove the paper, making
+        # the demo look broken when it was in fact working.
+        cfg = exam.irt_config or {}
+        target_b = float(cfg.get("target_mean_b", 0.0))
+        min_a = float(cfg.get("min_a", 0.8))
+        max_c = float(cfg.get("max_c", 0.25))
+        tolerance = float(cfg.get("tolerance", 1.0))
+        # Keep the spread comfortably inside the tolerance so the mean lands in
+        # range for every set, not just on average.
+        spread = min(0.8, tolerance / 2)
+
         for i, sq in enumerate(sample_questions):
             for set_label in ["A", "B", "C", "D"]:
                 question = Question(
@@ -510,9 +524,9 @@ async def _seed_questions(db: AsyncSession, exams: list[Exam]) -> int:
                     subject=sq["subject"],
                     topic=sq["topic"],
                     blooms_level=sq["blooms"],
-                    irt_b=round(random.gauss(0.2, 0.8), 3),
-                    irt_a=round(random.uniform(0.8, 2.5), 3),
-                    irt_c=round(random.uniform(0.15, 0.25), 3),
+                    irt_b=round(max(-3.0, min(3.0, random.gauss(target_b, spread / 2))), 3),
+                    irt_a=round(random.uniform(min_a, max(min_a + 0.1, 2.5)), 3),
+                    irt_c=round(random.uniform(max(0.0, max_c - 0.1), max_c), 3),
                     source=QuestionSource.AI_GENERATED,
                     generation_model="mock-bank",
                     is_accepted=True,

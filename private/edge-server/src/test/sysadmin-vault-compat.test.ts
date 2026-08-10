@@ -30,6 +30,7 @@ const hq = generateKeyPairSync("rsa", {
 
 const signer = makeNodeSigner(new Uint8Array(32).fill(9));
 const CENTRE = "11111111-1111-1111-1111-111111111111";
+const REGISTRY = new Map([[CENTRE, signer.publicKey]]);
 const EXAM = "44444444-4444-4444-4444-444444444444";
 
 // §11.2 record R: the questions travel WITH the responses inside the seal.
@@ -76,8 +77,8 @@ function buildBundle(count: number): SyncBundle {
 test("portal vault ingests an Edge-built bundle and matches hq/vault.ts exactly", () => {
   const bundle = buildBundle(3);
 
-  const edgeResult = ingest(structuredClone(bundle), hq.privateKey);
-  const portalResult = ingestBundle(structuredClone(bundle), hq.privateKey);
+  const edgeResult = ingest(structuredClone(bundle), hq.privateKey, REGISTRY);
+  const portalResult = ingestBundle(structuredClone(bundle), hq.privateKey, REGISTRY);
 
   assert.equal(portalResult.ok, true);
   assert.ok(portalResult.steps.every((s) => s.ok), "every verification step passed");
@@ -105,7 +106,7 @@ test("portal vault refuses a tampered ciphertext at MANIFEST_HASH — zero decry
   const bundle = buildBundle(2);
   const ct = bundle.manifest.records[0]!.ciphertext;
   bundle.manifest.records[0]!.ciphertext = (ct[0] === "0" ? "1" : "0") + ct.slice(1);
-  const r = ingestBundle(bundle, hq.privateKey);
+  const r = ingestBundle(bundle, hq.privateKey, REGISTRY);
   assert.equal(r.ok, false);
   assert.equal(r.refusedBy, "MANIFEST_HASH");
   assert.equal(r.decrypted.length, 0);
@@ -117,7 +118,7 @@ test("portal vault refuses a broken chain even with a re-signed manifest (INV-9)
   const manifestHash = sha256(utf8.encode(canonicalJson(bundle.manifest)));
   bundle.manifestHash = toHex(manifestHash);
   bundle.nodeSig = toHex(signer.signRoot(manifestHash));
-  const r = ingestBundle(bundle, hq.privateKey);
+  const r = ingestBundle(bundle, hq.privateKey, REGISTRY);
   assert.equal(r.ok, false);
   assert.equal(r.refusedBy, "CHAIN_WALK");
   assert.equal(r.decrypted.length, 0);
@@ -130,7 +131,7 @@ test("portal vault refuses the wrong HSM key — zero decrypts survive", () => {
     publicKeyEncoding: { type: "spki", format: "pem" },
     privateKeyEncoding: { type: "pkcs8", format: "pem" },
   });
-  const r = ingestBundle(bundle, wrong);
+  const r = ingestBundle(bundle, wrong, REGISTRY);
   assert.equal(r.ok, false);
   assert.equal(r.refusedBy, "HSM_DECRYPT");
   assert.equal(r.decrypted.length, 0);
@@ -140,7 +141,7 @@ test("portal vault refuses a forged node signature", () => {
   const bundle = buildBundle(1);
   const forged = makeNodeSigner(new Uint8Array(32).fill(13)); // not the centre's key
   bundle.nodeSig = toHex(forged.signRoot(sha256(utf8.encode(canonicalJson(bundle.manifest)))));
-  const r = ingestBundle(bundle, hq.privateKey);
+  const r = ingestBundle(bundle, hq.privateKey, REGISTRY);
   assert.equal(r.ok, false);
   assert.equal(r.refusedBy, "NODE_SIGNATURE");
   assert.equal(r.decrypted.length, 0);

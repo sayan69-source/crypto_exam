@@ -12,8 +12,10 @@
  *   masterSeed  = HKDF-SHA256(beacon, salt=hkdfSalt, info="cryptoexam:"+examId)
  *   questionKey = HKDF-SHA256(masterSeed, salt=examId, info="cryptoexam:q:"+id)
  *   cipher      = AES-GCM-256, 12-byte IV, 16-byte tag (stored separately)
- *   leaf        = SHA-256(utf8(id) ‖ iv ‖ ct ‖ tag)
- *   root        = Merkle over leaves, pair = SHA-256(left ‖ right)
+ *   leaf        = SHA-256(0x00 ‖ len(id)‖id ‖ len(iv)‖iv ‖ len(ct)‖ct ‖ len(tag)‖tag)
+ *   root        = Merkle over leaves, pair = SHA-256(0x01 ‖ left ‖ right)
+ *
+ * The tags and length prefixes are load-bearing; see LEAF_TAG below.
  */
 const enc = new TextEncoder();
 const subtle = globalThis.crypto.subtle;
@@ -44,6 +46,54 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 async function sha256(d: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await subtle.digest("SHA-256", d as BufferSource));
 }
+
+/**
+ * Domain tags and length prefixes for the question commitment.
+ *
+ * The old construction was `SHA-256(id ‖ iv ‖ ct ‖ tag)` with two
+ * variable-length fields, no separators and no tag. Two consequences, both real:
+ *
+ *  1. **The leaf was not injective.** Slide the id/iv boundary one byte left and
+ *     let `ct` absorb it: ("Q17", iv, ct, tag) and ("Q1", "7"‖iv[0..11],
+ *     iv[11]‖ct, tag) hash identically, and both are structurally valid items.
+ *     `question_id` is what the per-question key derives from and what the
+ *     candidate is shown, so one Merkle proof "committed" to more than one
+ *     question. Moving the ct/tag boundary is the same trick and the item still
+ *     decrypts.
+ *  2. **Leaves and internal nodes were indistinguishable.** An internal node is
+ *     SHA-256 over exactly 64 bytes; an attacker picks the field lengths, so a
+ *     64-byte leaf preimage IS an internal node — the classic Merkle
+ *     second-preimage weakness. Verified by construction: with id="" (0) +
+ *     iv(12) + ct(36) + tag(16) the leaf hash equals SHA-256(left‖right).
+ *
+ * A 4-byte big-endian length before each field makes the encoding injective; the
+ * 0x00/0x01 tags make a leaf preimage unable to collide with an internal one.
+ */
+const LEAF_TAG = 0x00;
+const NODE_TAG = 0x01;
+
+function u32be(n: number): Uint8Array {
+  return new Uint8Array([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
+}
+
+/** Length-prefixed, domain-separated question leaf. */
+export async function questionLeaf(
+  id: string, iv: Uint8Array, ct: Uint8Array, tag: Uint8Array,
+): Promise<Uint8Array> {
+  const idBytes = enc.encode(id);
+  return sha256(concat(
+    new Uint8Array([LEAF_TAG]),
+    u32be(idBytes.length), idBytes,
+    u32be(iv.length), iv,
+    u32be(ct.length), ct,
+    u32be(tag.length), tag,
+  ));
+}
+
+/** Domain-separated internal node. */
+export async function hashNode(left: Uint8Array, right: Uint8Array): Promise<Uint8Array> {
+  return sha256(concat(new Uint8Array([NODE_TAG]), left, right));
+}
 async function hkdf(ikm: Uint8Array, salt: Uint8Array, info: string, bytes = 32): Promise<Uint8Array> {
   const key = await subtle.importKey("raw", ikm as BufferSource, "HKDF", false, ["deriveBits"]);
   const bits = await subtle.deriveBits(
@@ -69,14 +119,28 @@ async function merkle(leaves: Uint8Array[]): Promise<{ root: Uint8Array; proofs:
     for (let i = 0; i < level.length; i += 2) {
       const hasRight = i + 1 < level.length;
       const left = level[i]!;
-      const right = hasRight ? level[i + 1]! : level[i]!; // duplicate last if odd
       const leftLeaves = idxMap[i]!;
-      const rightLeaves = hasRight ? idxMap[i + 1]! : idxMap[i]!;
+
+      // An odd node is promoted unchanged, NOT duplicated.
+      //
+      // `right = level[i]` on an odd level is CVE-2012-2459: [A,B,C] and
+      // [A,B,C,C] hash to the same root, so `questionsRoot` did not uniquely
+      // commit to the question set — a 3-question paper and a 4-question paper
+      // could share a root. Carrying the orphan up a level keeps the tree
+      // unambiguous and costs nothing.
+      if (!hasRight) {
+        next.push(left);
+        nextIdx.push([...leftLeaves]);
+        continue;
+      }
+
+      const right = level[i + 1]!;
+      const rightLeaves = idxMap[i + 1]!;
       // every leaf under `left` gets the right node as a right-sibling, & vice versa
       for (const li of leftLeaves) proofs[li]!.push({ hash: toHex(right), position: "right" });
-      if (hasRight) for (const ri of rightLeaves) proofs[ri]!.push({ hash: toHex(left), position: "left" });
-      next.push(await sha256(concat(left, right)));
-      nextIdx.push(hasRight ? [...leftLeaves, ...rightLeaves] : [...leftLeaves]);
+      for (const ri of rightLeaves) proofs[ri]!.push({ hash: toHex(left), position: "left" });
+      next.push(await hashNode(left, right));
+      nextIdx.push([...leftLeaves, ...rightLeaves]);
     }
     level = next;
     idxMap = nextIdx;
@@ -101,7 +165,7 @@ export async function sealExam(
     const sealed = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, pt as BufferSource));
     const ct = sealed.slice(0, sealed.length - 16);
     const tag = sealed.slice(sealed.length - 16);
-    const leaf = await sha256(concat(enc.encode(q.id), iv, ct, tag));
+    const leaf = await questionLeaf(q.id, iv, ct, tag);
     leaves.push(leaf);
     items.push({ question_id: q.id, sequence_number: i + 1, iv: toHex(iv), ct: toHex(ct), tag: toHex(tag), leaf: toHex(leaf) });
   }

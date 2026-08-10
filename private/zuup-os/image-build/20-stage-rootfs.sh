@@ -51,8 +51,9 @@ rm -rf "$ROOT"; mkdir -p "$ROOT"
 FACE="${ZUUP_FACE:-cv}"
 [[ "${1:-}" == "--no-face" ]] && FACE=none
 
+#   libgl1-mesa-dri    : the DRI/llvmpipe drivers wlroots' EGL renderer binds to
 PKGS="systemd,systemd-sysv,udev,dbus,libpam-systemd,\
-cage,seatd,fonts-dejavu-core,${BROWSER_PKG},\
+cage,seatd,libgl1-mesa-dri,fonts-dejavu-core,${BROWSER_PKG},\
 wireguard-tools,nftables,iproute2,usbguard,\
 apparmor,apparmor-profiles,libpam-apparmor,\
 tpm2-tools,\
@@ -113,6 +114,11 @@ done
 # ── 4. daemons + scripts ───────────────────────────────────────────────────
 inst 0755 "$ZOS/security/systemd/zuup-heartbeatd.sh"  usr/lib/zuup/zuup-heartbeatd.sh
 inst 0755 "$ZOS/security/kiosk/zuup-kiosk-launch.sh"  usr/lib/zuup/zuup-kiosk-launch.sh
+# The launcher's last-resort surface: a local page naming why no centre was
+# reached. Without it a terminal that cannot find its Edge shows Firefox's own
+# "Server not found", which is indistinguishable from a broken image and cannot
+# be triaged on a machine with no shell.
+inst 0644 "$ZOS/security/kiosk/no-centre.html"        usr/share/zuup/kiosk/no-centre.html
 inst 0755 "$ZOS/boot/attest/zuup-attest.sh"           usr/lib/zuup/zuup-attest.sh
 inst 0755 "$ZOS/biometric/zuup-biometricd.py"         usr/lib/zuup/zuup-biometricd.py
 inst 0755 "$ZOS/biometric/face_engine_cv.py"          usr/lib/zuup/face_engine_cv.py
@@ -179,16 +185,48 @@ VARIANT="$([[ $DEV == 1 ]] && echo dev || echo production)"
 EOF
 ln -sf ../usr/lib/os-release "$ROOT/etc/os-release"
 
+# A one-word variant marker the RUNTIME can read. os-release only distinguishes
+# dev from production, but the thing an operator needs to know when a terminal
+# reaches no centre is whether this image was ever supposed to carry one — a
+# thin image looking for an Edge appliance that isn't there looks identical to a
+# broken all-in-one. Stage 25 overwrites this with `allinone`.
+printf '%s\n' "$([[ $DEV == 1 ]] && echo dev || echo production)" > "$ROOT/etc/zuup/image-variant"
+
 # §7.3: no package manager, no compiler, no editor, no rescue tooling ships.
 chroot "$ROOT" bash -c 'apt-get -y purge apt apt-utils >/dev/null 2>&1 || true; \
   dpkg --purge --force-all dpkg >/dev/null 2>&1 || true' || true
 rm -rf "$ROOT"/usr/bin/{apt,apt-get,apt-cache,dpkg,dpkg-deb,perl*} \
        "$ROOT"/var/lib/apt "$ROOT"/var/cache/apt "$ROOT"/usr/share/{doc,man,locale} 2>/dev/null || true
 
+# §7.3 (defence-in-depth): remove the interactive identity / session-entry tools
+# the Debian base drags in. The login/getty/rescue *units* are already masked
+# (step 7) and 0 setuid binaries remain, but an immutable exam terminal has no
+# legitimate reason to switch user or open a session, so the BINARIES go too —
+# closing the gap between the "no login surface" claim and reality (shadow ships
+# su/login/passwd; util-linux ships agetty/nsenter). Kept on purpose: /bin/sh
+# (dash) for unit scripts, bash for zuup-attest + zuup-heartbeatd, runuser +
+# nologin for the service accounts and the all-in-one db unit.
+echo "[zuup-os] removing interactive/escalation binaries (su/login/agetty/…)…"
+rm -f "$ROOT"/usr/bin/{su,newgrp,chsh,chfn,passwd,nsenter,chage,expiry,gpasswd,sg,setpriv} \
+      "$ROOT"/usr/bin/login "$ROOT"/usr/sbin/agetty "$ROOT"/sbin/agetty 2>/dev/null || true
+# Remove the now-orphaned PAM stanzas too: with the binaries gone nothing
+# consults them, but a locked image should carry no auth policy for logins
+# that cannot happen.
+rm -f "$ROOT"/etc/pam.d/{su,su-l,login,passwd,chsh,chfn,newgrp} 2>/dev/null || true
+
 # §7.3: no setuid binaries (stage 30's build-image.sh re-asserts and FAILS hard).
 echo "[zuup-os] neutralising setuid bits…"
 find "$ROOT" -xdev -perm -4000 -type f -print -exec chmod u-s {} + || true
 find "$ROOT" -xdev -perm -2000 -type f -exec chmod g-s {} + || true
+
+# Enforce the removal: a build that still ships a session/identity tool FAILS,
+# same discipline as the setuid assert — the claim must be true, not aspirational.
+for b in su login agetty newgrp nsenter passwd; do
+  for d in usr/bin usr/sbin sbin bin; do
+    [[ -e "$ROOT/$d/$b" ]] && { echo "[zuup-os] FAIL: /$d/$b survived the §7.3 strip" >&2; exit 1; }
+  done
+done
+echo "[zuup-os] §7.3 login-surface strip verified (no su/login/agetty/newgrp/nsenter/passwd)"
 
 # ── 9. DEV ONLY: drop-ins so the image boots the Gate without a real Edge ───
 # These NEVER touch the production variant. They relax exactly two fail-closed

@@ -1,0 +1,216 @@
+<!doctype html>
+<!--
+  ZUUP-OS all-in-one — operator role chooser (DEMO IMAGE ONLY).
+
+  A production terminal is ONE role, decided by the identity baked into its
+  signed image and confirmed by the Edge (security/kiosk/zuup-kiosk-launch.sh).
+  That property is the point of the tiering and this page does not weaken it:
+  the all-in-one is a single laptop standing in for a whole centre, so it needs
+  a way to present each operator surface in turn.
+
+  What this page does NOT do is grant anything. It only selects WHICH terminal
+  identity this browser presents; the Edge still answers with that terminal's
+  capability, and every portal still runs its own match-all login against the
+  seeded identity bound to that station. Choosing "Centre Admin" here does not
+  make you a Centre Admin — it opens the admin station's login, which then has
+  to pass.
+
+  Served as a static file by the in-image proxy (security/allinone/Caddyfile),
+  so it answers as soon as Caddy is listening — before the Node portals have
+  finished booting. It never ships in the production image.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZUUP-OS · operator roles</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: #f6f8fb; color: #0f172a;
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 34px 24px 48px;
+  }
+  main { max-width: 940px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -.01em; }
+  .pill {
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 6px 10px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+  }
+  .pill.probing { color: #92400e; background: #fef3c7; border-color: #fcd34d; }
+  .pill.online  { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
+  .pill.offline { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+  .lede { margin: 0 0 26px; color: #64748b; max-width: 68ch; }
+
+  .roles { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+  button.role {
+    text-align: left; font: inherit; cursor: pointer;
+    background: #fff; border: 1px solid #dbe3ec; border-radius: 14px;
+    padding: 20px; display: grid; gap: 6px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  button.role:hover  { border-color: #1e40af; box-shadow: 0 4px 14px rgba(30, 64, 175, .12); }
+  button.role:focus-visible { outline: 3px solid #1e40af; outline-offset: 2px; }
+  .role .name { font-size: 18px; font-weight: 650; }
+  .role .seat {
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .08em; color: #1e40af; background: #e8eeff;
+    padding: 5px 8px; border-radius: 6px; justify-self: start;
+  }
+  .role .what { color: #64748b; font-size: 14px; }
+
+  h2 { margin: 34px 0 12px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #64748b; }
+  .seats { display: flex; flex-wrap: wrap; gap: 8px; }
+  .seats button {
+    font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    cursor: pointer; padding: 10px 13px; border-radius: 8px;
+    border: 1px solid #6ee7b7; background: #d1fae5; color: #065f46;
+  }
+  .seats button:hover { border-color: #059669; }
+  .muted { color: #94a3b8; font-size: 14px; margin: 0; }
+
+  form.manual { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  form.manual input {
+    flex: 1 1 340px; padding: 11px 13px; border-radius: 8px; border: 1px solid #cbd5e1;
+    font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  form.manual button {
+    padding: 11px 18px; border-radius: 8px; border: 1px solid #1e40af;
+    background: #1e40af; color: #fff; font: 600 14px/1 inherit; cursor: pointer;
+  }
+  footer {
+    margin-top: 36px; padding-top: 18px; border-top: 1px solid #e2e8f0;
+    color: #94a3b8; font-size: 13px;
+  }
+  kbd {
+    font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 5px;
+    padding: 3px 6px; background: #fff; color: #475569;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Examination terminal · operator roles</h1>
+    <span id="edge" class="pill probing">Contacting centre edge…</span>
+  </header>
+  <p class="lede">
+    This single machine is standing in for a whole examination centre. Pick the
+    operator surface to open. Each one still authenticates on its own — the
+    choice here only decides which terminal identity this seat presents.
+  </p>
+
+  <div class="roles">
+    <button class="role" onclick="open_('55555555-5555-5555-5555-555555555555', 'gate')">
+      <span class="seat">INV-1 · INVIGILATOR_STATION</span>
+      <span class="name">Centre Invigilator</span>
+      <span class="what">Roster of 487 candidates, biometric check-in, random seat assignment, live seat map and incidents.</span>
+    </button>
+
+    <button class="role" onclick="open_('22222222-2222-2222-2222-222222222222', 'admin')">
+      <span class="seat">ADM-1 · ADMIN_STATION</span>
+      <span class="name">Centre Admin</span>
+      <span class="what">Approvals queue, centre counts, blind-courier ledger, egress gate and identity revocation.</span>
+    </button>
+
+    <button class="role" onclick="open_('77777777-7777-7777-7777-777777777777', 'gate')">
+      <span class="seat">A-77 · CANDIDATE_SEAT</span>
+      <span class="name">Candidate seat</span>
+      <span class="what">Waits for the invigilator to assign it, then opens roll + date-of-birth login and the sealed paper.</span>
+    </button>
+  </div>
+
+  <h2>Seats assigned right now</h2>
+  <div class="seats" id="seats"></div>
+  <p class="muted" id="seats-note">
+    Sign in as the invigilator and check a candidate in — the seat that gets
+    assigned appears here, ready to open as that candidate.
+  </p>
+
+  <h2>Open a specific terminal</h2>
+  <form class="manual" onsubmit="manual(event)">
+    <input id="tid" placeholder="terminal uuid" spellcheck="false" autocomplete="off">
+    <button type="submit">Open</button>
+  </form>
+
+  <footer>
+    Press <kbd>Alt</kbd>+<kbd>Home</kbd> from any surface to come back to this
+    chooser, or <kbd>Alt</kbd>+<kbd>←</kbd> to go back one step. This page exists
+    only in the all-in-one demo image; a production terminal boots into exactly
+    one role and has no chooser.
+  </footer>
+</main>
+
+<script>
+  var TERMINAL_KEY = "zuup_terminal_id";      // read by exam-terminal/lib/edge.ts
+  var TOKEN_KEY = "zuup_terminal_session";    // set by the invigilator login
+
+  // Selecting a role = presenting a terminal identity. The Edge still decides
+  // what that identity may do, so this cannot escalate anything.
+  function open_(id, dest) {
+    try { localStorage.setItem(TERMINAL_KEY, id); } catch (e) {}
+    location.href = dest === "admin" ? "/admin/" : "/?terminal=" + encodeURIComponent(id);
+  }
+
+  function manual(e) {
+    e.preventDefault();
+    var v = document.getElementById("tid").value.trim();
+    if (v) open_(v, "gate");
+  }
+
+  // ── live centre status ───────────────────────────────────────────────────
+  var edge = document.getElementById("edge");
+  function health() {
+    fetch("/api/health", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var ok = j && j.ok === true;
+        edge.className = "pill " + (ok ? "online" : "offline");
+        edge.textContent = ok ? "Centre edge online" : "Centre edge offline";
+        if (ok) seats();
+      })
+      .catch(function () {
+        edge.className = "pill offline";
+        edge.textContent = "Centre edge starting…";
+      });
+  }
+
+  // ── seats the invigilator has already assigned ───────────────────────────
+  // The seat map is invigilator-only on the Edge. This page is the SAME origin
+  // and the SAME tab as the console, so if an invigilator has signed in during
+  // this session its token is right there in sessionStorage — we reuse it
+  // rather than adding an unauthenticated endpoint. No session, no list.
+  function seats() {
+    var token = null;
+    try { token = sessionStorage.getItem(TOKEN_KEY); } catch (e) {}
+    if (!token) return;
+    fetch("/api/centre/seatmap", { headers: { authorization: "Bearer " + token }, cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.seats) return;
+        var assigned = j.seats.filter(function (s) { return s.state === "ASSIGNED"; });
+        var box = document.getElementById("seats");
+        var note = document.getElementById("seats-note");
+        box.innerHTML = "";
+        if (!assigned.length) return;
+        note.textContent = "Open one of these as the candidate sitting at it.";
+        assigned.forEach(function (s) {
+          var b = document.createElement("button");
+          b.textContent = s.seatNo;
+          b.onclick = function () { open_(s.terminalId, "gate"); };
+          box.appendChild(b);
+        });
+      })
+      .catch(function () {});
+  }
+
+  health();
+  setInterval(health, 4000);
+</script>
+</body>
+</html>

@@ -45,7 +45,14 @@ CONSOLE="${ZUUP_CONSOLE:-null}"
 if [[ "$CONSOLE" == "null" ]]; then
   CONSOLE_ARGS="console=null quiet loglevel=0"
 else
-  CONSOLE_ARGS="console=${CONSOLE} loglevel=7 systemd.show_status=1 systemd.log_level=info systemd.log_target=console"
+  # systemd logs to KMSG, not the console: with multiple console= devices
+  # (serial for the QEMU smoke scraper + tty0 for a dev laptop's screen) only
+  # the LAST one is /dev/console, so log_target=console would make the boot
+  # transcript invisible on the others. kmsg lines are broadcast by the kernel
+  # to every registered console. printk.devkmsg=on stops PID1's burst of unit
+  # messages being rate-limit dropped. Dev/test builds only — production is
+  # console=null and logs nothing anywhere.
+  CONSOLE_ARGS="console=${CONSOLE} loglevel=7 systemd.show_status=1 systemd.log_level=info systemd.log_target=kmsg printk.devkmsg=on"
 fi
 
 # The locked cmdline (§7.2): verity-rooted rootfs, kernel lockdown.

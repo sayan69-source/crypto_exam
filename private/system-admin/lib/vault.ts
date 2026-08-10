@@ -136,7 +136,11 @@ export interface IngestResult {
  * check stops the ingest with zero decrypts — a bundle that cannot prove its
  * integrity never reaches the private key.
  */
-export function ingestBundle(bundle: SyncBundle, systemAdminPrivKeyPem: string): IngestResult {
+export function ingestBundle(
+  bundle: SyncBundle,
+  systemAdminPrivKeyPem: string,
+  centreKeys: ReadonlyMap<string, Uint8Array>,
+): IngestResult {
   const steps: IngestStep[] = [];
   const refuse = (name: string, detail: string): IngestResult => {
     steps.push({ name, ok: false, detail });
@@ -151,12 +155,31 @@ export function ingestBundle(bundle: SyncBundle, systemAdminPrivKeyPem: string):
   }
   steps.push({ name: "MANIFEST_HASH", ok: true, detail: `sha256 ${bundle.manifestHash.slice(0, 16)}…` });
 
-  if (!verifyNodeSig(fromHex(bundle.nodePubkey), manifestHash, fromHex(bundle.nodeSig))) {
+  // …signed with the key HQ registered for that centre. Verifying against
+  // `bundle.nodePubkey` would check the signature with a key the signer chose,
+  // which proves only that they can run Ed25519.
+  const expectedKey = centreKeys.get(bundle.manifest.centreId);
+  if (!expectedKey) {
+    return refuse("NODE_SIGNATURE", `no signing key registered for centre ${bundle.manifest.centreId}`);
+  }
+  if (bundle.nodePubkey && bundle.nodePubkey.toLowerCase() !== toHex(expectedKey)) {
+    return refuse("NODE_SIGNATURE", "bundle carries a node key that is not the one registered for this centre");
+  }
+  if (!verifyNodeSig(expectedKey, manifestHash, fromHex(bundle.nodeSig))) {
     return refuse("NODE_SIGNATURE", "centre node signature over the manifest is invalid");
   }
-  steps.push({ name: "NODE_SIGNATURE", ok: true, detail: `Ed25519 by node ${bundle.nodePubkey.slice(0, 16)}…` });
+  const registeredPubkey = toHex(expectedKey);
+  steps.push({ name: "NODE_SIGNATURE", ok: true, detail: `Ed25519 by registered node ${registeredPubkey.slice(0, 16)}…` });
 
   const { centreId, records } = bundle.manifest;
+  if (bundle.manifest.count !== records.length) {
+    return refuse(
+      "MANIFEST_COUNT",
+      `manifest declares ${bundle.manifest.count} records but carries ${records.length} — answers may have been dropped before export`,
+    );
+  }
+  steps.push({ name: "MANIFEST_COUNT", ok: true, detail: `${records.length} records, as declared` });
+
   const centreIdHash = toHex(sha256(utf8.encode(centreId)));
 
   // group by exam — each exam has its own chain + anchor
@@ -216,7 +239,9 @@ export function ingestBundle(bundle: SyncBundle, systemAdminPrivKeyPem: string):
 
     // 5 — NO-PII anchor payload (§11.5): roots/counts/hashes only.
     const last = rs[rs.length - 1]!;
-    anchors.push({ centreIdHash, examId, answerRoot: last.chainRoot, count: rs.length, nodePubkey: bundle.nodePubkey });
+    // The REGISTERED key — anchoring the bundle's would publish an attacker's
+    // key on-chain as the centre's attestation key.
+    anchors.push({ centreIdHash, examId, answerRoot: last.chainRoot, count: rs.length, nodePubkey: registeredPubkey });
   }
 
   // DPDP guard: refuse to emit an anchor that smells like PII (§11.6).

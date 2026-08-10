@@ -28,11 +28,53 @@ from app.models import (
     Exam, ExamStatus, Question, QuestionSource,
     Session, Enrollment,
 )
+from app.config import get_settings
 from crypto.merkle import generate_leaf, build_tree, verify_inclusion, root_hex
 from crypto.encryption import QuestionEncryptor
 from crypto.zk_proof import ZKProofManager
 
 logger = logging.getLogger(__name__)
+
+
+class CapabilityUnavailable(Exception):
+    """
+    A cryptographic capability this host cannot provide.
+
+    Raised instead of returning a convincing-looking substitute. Carries a
+    machine-readable `reason` so an API layer can surface the specific missing
+    capability rather than a generic 500 — the caller should be able to tell
+    "the circuit was never built here" from "something broke".
+    """
+
+    def __init__(self, reason: str, message: str, **context):
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+        self.context = {k: v for k, v in context.items() if v is not None}
+
+
+class ZKProofUnavailable(CapabilityUnavailable):
+    """No Groth16 proving key on this host — see public/circuits/build.sh."""
+
+
+class PaperNotCompliant(Exception):
+    """
+    The paper does not satisfy the exam's own IRT constraints.
+
+    Not a capability gap and not a bug: the circuit is refusing to prove a false
+    statement, which is the entire point of it. Checked in Python first so the
+    setter gets "question 3 has a=0.93 below your minimum of 1.0" rather than
+    snarkjs's `Error in template DifficultyProof line: 75`.
+    """
+
+    def __init__(self, violations: list[dict], set_label: str, targets: dict):
+        super().__init__(
+            f"Set {set_label} violates the exam's IRT constraints "
+            f"({len(violations)} problem(s))."
+        )
+        self.violations = violations
+        self.set_label = set_label
+        self.targets = targets
 
 
 class ExamLifecycleService:
@@ -46,6 +88,7 @@ class ExamLifecycleService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.settings = get_settings()
 
     # ═══════════════════════════════════════════════════════
     # Phase 1: Question Generation → Hash → Store
@@ -121,28 +164,74 @@ class ExamLifecycleService:
     async def generate_and_store_zk_proof(
         self,
         exam_id: UUID,
+        set_label: str = "A",
     ) -> dict:
         """
-        Generate a ZK-SNARK difficulty proof for the exam's questions.
+        Generate a ZK-SNARK difficulty proof for one paper SET.
 
         Proves that the IRT parameters satisfy the exam's constraints
         without revealing the questions or their parameters.
+
+        Scoped to a set on purpose. A candidate sits one set, so "this paper is
+        on-target" is a claim about that set; proving over the union of A/B/C/D
+        would be a claim about a paper nobody sits, and it can hold for the union
+        while an individual set is off-target — which is precisely the set-
+        advantage fraud the BalancerAgent exists to catch.
 
         Returns:
             Dict with proof_hash, proof data, and verification status.
         """
         exam = await self._get_exam(exam_id)
 
-        # Fetch all accepted questions for this exam
         result = await self.db.execute(
             select(Question)
-            .where(Question.exam_id == exam_id, Question.is_accepted == True)
+            .where(
+                Question.exam_id == exam_id,
+                Question.is_accepted == True,
+                Question.set_label == set_label,
+            )
             .order_by(Question.sequence_number)
         )
         questions = result.scalars().all()
 
+        # Papers authored before sets existed carry no label; fall back to the
+        # whole paper rather than reporting an empty set.
+        if not questions and set_label == "A":
+            questions = (await self.db.execute(
+                select(Question)
+                .where(
+                    Question.exam_id == exam_id,
+                    Question.is_accepted == True,
+                    Question.set_label.is_(None),
+                )
+                .order_by(Question.sequence_number)
+            )).scalars().all()
+
         if not questions:
-            raise ValueError(f"No accepted questions found for exam {exam_id}")
+            raise ValueError(
+                f"No accepted questions in set {set_label} of exam {exam_id}"
+            )
+
+        # The compiled circuit proves a paper of exactly N questions — N is baked
+        # into the r1cs, the proving key and the deployed verifier. Proving over a
+        # subset would be a claim about part of the paper dressed up as a claim
+        # about the paper, so a mismatch is refused rather than trimmed.
+        circuit_n = ZKProofManager.circuit_size()
+        if circuit_n is not None and len(questions) != circuit_n:
+            raise ZKProofUnavailable(
+                "ZK_CIRCUIT_SIZE_MISMATCH",
+                (
+                    f"The built circuit proves sets of exactly {circuit_n} questions; "
+                    f"set {set_label} of this exam has {len(questions)}. Refusing to "
+                    f"prove over a subset — that would be a claim about {circuit_n} "
+                    f"questions presented as a claim about the paper. Rebuild the "
+                    f"circuit for this size (circuits/difficulty_proof.circom, last "
+                    f"line), redeploy the verifier, or set the paper to {circuit_n}."
+                ),
+                circuit_questions=circuit_n,
+                set_label=set_label,
+                set_questions=len(questions),
+            )
 
         # Extract IRT parameters
         irt_params = []
@@ -179,22 +268,106 @@ class ExamLifecycleService:
             "tolerance": tolerance,
         }
 
+        # Check the statement before trying to prove it. The circuit will refuse
+        # a non-compliant paper either way, but it refuses by failing witness
+        # calculation with a line number, which surfaced as an opaque 500. The
+        # setter needs to know WHICH question is off-spec.
+        violations: list[dict] = []
+        for i, p in enumerate(irt_params, start=1):
+            if p["a"] < min_a:
+                violations.append({
+                    "question": i, "constraint": "min_a",
+                    "value": round(p["a"], 3), "required": f">= {min_a}",
+                })
+            if p["c"] > max_c:
+                violations.append({
+                    "question": i, "constraint": "max_c",
+                    "value": round(p["c"], 3), "required": f"<= {max_c}",
+                })
+        mean_b = sum(p["b"] for p in irt_params) / len(irt_params)
+        if abs(mean_b - target_mean_b) > tolerance:
+            violations.append({
+                "question": None, "constraint": "mean_b",
+                "value": round(mean_b, 3),
+                "required": f"{target_mean_b} ± {tolerance}",
+            })
+        if violations:
+            raise PaperNotCompliant(violations, set_label, irt_targets)
+
         witness = zk_manager.prepare_witness(questions_for_witness, irt_targets)
 
-        # Generate simulated proof (snarkjs may not be installed)
-        # In production, this calls: await zk_manager.generate_proof(witness)
+        # ── Groth16 proof ────────────────────────────────────────────────
+        # FAIL CLOSED. This used to fabricate a "proof" from Python's hash()
+        # and four literal field elements, and report it as `verified: True`.
+        # That is not a weak proof, it is not a proof at all — no verifier
+        # accepts it, and hash() is per-process randomised so it is not even
+        # reproducible. A fabricated artifact that looks real is worse than a
+        # missing one: it turns a known gap into a false claim.
+        #
+        # The real path is right here and always was; it needs the compiled
+        # circuit + proving key (public/circuits/build.sh) and snarkjs on PATH.
         import time as _t
         start_time = _t.time()
+
+        artifacts_ready = zk_manager.wasm_path.exists() and zk_manager.zkey_path.exists()
+        if artifacts_ready:
+            # generate_proof returns a ZKProofResult, not a dict — reshape it
+            # into the record _store_zk_proof persists. `verified` here is
+            # snarkjs's own check against the verifying key, so it is a fact
+            # about the proof rather than an assertion about it.
+            result = await zk_manager.generate_proof(witness)
+            proof_result = {
+                "proof": result.proof,
+                # Published verbatim: these are what the on-chain verifier is
+                # given, and what an auditor re-checks the claim against.
+                "public_signals": result.public_signals,
+                "public_inputs": {
+                    "committed_hash": witness["committed_hash"],
+                    "target_mean_b": target_mean_b,
+                    "min_a": min_a,
+                    "max_c": max_c,
+                    "tolerance": tolerance,
+                },
+                "verified": result.verified,
+                "simulated": False,
+                "generation_time_ms": (_t.time() - start_time) * 1000,
+            }
+            return await self._store_zk_proof(exam, exam_id, proof_result)
+
+        if not self.settings.ALLOW_SIMULATED_ZK_PROOF:
+            raise ZKProofUnavailable(
+                "ZK_CIRCUIT_NOT_BUILT",
+                (
+                    "No Groth16 proving key on this host, so no difficulty proof can be "
+                    "produced. Refusing to emit a placeholder — a fabricated proof would "
+                    "be presented as a verified one. Build the circuit first: "
+                    "bash public/circuits/build.sh (needs circom 2.1.6 + snarkjs)."
+                ),
+                missing=[
+                    str(zk_manager.wasm_path) if not zk_manager.wasm_path.exists() else None,
+                    str(zk_manager.zkey_path) if not zk_manager.zkey_path.exists() else None,
+                ],
+            )
+
+        # Explicitly enabled. Marked simulated and NOT verified at every layer,
+        # so no surface can render this as a satisfied guarantee.
+        logger.warning(
+            "ALLOW_SIMULATED_ZK_PROOF is set — emitting a PLACEHOLDER proof for exam %s. "
+            "It will not verify and must not be presented as a difficulty proof.", str(exam_id)[:8],
+        )
         simulated_proof = {
-            "pi_a": [str(hash(str(witness.get("irt_b", [])))), "1", "1"],
-            "pi_b": [["1", "0"], ["0", "1"], ["1", "1"]],
-            "pi_c": [str(hash(str(witness.get("irt_a", [])))), "1", "1"],
+            "pi_a": ["0", "0", "0"],
+            "pi_b": [["0", "0"], ["0", "0"], ["0", "0"]],
+            "pi_c": ["0", "0", "0"],
             "protocol": "groth16",
             "curve": "bn128",
+            "simulated": True,
+            "warning": "PLACEHOLDER — not a Groth16 proof. Will fail any verifier.",
         }
         gen_time_ms = (_t.time() - start_time) * 1000
 
         proof_result = {
+            "simulated": True,
             "proof": simulated_proof,
             "public_inputs": {
                 "committed_hash": witness.get("committed_hash", ""),
@@ -203,10 +376,16 @@ class ExamLifecycleService:
                 "max_c": max_c,
                 "tolerance": tolerance,
             },
-            "verified": True,
+            # NOT verified: nothing verified it. The old code hardcoded True
+            # here, which is how a placeholder came to be reported as a
+            # satisfied cryptographic guarantee.
+            "verified": False,
             "generation_time_ms": gen_time_ms,
         }
+        return await self._store_zk_proof(exam, exam_id, proof_result)
 
+    async def _store_zk_proof(self, exam, exam_id, proof_result: dict) -> dict:
+        """Hash, persist and return a proof result — real or explicitly simulated."""
         # Compute proof hash
         proof_payload = json.dumps(proof_result["proof"], sort_keys=True)
         proof_hash = hashlib.sha256(proof_payload.encode("utf-8")).digest()
@@ -214,6 +393,14 @@ class ExamLifecycleService:
         # Store in exam
         exam.zk_proof_hash = proof_hash
         exam.updated_at = datetime.now(timezone.utc)
+
+        # A verified proof is what moves a paper from "being written" to "ready
+        # to lock" — `lock_exam` requires PROOF_PENDING, and nothing was making
+        # that transition, so a successfully proved paper could never be locked.
+        # Only a genuinely verified proof advances it; a placeholder must not.
+        if proof_result.get("verified") and not proof_result.get("simulated"):
+            if exam.status in (ExamStatus.DRAFT, ExamStatus.GENERATING):
+                exam.status = ExamStatus.PROOF_PENDING
 
         await self.db.flush()
 
@@ -226,8 +413,12 @@ class ExamLifecycleService:
         return {
             "proof_hash": proof_hash.hex(),
             "proof": proof_result["proof"],
+            "public_signals": proof_result.get("public_signals", []),
             "public_inputs": proof_result.get("public_inputs", {}),
             "verified": proof_result.get("verified", False),
+            # Travels with the result so no caller, API response, or UI can
+            # render a placeholder as a real proof without going out of its way.
+            "simulated": proof_result.get("simulated", False),
             "generation_time_ms": proof_result.get("generation_time_ms", 0),
         }
 

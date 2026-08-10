@@ -19,6 +19,7 @@ import { buildApp } from "../../http.ts";
 import { issueToken } from "../../lib/token.ts";
 import type { EdgeConfig } from "../../config.ts";
 import { ingest, assertNoPii, IngestError, type SyncBundle } from "../../hq/vault.ts";
+import { fromHex } from "../../lib/crypto.ts";
 import { sealRecord, receiptNonce, type AnswerRecord } from "../../../../exam-terminal/lib/answer-seal.ts";
 
 const DB = process.env.DATABASE_URL;
@@ -120,8 +121,12 @@ test("Phase 10c: export → HQ ingest → decrypt R; anchor is PII-free; re-expo
   const raw = JSON.stringify(bundle).toLowerCase();
   assert.ok(!raw.includes("chosen_option"), "export must not contain plaintext answers");
 
-  // HQ verifies + decrypts with the private key (HSM stand-in).
-  const result = ingest(bundle, hq.privateKey);
+  // HQ verifies + decrypts with the private key (HSM stand-in). The centre's
+  // signing key is registered at HQ during provisioning — modelled here by
+  // taking it from the running Edge, which is the party that provisioning
+  // would have collected it from.
+  const REGISTRY = new Map([[bundle.manifest.centreId, fromHex(bundle.nodePubkey)]]);
+  const result = ingest(bundle, hq.privateKey, REGISTRY);
   assert.equal(result.decrypted.length, 3);
   const recovered = result.decrypted.map((d) => (d.record as AnswerRecord).subject_ref).sort();
   assert.deepEqual(recovered, ["seat:0", "seat:1", "seat:2"]);
@@ -164,7 +169,8 @@ test("Phase 10c: HQ rejects a tampered bundle (node sig + chain)", { skip }, asy
   const tampered: SyncBundle = JSON.parse(JSON.stringify(good));
   const ct = tampered.manifest.records[0]!.ciphertext;
   tampered.manifest.records[0]!.ciphertext = (ct[0] === "0" ? "1" : "0") + ct.slice(1);
-  assert.throws(() => ingest(tampered, hq.privateKey), (e) => e instanceof IngestError);
+  const REG = new Map([[tampered.manifest.centreId, fromHex(tampered.nodePubkey)]]);
+  assert.throws(() => ingest(tampered, hq.privateKey, REG), (e) => e instanceof IngestError);
 
   // a wrong HQ key cannot open even an untampered bundle
   const { privateKey: wrong } = generateKeyPairSync("rsa", {
@@ -172,5 +178,6 @@ test("Phase 10c: HQ rejects a tampered bundle (node sig + chain)", { skip }, asy
     publicKeyEncoding: { type: "spki", format: "pem" },
     privateKeyEncoding: { type: "pkcs8", format: "pem" },
   });
-  assert.throws(() => ingest(good, wrong));
+  const REG2 = new Map([[good.manifest.centreId, fromHex(good.nodePubkey)]]);
+  assert.throws(() => ingest(good, wrong, REG2));
 });
