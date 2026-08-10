@@ -6,6 +6,8 @@
  * security boundary — it only marshals bytes between the authenticator and the
  * API in the base64url shapes the backend expects.
  */
+import { describeApiError } from './errors';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export interface SysAdminStatus {
@@ -38,8 +40,7 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const d = json.detail;
-    throw new Error(typeof d === 'string' ? d : d?.message || d?.reason || `Request failed (${res.status})`);
+    throw new Error(describeApiError(json, res.status));
   }
   return json as T;
 }

@@ -4,6 +4,7 @@
  * to mock data: the admin console shows live backend state or an honest error.
  */
 import { getAuthToken } from './client';
+import { describeApiError } from './errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -15,7 +16,7 @@ async function get<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || body.message || `Request failed (${res.status})`);
+    throw new Error(describeApiError(body, res.status));
   }
   return res.json();
 }
@@ -96,7 +97,7 @@ async function post<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || body.message || `Request failed (${res.status})`);
+    throw new Error(describeApiError(body, res.status));
   }
   return res.json();
 }
@@ -113,7 +114,7 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || err.message || `Request failed (${res.status})`);
+    throw new Error(describeApiError(err, res.status));
   }
   return res.json();
 }

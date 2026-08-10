@@ -136,3 +136,19 @@
   line-height: 1.65;
   color: rgba(255, 255, 255, 0.45);
 }
+
+/* The way out of the "nobody is enrolled" state, made obvious rather than
+   buried in a sentence next to a form that cannot succeed. */
+.enrolCta {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(240, 168, 104, 0.16);
+  border: 1px solid rgba(240, 168, 104, 0.45);
+  color: #F5C89B;
+  font-weight: 600;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.enrolCta:hover { background: rgba(240, 168, 104, 0.26); }

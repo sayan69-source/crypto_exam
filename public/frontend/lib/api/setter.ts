@@ -6,6 +6,7 @@
  * honest error.
  */
 import { getAuthToken } from './client';
+import { describeApiError } from './errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -22,7 +23,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   });
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
-    throw new Error(b.detail || b.message || `Request failed (${res.status})`);
+    throw new Error(describeApiError(b, res.status));
   }
   return res.json();
 }

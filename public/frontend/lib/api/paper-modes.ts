@@ -7,6 +7,7 @@
  */
 
 import { getAuthToken, USE_MOCK } from './client';
+import { describeApiError } from './errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -123,8 +124,7 @@ export const paperModesApi = {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const d = body.detail;
-      throw new Error(typeof d === 'string' ? d : d?.message || `Could not lock the paper (${res.status}).`);
+      throw new Error(describeApiError(body, res.status));
     }
     return body as {
       ok: boolean;

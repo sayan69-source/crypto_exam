@@ -62,10 +62,17 @@ export default function SysAdminLoginPage() {
           </div>
         )}
 
+        {/* Nobody enrolled means signing in cannot succeed — there is no
+            credential to check a fingerprint against. The page used to say so
+            and then leave the sign-in form as the obvious thing to do, so the
+            only available action was the one guaranteed to fail. */}
         {status?.already_enrolled === false && (
           <div className={s.warn}>
-            No System Admin has been enrolled yet.{' '}
-            <Link href="/sysadmin/register">Enrol the first one</Link>.
+            <strong>No System Admin exists yet.</strong> There is nothing to sign in to —
+            the first tier-0 account has to be enrolled before this form can work.
+            <Link href="/sysadmin/register" className={s.enrolCta}>
+              Enrol the first System Admin →
+            </Link>
           </div>
         )}
 
@@ -93,7 +100,11 @@ export default function SysAdminLoginPage() {
 
           {error && <p className={s.error} role="alert">{error}</p>}
 
-          <button className={s.primary} type="submit" disabled={stage !== 'idle' || hasSensor === false}>
+          <button
+            className={s.primary}
+            type="submit"
+            disabled={stage !== 'idle' || hasSensor === false || status?.already_enrolled === false}
+          >
             {stage === 'fingerprint'
               ? 'Waiting for your fingerprint…'
               : stage === 'password'
