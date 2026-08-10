@@ -58,36 +58,6 @@ async function pollStatus(taskId: string): Promise<PipelineState | null> {
   }
 }
 
-/** Mock pipeline: emits realistic progress + a representative result. */
-function mockRun(mode: Mode, onProgress: (p: number, msg: string) => void): Promise<Record<string, unknown>> {
-  const steps: Record<Mode, [number, string][]> = {
-    mode3: [[20, 'Extracting questions from PDF…'], [45, 'Validating answer-key completeness…'], [70, 'Estimating IRT parameters…'], [90, 'Encrypting answer key (AES-GCM-256)…'], [100, 'Parsing complete.']],
-    mode2: [[20, 'Parsing uploaded paper…'], [45, 'Analysing distractor quality…'], [70, 'Checking syllabus alignment…'], [90, 'Estimating IRT…'], [100, 'Analysis complete.']],
-    mode1: [[15, 'Reading seed style…'], [40, 'Building blueprint…'], [65, 'Generating questions…'], [90, 'Calibrating IRT…'], [100, 'Generation complete.']],
-  };
-  return new Promise((resolve) => {
-    const seq = steps[mode];
-    let i = 0;
-    const tick = () => {
-      if (i < seq.length) {
-        const [p, m] = seq[i++];
-        onProgress(p, m);
-        setTimeout(tick, 700);
-      } else {
-        resolve({
-          status: 'READY_FOR_REVIEW',
-          mode,
-          question_count: 75,
-          subjects: { Physics: 25, Chemistry: 25, Biology: 25 },
-          irt: { distribution: { easy: 18, medium: 42, hard: 15, mean_b: 0.21 } },
-          encrypted_answer_key: mode === 'mode3' ? { alg: 'AES-GCM-256', count: 75 } : undefined,
-        });
-      }
-    };
-    tick();
-  });
-}
-
 export const paperModesApi = {
   /**
    * Submit files for a mode and drive progress to completion.
@@ -101,24 +71,68 @@ export const paperModesApi = {
     files: Record<string, File | undefined>,
     fields: Record<string, string | number> = {},
     onProgress: (p: number, msg: string) => void = () => {},
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{ taskId: string; result: Record<string, unknown> }> {
     const form = new FormData();
     for (const [k, f] of Object.entries(files)) if (f) form.append(k, f, f.name);
     for (const [k, v] of Object.entries(fields)) form.append(k, String(v));
 
     const started = await postMultipart(mode, form);
-    if (!started) return mockRun(mode, onProgress);
+    // There used to be a `mockRun` fallback here that invented a 75-question
+    // result with plausible IRT figures whenever the backend was unreachable.
+    // A setter could not tell it from a real run — and would then try to lock
+    // a paper that did not exist. An unreachable pipeline is an error.
+    if (!started) {
+      throw new Error(
+        'The generation service did not accept the upload. Check that the backend is running and that you are signed in as a setter.',
+      );
+    }
 
-    // Poll until terminal
     return new Promise((resolve, reject) => {
       const iv = setInterval(async () => {
         const st = await pollStatus(started.task_id);
         if (!st) return;
         onProgress(st.progress, st.message);
-        if (st.status === 'SUCCESS') { clearInterval(iv); resolve(st.result || {}); }
-        else if (st.status === 'FAILURE') { clearInterval(iv); reject(new Error(st.error || 'Pipeline failed')); }
+        if (st.status === 'SUCCESS') {
+          clearInterval(iv);
+          resolve({ taskId: started.task_id, result: st.result || {} });
+        } else if (st.status === 'FAILURE') {
+          clearInterval(iv);
+          reject(new Error(st.error || 'Pipeline failed'));
+        }
       }, 800);
     });
+  },
+
+  /**
+   * Commit a finished pipeline run to a real exam: persist the questions, seal
+   * them under per-question keys, and generate the difficulty proof.
+   *
+   * This is what the "Finalize & Lock" buttons call. Before it existed those
+   * buttons had no handler at all — a setter pressed the one control the whole
+   * screen is built around and nothing happened, with no error.
+   */
+  async finalize(taskId: string, examId: string) {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE}/question-modes/finalize`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ task_id: taskId, exam_id: examId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const d = body.detail;
+      throw new Error(typeof d === 'string' ? d : d?.message || `Could not lock the paper (${res.status}).`);
+    }
+    return body as {
+      ok: boolean;
+      examId: string;
+      questionsStored: number;
+      status: string;
+      steps: { step: string; ok: boolean; detail: string }[];
+    };
   },
 };
 

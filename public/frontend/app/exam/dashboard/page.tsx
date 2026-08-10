@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import DemoBanner from '@/components/marketing/DemoBanner';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { examCatalog, getExamsByCategory } from '@/lib/api/exam-catalog';
@@ -42,6 +43,7 @@ export default function CandidateDashboard() {
 
   return (
     <div className={styles.page}>
+      <DemoBanner />
       {/* Top Bar */}
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import DemoBanner from '@/components/marketing/DemoBanner';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import styles from './system-check.module.css';
@@ -123,6 +124,7 @@ export default function SystemCheckPage() {
 
   return (
     <div className={styles.page}>
+      <DemoBanner />
       <div className={styles.card}>
         <div className={styles.header}>
           <h1 className={styles.title}>System Compatibility Check</h1>

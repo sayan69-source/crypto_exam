@@ -5,6 +5,7 @@
  */
 
 import Link from 'next/link';
+import DemoBanner from '@/components/marketing/DemoBanner';
 import { mockSetterMetadata, mockTrustedInstitutions, mockExams } from '@/lib/api/mock-data';
 import styles from './paper-info.module.css';
 
@@ -20,6 +21,7 @@ export default function PaperInfoPage() {
 
   return (
     <div className={styles.container}>
+      <DemoBanner />
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <Link href="/" className={styles.logo}>CryptoExam</Link>

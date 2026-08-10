@@ -4,9 +4,11 @@
  */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import styles from '../paper-modes.module.css';
+import { paperModesApi } from '@/lib/api/paper-modes';
+import FinalizePanel from '@/components/setter/FinalizePanel';
 
 const STEPS = ['Upload Reference PDFs', 'Paper Settings', 'CV Analysis & Generation', 'Review & Finalize'];
 
@@ -21,17 +23,14 @@ interface GeneratedQuestion {
   approved: boolean | null;
 }
 
-const GENERATED_QUESTIONS: GeneratedQuestion[] = [
-  { id: 1, text: 'A particle moves along a circular path of radius 2m with a constant speed of 4 m/s. The magnitude of centripetal acceleration is:', options: ['4 m/s²', '8 m/s²', '2 m/s²', '16 m/s²'], subject: 'Physics', topic: 'Mechanics', blooms: 3, irt_b: -0.3, approved: null },
-  { id: 2, text: 'The IUPAC name of the compound CH₃-CH(OH)-CH₂-CHO is:', options: ['3-Hydroxybutanal', '2-Hydroxybutanal', 'Butane-2-ol-4-al', '4-Hydroxybutanal'], subject: 'Chemistry', topic: 'Organic', blooms: 2, irt_b: 0.1, approved: null },
-  { id: 3, text: 'In the lac operon model, the structural genes are transcribed when:', options: ['Repressor binds to operator', 'Lactose binds to repressor', 'RNA polymerase is absent', 'Glucose is present'], subject: 'Biology', topic: 'Genetics', blooms: 3, irt_b: 0.5, approved: null },
-  { id: 4, text: 'For a matrix A of order 3×3, if det(A) = 5, then det(adj A) is:', options: ['25', '125', '5', '1/5'], subject: 'Mathematics', topic: 'Algebra', blooms: 4, irt_b: 0.8, approved: null },
-  { id: 5, text: 'The magnetic field at the center of a circular current-carrying coil of radius R with N turns carrying current I is:', options: ['μ₀NI/2R', 'μ₀NI/R', 'μ₀I/2πR', 'μ₀NI/4πR'], subject: 'Physics', topic: 'Electromagnetism', blooms: 2, irt_b: -0.5, approved: null },
-  { id: 6, text: 'Which of the following is NOT a property of an ideal solution?', options: ['ΔHmix ≠ 0', 'ΔVmix = 0', 'Obeys Raoult\'s law', 'ΔSmix > 0'], subject: 'Chemistry', topic: 'Physical Chemistry', blooms: 3, irt_b: 0.3, approved: null },
-];
+// Questions come from the generation pipeline. There used to be six
+// hardcoded ones here (circular motion, IUPAC naming, the lac operon…) that a
+// setter would review and "approve" without any paper having been generated.
+
 
 export default function AIGeneratedPage() {
   const [step, setStep] = useState(0);
+  const [taskId, setTaskId] = useState<string | null>(null);
   
   const [syllabusFile, setSyllabusFile] = useState<{ name: string; size: string } | null>(null);
   const [paperFile, setPaperFile] = useState<{ name: string; size: string } | null>(null);
@@ -42,33 +41,46 @@ export default function AIGeneratedPage() {
     difficultyDistribution: { easy: 30, medium: 40, hard: 30 },
   });
   const [progress, setProgress] = useState(0);
-  const [questions, setQuestions] = useState<GeneratedQuestion[]>(GENERATED_QUESTIONS);
+  const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
+  const [genError, setGenError] = useState<string | null>(null);
 
-  const handleSyllabusUpload = () => {
-    setSyllabusFile({ name: `Syllabus_${Date.now()}.pdf`, size: `${(Math.random() * 2 + 0.5).toFixed(1)} MB` });
+  // Real files. These used to invent a name and a random size without any file
+  // ever being chosen, so the pipeline had nothing to work from.
+  const syllabusObj = useRef<File | null>(null);
+  const paperObj = useRef<File | null>(null);
+  const fmtSize = (b: number) => (b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
+
+  const handleSyllabusUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    syllabusObj.current = f; setSyllabusFile({ name: f.name, size: fmtSize(f.size) });
   };
 
-  const handlePaperUpload = () => {
-    setPaperFile({ name: `Reference_Paper_${Date.now()}.pdf`, size: `${(Math.random() * 5 + 1).toFixed(1)} MB` });
+  const handlePaperUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    paperObj.current = f; setPaperFile({ name: f.name, size: fmtSize(f.size) });
   };
 
-  // Simulate CV + Generation
+  // Real CV + generation pipeline (mode1). Progress is what the server
+  // reports, not a random increment on a 200 ms timer.
   useEffect(() => {
-    if (step === 2 && progress < 100) {
-      const timer = setInterval(() => setProgress(p => {
-        if (p >= 100) { clearInterval(timer); return 100; }
-        return p + Math.floor(Math.random() * 4) + 1;
-      }), 200);
-      return () => clearInterval(timer);
-    }
-  }, [step, progress]);
-
-  useEffect(() => {
-    if (step === 2 && progress >= 100) {
-      const timer = setTimeout(() => setStep(3), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [step, progress]);
+    if (step !== 2) return;
+    let cancelled = false;
+    setProgress(0); setGenError(null);
+    paperModesApi.run(
+      'mode1',
+      { questions_pdf: paperObj.current ?? undefined, syllabus_pdf: syllabusObj.current ?? undefined },
+      { exam_id: 'draft', difficulty: 'MEDIUM', total_questions: paperConfig.totalQuestions ?? 90 },
+      (p) => { if (!cancelled) setProgress(p); },
+    ).then(({ taskId: tid, result }) => {
+      if (cancelled) return;
+      setTaskId(tid);
+      const got = (result.questions as GeneratedQuestion[] | undefined) ?? [];
+      setQuestions(got.map((q, i) => ({ ...q, id: q.id ?? i + 1, approved: null })));
+      setProgress(100);
+      setTimeout(() => { if (!cancelled) setStep(3); }, 700);
+    }).catch((err) => { if (!cancelled) setGenError(err.message || 'Generation failed'); });
+    return () => { cancelled = true; };
+  }, [step]);
 
   const handleApprove = (id: number) => {
     setQuestions(prev => prev.map(q => q.id === id ? { ...q, approved: true } : q));
@@ -82,6 +94,8 @@ export default function AIGeneratedPage() {
 
   return (
     <div className={styles.page}>
+      <input id="ag-syllabus" type="file" accept="application/pdf" hidden onChange={handleSyllabusUpload} />
+      <input id="ag-paper" type="file" accept="application/pdf" hidden onChange={handlePaperUpload} />
       <Link href="/setter/paper-modes" className={styles.backBtn}>← Back to Paper Modes</Link>
       <h1 className={styles.title}>AI Full Generation</h1>
       <p className={styles.subtitle}>Upload Syllabus and a Reference Paper. Computer Vision analyzes the style, and AI generates an entirely new paper matching that exact standard.</p>
@@ -108,13 +122,13 @@ export default function AIGeneratedPage() {
           </div>
 
           <div className={styles.dualUploadGrid}>
-            <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={handleSyllabusUpload}>
+            <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={() => document.getElementById("ag-syllabus")?.click()}>
               <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{syllabusFile ? 'Syllabus Uploaded' : 'Upload Syllabus PDF'}</span>
               <span className={styles.uploadDesc}>{syllabusFile ? syllabusFile.name : 'Defines generation limits'}</span>
             </div>
 
-            <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={handlePaperUpload}>
+            <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={() => document.getElementById("ag-paper")?.click()}>
               <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{paperFile ? 'Reference Paper Uploaded' : 'Upload Reference Paper'}</span>
               <span className={styles.uploadDesc}>{paperFile ? paperFile.name : 'Defines style and difficulty'}</span>
@@ -187,6 +201,9 @@ export default function AIGeneratedPage() {
       )}
 
       {/* Step 2: CV Analysis & Generation */}
+      {step === 2 && genError && (
+        <p role="alert" style={{ margin: '16px 0', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(248,113,113,0.4)', background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 13 }}>{genError}</p>
+      )}
       {step === 2 && (
         <div className={styles.form}>
           
@@ -313,7 +330,10 @@ export default function AIGeneratedPage() {
           </div>
 
           {approvedCount === questions.length && (
-            <button className={styles.submitBtn} style={{ marginTop: 24 }}>Finalize Paper & Generate ZK Proof →</button>
+            <FinalizePanel
+              taskId={taskId}
+              label="Finalize Paper & Generate ZK Proof →"
+            />
           )}
         </div>
       )}
