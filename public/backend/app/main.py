@@ -196,7 +196,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll
+from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 from app.database import commit_before_response
@@ -211,12 +211,14 @@ for _router in (
     question_modes.router, broadcast.router, complaint.router, emergency.router,
     ceremony.router, generation_router, lifecycle_router, sys_ledger.router,
     enquiries.router,
+    sysadmin_auth.router,
     staff_reg.router, provisioning.router, enroll.router,
 ):
     commit_before_response(_router)
 
 app.include_router(about.router, prefix="/api/v1/about", tags=["About / Transparency (public)"])
 app.include_router(enquiries.router, prefix="/api/v1/enquiries", tags=["Public enquiries"])
+app.include_router(sysadmin_auth.router, prefix="/api/v1/sysadmin", tags=["System Admin (tier-0)"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])

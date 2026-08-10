@@ -37,6 +37,28 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_FROM_NUMBER: str = ""
 
+    # ── OTP by email (login second factor, no gateway cost) ──
+    # The OTP flow was SMS-only, so an account registered with an email and no
+    # phone — which is every self-registered setter — could never receive its
+    # second factor and could never log in. Plain SMTP over STARTTLS fixes that
+    # for free: Gmail with an App Password, Zoho, a university relay, anything.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""                 # e.g. "CryptoExam Core <no-reply@…>"
+
+    # ── Tier-0 System Admin (WebAuthn fingerprint + IP allowlist) ──
+    # Enrolment is possible ONLY from these addresses. Comma-separated, plain
+    # addresses or CIDR. EMPTY MEANS DISABLED, not open — failing closed is the
+    # only safe default for the tier that can decrypt answers. Discover the
+    # address to allowlist with GET /api/v1/sysadmin/status.
+    SYSTEM_ADMIN_ALLOWED_IPS: str = ""
+    # WebAuthn relying party. RP ID must be the site's registered domain (or a
+    # parent of it); `localhost` is treated as secure by browsers for testing.
+    WEBAUTHN_RP_ID: str = "localhost"
+    WEBAUTHN_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
     POLYGON_CHAIN_ID: int = 80002

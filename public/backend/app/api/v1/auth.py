@@ -30,6 +30,7 @@ from app.services.auth import (
     get_current_user, require_role,
 )
 from app.services.sms import sms_configured, send_sms, mask_phone
+from app.services.email import email_configured, send_otp_email, mask_email
 
 
 class VerifyOtpRequest(BaseModel):
@@ -124,15 +125,37 @@ async def login(
                 detail="Invalid credentials",
             )
 
-    # Password verified — now issue a REAL one-time code to the registered phone.
-    # No JWT is returned here; the caller must complete /auth/verify-otp.
+    # Password verified — now issue a REAL one-time code over whichever channel
+    # this account actually has. No JWT is returned here; the caller must
+    # complete /auth/verify-otp.
+    #
+    # This used to demand `user.phone` and 400 without it. Setter
+    # self-registration takes an email and treats phone as optional, so every
+    # self-registered setter hit that wall: approved by an admin, then
+    # permanently unable to log in because the second factor had no way to
+    # reach them. SMS stays preferred when both a phone and a gateway exist;
+    # email is the fallback that makes email-only accounts work at all.
     settings = get_settings()
-    if not user.phone:
+    can_sms = bool(user.phone) and sms_configured()
+    can_email = bool(user.email) and email_configured()
+
+    if not user.phone and not user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No phone number registered on this account. An OTP cannot be sent.",
+            detail="This account has neither a phone number nor an email address, so no one-time code can be delivered.",
+        )
+    # In production, refusing to authenticate beats handing out a code nobody
+    # can receive — or worse, printing it in the response.
+    if not can_sms and not can_email and not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "reason": "OTP_DELIVERY_NOT_CONFIGURED",
+                "message": "No SMS or email gateway is configured on this server, so a one-time code cannot be delivered. Set SMTP_HOST/SMTP_FROM (or Twilio credentials) and try again.",
+            },
         )
 
+    channel = "sms" if can_sms else "email" if can_email else "dev"
     code = f"{secrets.randbelow(1_000_000):06d}"
     challenge = OtpChallenge(
         id=str(uuid4()),
@@ -140,13 +163,13 @@ async def login(
         code_hash=hashlib.sha256(code.encode()).hexdigest(),
         phone=user.phone,
         expires_at=datetime.now(timezone.utc) + timedelta(seconds=settings.OTP_TTL_SECONDS),
-        delivery="sms" if sms_configured() else "dev",
+        delivery=channel,
     )
     db.add(challenge)
     await db.commit()
 
     delivered = "dev"
-    if sms_configured():
+    if channel == "sms":
         try:
             await send_sms(user.phone, f"Your CryptoExam login code is {code}. Valid for 5 minutes.")
             delivered = "sms"
@@ -156,21 +179,35 @@ async def login(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Could not deliver the OTP SMS. Please try again.",
             )
+    elif channel == "email":
+        try:
+            await send_otp_email(user.email, code, settings.OTP_TTL_SECONDS)
+            delivered = "email"
+        except Exception as exc:
+            logger.warning("OTP email delivery failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not deliver the one-time code by email. Please try again.",
+            )
 
     logger.info(
         f"OTP issued: user={str(user.id)[:8]}..., role={user.role.value}, "
-        f"delivery={delivered}, phone={mask_phone(user.phone)}, ip={req.client.host}"
+        f"delivery={delivered}, to={mask_phone(user.phone) if delivered == 'sms' else mask_email(user.email)}, "
+        f"ip={req.client.host}"
     )
 
     resp: dict = {
         "otp_required": True,
         "challenge_id": challenge.id,
-        "phone_masked": mask_phone(user.phone),
         "delivery": delivered,
+        "sent_to": mask_phone(user.phone) if delivered == "sms" else mask_email(user.email),
+        # Kept for the existing admin login UI, which reads phone_masked.
+        "phone_masked": mask_phone(user.phone),
         "ttl_seconds": settings.OTP_TTL_SECONDS,
     }
-    # Dev convenience ONLY: with no SMS gateway configured AND DEBUG on, return the
-    # code so the flow is testable. Never happens once Twilio creds are set.
+    # Dev convenience ONLY: with NO gateway configured at all AND DEBUG on,
+    # return the code so the flow stays testable. Never happens in production —
+    # the 503 above fires first.
     if delivered == "dev" and settings.DEBUG:
         resp["dev_code"] = code
     return resp

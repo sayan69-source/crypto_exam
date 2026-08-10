@@ -47,6 +47,10 @@ class UserRole(str, enum.Enum):
     SETTER = "SETTER"
     ADMIN = "ADMIN"
     INVIGILATOR = "INVIGILATOR"  # § 29 — Centre Invigilator Gateway (Interface D)
+    # Tier-0. The only role that can decrypt answers, so it does not sign in
+    # with a password alone: enrolment is IP-restricted and login requires a
+    # WebAuthn fingerprint assertion (api/v1/sysadmin_auth.py).
+    SYSTEM_ADMIN = "SYSTEM_ADMIN"
 
 
 class VerificationResultEnum(str, enum.Enum):
@@ -596,6 +600,47 @@ class OtpChallenge(Base):
     attempts = Column(Integer, default=0)
     delivery = Column(String(20), default="sms")   # sms | dev
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class SystemAdminCredential(Base):
+    """
+    The tier-0 System Admin's hardware-bound login credential.
+
+    Password + OTP is not enough for the account that can decrypt answers, so
+    this tier authenticates with a WebAuthn platform authenticator — the
+    fingerprint sensor on the machine itself (Windows Hello, Touch ID). The
+    private key never leaves the device's secure element; we store only the
+    public key, so a stolen database cannot produce an assertion.
+
+    `sign_count` is the authenticator's monotonic counter. A replayed assertion
+    carries a counter that does not advance, which is how cloned authenticators
+    are detected — see verify_assertion().
+
+    `face_embedding_hash` is the SHA-256 of the enrolment face descriptor. The
+    descriptor itself is never stored (DPDP: biometric data is not retained,
+    only a hash that can confirm a later match).
+
+    `registered_ip` records where enrolment happened, because enrolment is
+    restricted to an operator-controlled address (SYSTEM_ADMIN_ALLOWED_IPS).
+    """
+    __tablename__ = "system_admin_credentials"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # WebAuthn credential — base64url id, SPKI DER public key.
+    credential_id = Column(String(512), unique=True, nullable=False, index=True)
+    public_key_spki = Column(LargeBinary, nullable=False)
+    sign_count = Column(Integer, nullable=False, default=0)
+    aaguid = Column(String(64), nullable=True)
+
+    # Second enrolment factor. Hash only — never the descriptor itself.
+    face_embedding_hash = Column(String(64), nullable=True)
+
+    registered_ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class EnquiryStatus(str, enum.Enum):
