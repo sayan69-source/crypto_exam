@@ -95,3 +95,17 @@
   .articleHead { grid-template-columns: 1fr; gap: 4px; }
   .articleBody { padding-left: 0; }
 }
+
+/* A statement about what has NOT been done yet. Distinct from body copy so a
+   reader can tell a commitment from a disclosure — used where naming a Data
+   Protection Officer is legally required but no appointment has been made. */
+.note {
+  margin-top: var(--space-md);
+  padding: 13px 16px;
+  border-left: 3px solid var(--color-accent, #C9A227);
+  background: color-mix(in srgb, var(--color-accent, #C9A227) 7%, transparent);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text-muted, #4A5578);
+}

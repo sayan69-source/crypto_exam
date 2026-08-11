@@ -1,4 +1,13 @@
 """
+NOTE ON THE ROLE GATE
+---------------------
+Every route here is SYSTEM_ADMIN (tier-0), which is what the descriptions
+always claimed. They were gated on ADMIN — so a tier-1 operations
+administrator could unwrap data keys and read candidate answers, while the
+tier that exists to hold exactly that authority could not. The whole point of
+separating the tiers is that running the platform day to day does not carry
+the power to read answers.
+
 CryptoExam — System Admin (Tier-0 / HQ) Answer-Ledger API
 ZUUP-OS §13.5 + §11.4.  The ONLY tier that turns ciphertext back into answers.
 
@@ -158,7 +167,7 @@ def _assert_no_pii(anchor: AnchorRequest) -> None:
 )
 async def ingest_bundle(
     bundle: SyncBundle,
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
     # 1 — manifest integrity: the centre node signed exactly these bytes.
     manifest_bytes = _canonical_json(bundle.manifest.model_dump())
@@ -183,7 +192,7 @@ async def ingest_bundle(
 )
 async def decrypt_bundle(
     bundle: SyncBundle,
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
     from app.config import settings
 
@@ -211,7 +220,7 @@ async def decrypt_bundle(
 )
 async def anchor_centre_root(
     req: AnchorRequest,
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
     _assert_no_pii(req)
     from app.services.blockchain import BlockchainService

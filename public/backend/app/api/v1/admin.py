@@ -47,7 +47,9 @@ class EmergencyAction(BaseModel):
 )
 async def dashboard(
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    # Tier-0 needs the same overview to judge what it is approving; reading
+    # counts is not an operational power.
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """
     Aggregate real-time metrics for the admin dashboard:

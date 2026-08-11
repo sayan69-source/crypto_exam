@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter, usePathname } from 'next/navigation';
 import { setAuthToken } from '@/lib/api/client';
 
-export type AuthRole = 'candidate' | 'setter' | 'admin' | 'invigilator' | null;
+export type AuthRole = 'candidate' | 'setter' | 'admin' | 'sysadmin' | 'invigilator' | null;
 
 interface UserSession {
   role: AuthRole;
@@ -101,6 +101,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace('/setter/login');
       } else if (pathname.startsWith('/admin') && pathname !== '/admin/login' && session.role !== 'admin') {
         router.replace('/admin/login');
+      } else if (
+        pathname.startsWith('/sysadmin') &&
+        pathname !== '/sysadmin/login' &&
+        pathname !== '/sysadmin/register' &&
+        session.role !== 'sysadmin'
+      ) {
+        router.replace('/sysadmin/login');
       } else if (pathname.startsWith('/invigilator') && pathname !== '/invigilator/login' && session.role !== 'invigilator') {
         router.replace('/invigilator/login');
       } else if (pathname.startsWith('/exam/session') && session.role !== 'candidate') {

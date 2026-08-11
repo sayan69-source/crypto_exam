@@ -130,10 +130,23 @@ export default function PrivacyPage() {
               <li>Nominate another individual to exercise these rights on your behalf.</li>
               <li>Lodge a grievance with us, and escalate to the Data Protection Board of India.</li>
             </ul>
+            {/* This used to name dpo@cryptoexam.core — an address on a domain
+                that cannot exist (".core" is not a TLD), for an officer who has
+                not been appointed. Under the DPDP Act the Data Protection
+                Officer's contact must be real and reachable, so an invented one
+                is a false compliance claim, not a placeholder. The route below
+                is the channel that genuinely works: it lands in the HQ queue. */}
             <p>
-              To exercise any of these rights, write to{" "}
-              <a className={s.link} href="mailto:dpo@cryptoexam.core">dpo@cryptoexam.core</a> with
-              the subject &ldquo;DPDP rights request&rdquo;. We respond within statutory timelines.
+              To exercise any of these rights, use the{" "}
+              <Link className={s.link} href="/contact">enquiry form</Link> and choose
+              the privacy topic. Your request is recorded with a reference you can quote,
+              and we respond within statutory timelines.
+            </p>
+            <p className={s.note}>
+              <strong>Before this platform processes real candidate data,</strong> the operating
+              body must appoint a named Data Protection Officer and publish their contact
+              here. Until that appointment is made this notice does not name one, rather
+              than naming an address that would not reach anybody.
             </p>
           </Article>
 

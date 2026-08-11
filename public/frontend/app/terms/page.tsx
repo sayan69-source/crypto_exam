@@ -164,12 +164,13 @@ export default function TermsPage() {
           </Article>
 
           <Article number="12" title="Contact">
+            {/* legal@cryptoexam.core was unreachable — ".core" is not a valid
+                TLD, so that mailbox cannot be created at all. */}
             <p>
-              For questions about these terms, write to{" "}
-              <a className={s.link} href="mailto:legal@cryptoexam.core">legal@cryptoexam.core</a>.
-              For privacy-specific requests, see our{" "}
-              <Link className={s.link} href="/privacy">Privacy Policy</Link>. For everything else,
-              see <Link className={s.link} href="/contact">/contact</Link>.
+              For questions about these terms, use the{" "}
+              <Link className={s.link} href="/contact">enquiry form</Link> — it reaches the
+              programme team and gives you a reference to quote. For privacy-specific
+              requests see our <Link className={s.link} href="/privacy">Privacy Policy</Link>.
             </p>
           </Article>
         </div>

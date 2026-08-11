@@ -1,0 +1,112 @@
+/* Tier-0 console chrome. Light, like the tier-1 console, so the two read as
+   one product — but with a distinct tier marker, because confusing the two is
+   the mistake this whole separation exists to prevent. */
+
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-page, #F7F8FC);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: 12px clamp(16px, 3vw, 32px);
+  background: #fff;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.left, .right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+
+.brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; }
+.mark {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--color-navy-900, #0D1526);
+  color: #fff;
+}
+.brandText { font-size: 15px; font-weight: 600; color: var(--color-navy-900, #0D1526); }
+.brandText b { font-weight: 700; }
+
+.tier {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 999px;
+  /* Amber, not the tier-1 blue: a glance should tell you which console. */
+  background: rgba(224, 112, 32, 0.12);
+  border: 1px solid rgba(224, 112, 32, 0.32);
+  color: #A85410;
+  white-space: nowrap;
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--color-navy-800, #16224A);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--color-navy-900, #0D1526);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  flex: none;
+}
+
+.signOut {
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  color: var(--color-navy-700, #26355E);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.signOut:hover { border-color: var(--color-navy-400, #7C8AB8); }
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 34px) clamp(16px, 3vw, 32px);
+}
+
+.foot {
+  padding: 16px clamp(16px, 3vw, 32px) 26px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-navy-400, #7C8AB8);
+  text-align: center;
+}
+.foot a { color: var(--color-navy-600, #1E2C55); }
+
+@media (max-width: 720px) {
+  .bar { flex-wrap: wrap; gap: 10px; }
+  .tier { order: 3; }
+  .who { max-width: 150px; }
+}

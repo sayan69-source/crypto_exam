@@ -11,11 +11,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sysadminApi, type SysAdminStatus } from '@/lib/api/sysadmin';
-import { setAuthToken } from '@/lib/api/client';
+import { useAuth } from '@/lib/auth/AuthContext';
 import s from '../sysadmin.module.css';
 
 export default function SysAdminLoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [stage, setStage] = useState<'idle' | 'password' | 'fingerprint'>('idle');
@@ -37,7 +38,11 @@ export default function SysAdminLoginPage() {
       // or the sensor popping up looks like something went wrong.
       setStage('fingerprint');
       const r = await sysadminApi.login(email.trim().toLowerCase(), password);
-      setAuthToken(r.access_token);
+      // Arming the API client is not enough: the route gate reads the
+      // AuthContext session, so a token alone left `session` null and
+      // /sysadmin bounced straight back here. A successful fingerprint
+      // sign-in looked exactly like a failed one.
+      await login('sysadmin', r.user?.email ?? email, r.user?.full_name, r.access_token);
       router.push('/sysadmin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed.');
