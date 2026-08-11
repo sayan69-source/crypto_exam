@@ -466,7 +466,14 @@ async def list_candidates(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Real candidate roster: each candidate joined to their enrollment + centre."""
+    """
+    Real candidate roster: one row per candidate.
+
+    The join to enrolments produced one row PER ENROLMENT while `total` counted
+    distinct candidates, so a candidate registered for four exams appeared four
+    times in a list whose own total said fifteen. Grouping by candidate keeps
+    the row count and the total describing the same thing.
+    """
     total = (await db.execute(
         select(func.count()).where(User.role == UserRole.CANDIDATE)
     )).scalar() or 0
@@ -476,28 +483,38 @@ async def list_candidates(
         .where(User.role == UserRole.CANDIDATE)
         .outerjoin(Enrollment, Enrollment.candidate_id == User.id)
         .outerjoin(Center, Center.id == Enrollment.center_id)
+        # One row per candidate; the enrolment shown is their most recent.
+        .group_by(User.id)
         .order_by(User.full_name)
         .offset((page - 1) * per_page)
         .limit(per_page)
     )
     rows = (await db.execute(stmt)).all()
+    items = [
+        {
+            "id": u.id,
+            "name": u.full_name,
+            "state": u.state,
+            "rollNumber": e.roll_number if e else None,
+            "setLabel": e.set_label if e else None,
+            "enrollmentStatus": (e.status.value if e and e.status else None),
+            "centreName": c.name if c else None,
+            "isActive": bool(u.is_active),
+            # Seeded fixtures are invented people (seeder.py ships fifteen of
+            # them, names and all). They are useful for a demo and dangerous
+            # unlabelled: an evaluator reading this roster has no way to tell a
+            # fabricated candidate from someone who actually registered. The
+            # seeder is the only writer of @cryptoexam.dev addresses.
+            "isDemo": bool(u.email and u.email.endswith("@cryptoexam.dev")),
+        }
+        for (u, e, c) in rows
+    ]
     return {
         "total": total,
         "page": page,
         "per_page": per_page,
-        "items": [
-            {
-                "id": u.id,
-                "name": u.full_name,
-                "state": u.state,
-                "rollNumber": e.roll_number if e else None,
-                "setLabel": e.set_label if e else None,
-                "enrollmentStatus": (e.status.value if e and e.status else None),
-                "centreName": c.name if c else None,
-                "isActive": bool(u.is_active),
-            }
-            for (u, e, c) in rows
-        ],
+        "demoCount": sum(1 for i in items if i["isDemo"]),
+        "items": items,
     }
 
 
@@ -736,4 +753,55 @@ async def list_admins(
             {"id": str(u.id), "full_name": u.full_name, "email": u.email, "role": u.role.value}
             for u in rows
         ]
+    }
+
+
+@router.delete("/demo-data", summary="Purge seeded demo records")
+async def purge_demo_data(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
+):
+    """
+    Delete the seeded demo candidates and setters.
+
+    `seeder.py` invents fifteen candidates with names, states and roll numbers
+    so a fresh install has something to show. Before a real evaluation those
+    fabricated people should not be sitting in the roster looking like
+    registrations, and there was no way to remove them short of deleting the
+    database.
+
+    Scoped by the @cryptoexam.dev address the seeder is the only writer of, so
+    a genuinely registered user is never caught by this. The admin account is
+    kept — deleting the account you are signed in with is not a useful outcome.
+    """
+    from sqlalchemy import delete as sa_delete
+
+    from app.models import Enrollment, Session as ExamSession
+
+    victims = (await db.execute(
+        select(User).where(
+            User.email.like("%@cryptoexam.dev"),
+            User.role.in_([UserRole.CANDIDATE, UserRole.SETTER]),
+        )
+    )).scalars().all()
+    ids = [u.id for u in victims]
+    if not ids:
+        return {"ok": True, "deleted": 0, "message": "No seeded demo records were present."}
+
+    enrol_ids = [
+        e for (e,) in (await db.execute(
+            select(Enrollment.id).where(Enrollment.candidate_id.in_(ids))
+        )).all()
+    ]
+    if enrol_ids:
+        await db.execute(sa_delete(ExamSession).where(ExamSession.enrollment_id.in_(enrol_ids)))
+    await db.execute(sa_delete(Enrollment).where(Enrollment.candidate_id.in_(ids)))
+    await db.execute(sa_delete(User).where(User.id.in_(ids)))
+    await db.commit()
+
+    logger.warning("Demo data purged: %s user(s) by admin=%s", len(ids), current_user["user_id"])
+    return {
+        "ok": True,
+        "deleted": len(ids),
+        "message": f"Removed {len(ids)} seeded demo account(s) and their enrolments.",
     }

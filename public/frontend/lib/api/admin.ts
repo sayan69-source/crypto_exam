@@ -102,6 +102,17 @@ async function post<T>(path: string): Promise<T> {
   return res.json();
 }
 
+async function del<T>(path: string): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(describeApiError(body, res.status));
+  return body as T;
+}
+
 async function patch<T>(path: string, body: unknown): Promise<T> {
   const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
@@ -146,8 +157,11 @@ export interface AdminCandidate {
   enrollmentStatus: string | null;
   centreName: string | null;
   isActive: boolean;
+  isDemo?: boolean;
 }
-export interface AdminCandidatesResponse { total: number; page: number; per_page: number; items: AdminCandidate[] }
+export interface AdminCandidatesResponse {
+  /** How many of the rows are seeded fixtures rather than real registrations. */
+  demoCount?: number; total: number; page: number; per_page: number; items: AdminCandidate[] }
 
 export interface AdminCenter {
   id: string;
@@ -218,6 +232,8 @@ export const adminApi = {
     get<{ pending: StaffApproval[] }>(`/admin/staff-approvals?role=${role}&include_resolved=${includeResolved}`),
   issueStaffCode: (id: string) =>
     post<{ ok: boolean; code: string; expiresAt: string; ttlMinutes: number }>(`/admin/staff-approvals/${id}/issue-code`),
+  purgeDemoData: () =>
+    del<{ ok: boolean; deleted: number; message: string }>('/admin/demo-data'),
   authoriseStaffFp: (id: string) =>
     post<{ ok: boolean }>(`/admin/staff-approvals/${id}/authorise-fp`),
   // Enquiries from the public contact form. Before this existed the form

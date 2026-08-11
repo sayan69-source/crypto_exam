@@ -27,7 +27,18 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, UserRole, Center, Exam, Enrollment, EnrollmentStatus
+from app.models import User, UserRole, Center, Exam, ExamStatus, Enrollment, EnrollmentStatus
+
+# Exam states a student may still register for. Everything else — LIVE, PAUSED,
+# COMPLETED, AUDITED, ABORTED — has either started or finished, and issuing a
+# roll number for one of those is meaningless.
+ENROLLABLE_STATES = (
+    ExamStatus.DRAFT,
+    ExamStatus.GENERATING,
+    ExamStatus.PROOF_PENDING,
+    ExamStatus.LOCKED,
+    ExamStatus.DISTRIBUTED,
+)
 from app.services.auth import hash_password
 
 logger = logging.getLogger(__name__)
@@ -68,8 +79,19 @@ class FaceVerify(BaseModel):
 
 @router.get("/exams")
 async def open_exams(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """Public exam directory for the enrolment form (no sealed content)."""
-    rows = (await db.execute(select(Exam).order_by(Exam.scheduled_at))).scalars().all()
+    """
+    Public exam directory for the enrolment form (no sealed content).
+
+    Only exams still OPEN to enrolment. This listed every exam in the database
+    regardless of state, so a student was offered a COMPLETED paper — and the
+    enrolment endpoint accepted it, issuing a roll number for an exam that had
+    already been sat.
+    """
+    rows = (await db.execute(
+        select(Exam)
+        .where(Exam.status.in_(ENROLLABLE_STATES))
+        .order_by(Exam.scheduled_at)
+    )).scalars().all()
     return {
         "exams": [
             {"id": e.id, "name": e.name, "body": e.exam_body.value if e.exam_body else None,
@@ -97,6 +119,40 @@ async def enrol_candidate(
     if not exam:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNKNOWN_EXAM")
 
+    # The listing is a convenience; this is the gate. Without it a student could
+    # POST any exam id — including one already sat — and be issued a roll number
+    # for it.
+    if exam.status not in ENROLLABLE_STATES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "ENROLMENT_CLOSED",
+                "message": f"Enrolment for {exam.name} is closed (the exam is {exam.status.value}).",
+            },
+        )
+
+    # One person, one enrolment per exam. Nothing stopped the same candidate
+    # submitting the form repeatedly and collecting a fresh roll number each
+    # time — which would have put duplicate people on a centre's roster.
+    dup = (await db.execute(
+        select(Enrollment.roll_number)
+        .join(User, User.id == Enrollment.candidate_id)
+        .where(
+            Enrollment.exam_id == exam.id,
+            User.full_name == body.fullName.strip(),
+            User.date_of_birth == body.dateOfBirth,
+        )
+        .limit(1)
+    )).scalar_one_or_none()
+    if dup:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "ALREADY_ENROLLED",
+                "message": f"That name and date of birth is already enrolled for this exam as {dup}.",
+            },
+        )
+
     # Candidate identity. password_hash is a random throwaway so no online login
     # is ever possible — the only "login" is a biometric check at the centre OS.
     candidate = User(
@@ -116,12 +172,39 @@ async def enrol_candidate(
     )
     db.add(candidate)
 
-    seq = (await db.execute(
-        select(func.count()).select_from(Enrollment).where(Enrollment.exam_id == exam.id)
-    )).scalar() or 0
+    # Roll numbers came from count(*) + 1, which two simultaneous enrolments
+    # both read as the same value — issuing one roll number to two people, on
+    # the identifier the centre uses to seat them. Retry on the unique index
+    # instead of trusting a read-then-write.
     body_code = exam.exam_body.value if exam.exam_body else "EXM"
     state_code = (centre.state or "IND")[:3].upper()
-    roll = f"{body_code}-2026-{state_code}-{seq + 1:07d}"
+    year = exam.scheduled_at.year if exam.scheduled_at else datetime.now(timezone.utc).year
+
+    # Uniqueness must be GLOBAL, not per-exam.
+    #
+    # The sequence was counted within one exam, so the first enrolment of every
+    # exam got ...0000001 — three different people held NTA-2026-GUJ-0000001.
+    # A roll number is what a candidate types at the centre terminal, and
+    # auth.py resolved it with `.limit(1)`, i.e. picked an arbitrary one of
+    # them. Two candidates could be seated as each other.
+    roll = None
+    for attempt in range(12):
+        seq = (await db.execute(
+            select(func.count()).select_from(Enrollment)
+            .where(Enrollment.roll_number.like(f"{body_code}-{year}-{state_code}-%"))
+        )).scalar() or 0
+        candidate_roll = f"{body_code}-{year}-{state_code}-{seq + 1 + attempt:07d}"
+        clash = (await db.execute(
+            select(Enrollment.id).where(Enrollment.roll_number == candidate_roll)
+        )).scalar_one_or_none()
+        if not clash:
+            roll = candidate_roll
+            break
+    if roll is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"reason": "ROLL_ALLOCATION_FAILED", "message": "Could not allocate a roll number. Please try again."},
+        )
 
     db.add(Enrollment(
         id=str(uuid.uuid4()),
