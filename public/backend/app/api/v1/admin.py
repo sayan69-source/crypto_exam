@@ -756,10 +756,10 @@ async def list_admins(
     }
 
 
-@router.delete("/demo-data", summary="Purge seeded demo records")
+@router.delete("/demo-data", summary="Purge seeded demo records (tier-0 only)")
 async def purge_demo_data(
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
     """
     Delete the seeded demo candidates and setters.
@@ -773,6 +773,11 @@ async def purge_demo_data(
     Scoped by the @cryptoexam.dev address the seeder is the only writer of, so
     a genuinely registered user is never caught by this. The admin account is
     kept — deleting the account you are signed in with is not a useful outcome.
+
+    TIER-0 ONLY. This is the one endpoint in the admin surface that destroys
+    rows, and bulk deletion of people is not an operations task. Restricting it
+    to the tier that already holds decryption authority keeps every destructive
+    capability behind the same fingerprint.
     """
     from sqlalchemy import delete as sa_delete
 
