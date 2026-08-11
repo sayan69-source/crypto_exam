@@ -11,6 +11,9 @@
   ],
   "scripts": {
     "check:boundary": "node scripts/check-boundary.mjs",
+    "check:fakes": "node scripts/check-no-fakes.mjs",
+    "check:secrets": "node scripts/check-no-secrets.mjs",
+    "verify": "npm run check:boundary && npm run check:fakes && npm run check:secrets",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "backend": "cd public/backend && .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",

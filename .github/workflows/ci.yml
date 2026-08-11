@@ -1,0 +1,192 @@
+# CI — every suite in the repo, plus the guards that catch what tests cannot.
+#
+# The jobs are split by runtime rather than by component so a failure names the
+# thing that broke without needing the log opened: `backend` red means Python,
+# `contracts` red means Solidity. They run in parallel and share nothing.
+#
+# `guards` is the cheapest job by an order of magnitude — no install step at
+# all, since those scripts import only node: builtins — and it catches the
+# failure mode this project actually has: code that compiles, builds, passes
+# its tests, and is a lie. A dead button and a committed private key both
+# survive every other job here.
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "chore/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ── The cheap, high-value checks ──────────────────────────────────────────
+  guards:
+    name: guards (no fakes, no secrets, boundary)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # check-no-secrets reads `git ls-files`, which needs a real checkout,
+          # not the default shallow one for the tree to be complete.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # No `npm ci` on purpose: all three scripts use only node: builtins, so
+      # this job is green or red within seconds of the checkout finishing.
+      - name: private/ must not import public/
+        run: node scripts/check-boundary.mjs
+
+      - name: no dead controls or fabricated values
+        run: node scripts/check-no-fakes.mjs
+
+      - name: no secrets tracked by git
+        run: node scripts/check-no-secrets.mjs
+
+  # ── Python API ────────────────────────────────────────────────────────────
+  backend:
+    name: backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: public/backend/requirements-dev.txt
+
+      - name: Install (production deps + test runner)
+        working-directory: public/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # No JWT keys are committed (they are gitignored, correctly), and none are
+      # generated here. app/services/auth.py mints an ephemeral RS256 pair when
+      # the PEM files are absent and derives the public half from the cached
+      # private one, so tokens verify within the run and no key outlives it.
+      - name: pytest
+        working-directory: public/backend
+        run: pytest -q
+
+  # ── Public web app ────────────────────────────────────────────────────────
+  frontend:
+    name: frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: public/frontend/package-lock.json
+
+      - name: Install
+        working-directory: public/frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: public/frontend
+        run: npx tsc --noEmit
+
+      # NEXT_PUBLIC_USE_MOCK is deliberately unset. USE_MOCK is opt-IN, so an
+      # unset variable must produce a build that talks to the real API — if that
+      # ever inverts again, this job builds the fixture-serving variant and the
+      # mock-opt-in guard fails in the `guards` job.
+      - name: Build
+        working-directory: public/frontend
+        run: npx next build
+
+  # ── Node services: edge server + exam terminal ────────────────────────────
+  node-services:
+    name: node services (edge-server, exam-terminal)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # edge-server is a root workspace, so the root lockfile installs it.
+      - name: Install workspaces
+        run: npm ci
+
+      # 17 of these skip without Postgres (src/test/integration/*). They are
+      # skipped, not silently passed — `npm run test:db` runs them against a
+      # real database locally.
+      - name: edge-server tests
+        run: node --test --experimental-strip-types "private/edge-server/src/**/*.test.ts"
+
+      - name: edge-server typecheck
+        working-directory: private/edge-server
+        run: npx tsc --noEmit
+
+      - name: Install exam-terminal
+        working-directory: private/exam-terminal
+        run: npm ci
+
+      - name: exam-terminal tests
+        run: node --test --experimental-strip-types "private/exam-terminal/lib/*.test.ts"
+
+  # ── Solidity ──────────────────────────────────────────────────────────────
+  contracts:
+    name: contracts (hardhat)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: public/contracts/package-lock.json
+
+      - name: Install
+        working-directory: public/contracts
+        run: npm ci
+
+      - name: Hardhat test
+        working-directory: public/contracts
+        run: npx hardhat test
+
+  # ── One status to require on the branch ───────────────────────────────────
+  #
+  # Branch protection can require this single check instead of five, and it
+  # cannot be satisfied by a skipped or cancelled dependency: `needs` alone
+  # would let this pass green when an upstream job never ran.
+  ci:
+    name: CI
+    if: always()
+    needs: [guards, backend, frontend, node-services, contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every job succeeded
+        run: |
+          RESULTS='${{ join(needs.*.result, " ") }}'
+          echo "job results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "::error::a required job did not succeed ($r)"
+              exit 1
+            fi
+          done
+          echo "all jobs succeeded"
