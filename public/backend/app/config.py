@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     # only safe default for the tier that can decrypt answers. Discover the
     # address to allowlist with GET /api/v1/sysadmin/status.
     SYSTEM_ADMIN_ALLOWED_IPS: str = ""
+    # Bootstrap secret for tier-0 enrolment, as an alternative to the address
+    # allowlist. A hosted deployment cannot use an IP allowlist to create its
+    # FIRST admin — the operator's egress address is unknown in advance and
+    # changes — so without this a fresh deploy has no route to a tier-0 account
+    # at all. Gates enrolment only; login still requires the fingerprint.
+    SYSTEM_ADMIN_ENROLMENT_TOKEN: str = ""
     # WebAuthn relying party. RP ID must be the site's registered domain (or a
     # parent of it); `localhost` is treated as secure by browsers for testing.
     WEBAUTHN_RP_ID: str = "localhost"

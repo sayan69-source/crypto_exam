@@ -15,9 +15,24 @@ export interface SysAdminStatus {
   enrolment_open: boolean;
   ip_allowed: boolean;
   allowlist_configured: boolean;
+  /** A bootstrap token is configured server-side — the route that works on a PaaS. */
+  token_configured?: boolean;
+  /** Which gate let this request through, when one did. */
+  gate?: string | null;
   already_enrolled: boolean;
   hint: string;
 }
+
+/**
+ * The tier-0 bootstrap token, held only for the duration of the enrolment.
+ *
+ * A hosted deployment cannot gate first enrolment on an IP allowlist: the
+ * operator's egress address is unknown in advance and changes. The token is
+ * typed in once, sent as a header, and never stored — it authorises creating
+ * the account, not using it.
+ */
+let enrolmentToken: string | null = null;
+export function setEnrolmentToken(t: string | null) { enrolmentToken = t?.trim() || null; }
 
 /** base64url ⇄ ArrayBuffer, the encoding WebAuthn uses on the wire. */
 const b64uToBuf = (s: string): ArrayBuffer => {
@@ -36,7 +51,10 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
   try {
     res = await fetch(`${API_BASE}/sysadmin${path}`, {
       method: body === undefined ? 'GET' : 'POST',
-      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      headers: {
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(enrolmentToken ? { 'x-enrolment-token': enrolmentToken } : {}),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
     });

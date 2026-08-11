@@ -125,28 +125,43 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health", tags=["System"])
 async def health_check():
     """
-    System health check.
-    Returns service status, version, and current server timestamp (IST).
+    System health — probed, not asserted.
+
+    This used to return {"database":"up","redis":"pending", crypto_engine: all
+    "ready"} as literals. It reported the database up without querying it, and
+    on the Render deployment it announced health for services that were never
+    reachable. `/admin/dashboard` was fixed first; this is the endpoint an
+    uptime monitor and an operator actually hit, so it mattered more.
+
+    Returns 503 when the database is down, because a health endpoint that
+    answers 200 while the system cannot serve a request is worse than no
+    health endpoint.
     """
-    return {
-        "status": "healthy",
+    from fastapi.responses import JSONResponse
+
+    from app.database import async_session
+    from app.services.health import system_health
+
+    async with async_session() as session:
+        health = await system_health(session)
+
+    body = {
+        "status": "healthy" if health["overall"] == "up" else health["overall"],
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "components": {
             "api": "up",
-            "database": "up",
-            "redis": "pending",
-            "blockchain": "configured" if settings.CRYPTOEXAM_CONTRACT_ADDRESS else "not_configured",
+            "database": health["database"]["status"],
+            "redis": health["redis"]["status"],
+            "blockchain": health["blockchain"]["status"],
+            "ipfs": health["ipfs"]["status"],
         },
-        "crypto_engine": {
-            "aes_gcm_256": "ready",
-            "drand_client": "ready",
-            "merkle_tree": "ready",
-            "shamir_sss": "ready",
-            "zk_snark": "ready",
-        },
+        "detail": {k: health[k]["detail"] for k in ("database", "redis", "blockchain", "ipfs")},
     }
+    if health["overall"] == "down":
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 @app.get("/", tags=["System"])

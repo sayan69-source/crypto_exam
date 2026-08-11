@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { sysadminApi, type SysAdminStatus } from '@/lib/api/sysadmin';
+import { sysadminApi, setEnrolmentToken, type SysAdminStatus } from '@/lib/api/sysadmin';
 import s from '../sysadmin.module.css';
 
 export default function SysAdminRegisterPage() {
@@ -18,6 +18,7 @@ export default function SysAdminRegisterPage() {
   const [status, setStatus] = useState<SysAdminStatus | null>(null);
   const [hasSensor, setHasSensor] = useState<boolean | null>(null);
   const [form, setForm] = useState({ fullName: '', email: '', password: '', confirm: '' });
+  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -35,6 +36,7 @@ export default function SysAdminRegisterPage() {
 
     setBusy(true);
     try {
+      setEnrolmentToken(token);
       await sysadminApi.register({
         email: form.email.trim().toLowerCase(),
         fullName: form.fullName.trim(),
@@ -81,13 +83,22 @@ export default function SysAdminRegisterPage() {
 
         {status && (
           <div className={status.enrolment_open ? s.ok : s.warn}>
-            <strong>This machine: {status.your_ip}</strong>
+            <strong>This request came from {status.your_ip}</strong>
             <br />
             {status.hint}
-            {!status.ip_allowed && status.allowlist_configured === false && (
+            {!status.enrolment_open && !status.already_enrolled && (
               <>
                 <br />
-                <code className={s.code}>SYSTEM_ADMIN_ALLOWED_IPS={status.your_ip}</code>
+                {/* On a hosted platform the address is not stable, so leading
+                    with the allowlist sends operators down a route that will
+                    keep failing. The token is the one that works. */}
+                <code className={s.code}>SYSTEM_ADMIN_ENROLMENT_TOKEN=&lt;a long random value&gt;</code>
+                <br />
+                <span style={{ fontSize: 11.5, opacity: 0.85 }}>
+                  Set that on the API service, redeploy, then paste the same value below.
+                  Enrolling from a fixed office address instead? Use{' '}
+                  <code className={s.code}>SYSTEM_ADMIN_ALLOWED_IPS={status.your_ip}</code>
+                </span>
               </>
             )}
           </div>
@@ -120,6 +131,18 @@ export default function SysAdminRegisterPage() {
             <span>Password <em>(12+ characters)</em></span>
             <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 12 characters" autoComplete="new-password" minLength={12} required />
           </label>
+          {status && !status.enrolment_open && !status.already_enrolled && (
+            <label className={s.field}>
+              <span>Enrolment token <em>(from the server environment)</em></span>
+              <input
+                type="password"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Paste SYSTEM_ADMIN_ENROLMENT_TOKEN"
+                autoComplete="off"
+              />
+            </label>
+          )}
           <label className={s.field}>
             <span>Confirm password</span>
             <input type="password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} placeholder="Type it again" autoComplete="new-password" required />
@@ -127,7 +150,7 @@ export default function SysAdminRegisterPage() {
 
           {error && <p className={s.error} role="alert">{error}</p>}
 
-          <button className={s.primary} type="submit" disabled={busy || !!blocked || hasSensor === false}>
+          <button className={s.primary} type="submit" disabled={busy || hasSensor === false || status?.already_enrolled === true}>
             {busy ? 'Touch the sensor…' : 'Enrol with fingerprint'}
           </button>
         </form>

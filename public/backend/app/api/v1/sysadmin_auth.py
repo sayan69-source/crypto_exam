@@ -76,21 +76,67 @@ def _client_ip(req: Request) -> str:
     """
     The address we will judge against the allowlist.
 
-    Taken from the connection. `X-Forwarded-For` is honoured ONLY when the
-    immediate peer is loopback — i.e. a reverse proxy we run — because a header
-    anyone can set is not an access control.
+    `X-Forwarded-For` is honoured only when the immediate peer is an address a
+    load balancer plausibly occupies — loopback or an RFC1918 private range —
+    because a header anyone can set is not an access control.
+
+    The loopback-only version of this broke the deployment entirely. On a PaaS
+    (Render, Fly, Railway, anything behind a managed proxy) the peer is the
+    platform's router on a private address like 10.28.53.174, so XFF was
+    ignored and every caller appeared to BE the router. The live deployment
+    reported `your_ip: 10.28.53.174` to every visitor, which made the allowlist
+    both useless and impossible to satisfy: an operator cannot allowlist an
+    address the server never sees.
+
+    Trusting the private range is the standard trade here. It is sound while
+    nothing untrusted can reach the app directly on a private address — true of
+    every managed platform — and the enrolment token below exists precisely so
+    that IP is not the only gate.
     """
     peer = req.client.host if req.client else ""
     try:
-        peer_is_local = ipaddress.ip_address(peer).is_loopback
+        addr = ipaddress.ip_address(peer)
+        peer_is_proxy = addr.is_loopback or addr.is_private
     except ValueError:
-        peer_is_local = False
+        peer_is_proxy = False
 
-    if peer_is_local:
+    if peer_is_proxy:
         fwd = req.headers.get("x-forwarded-for", "")
         if fwd:
+            # Left-most entry is the original client; the rest are hops.
             return fwd.split(",")[0].strip()
     return peer
+
+
+def _enrolment_token_ok(req: Request) -> bool:
+    """
+    A one-time bootstrap secret, as an alternative to the IP allowlist.
+
+    An IP allowlist is a chicken-and-egg problem on a managed platform: you
+    cannot know your own egress address in advance, it changes, and on mobile
+    it changes constantly. Without this, a fresh deployment has no way to
+    create its first tier-0 account at all — which is exactly the state the
+    Render deployment was in.
+
+    Set SYSTEM_ADMIN_ENROLMENT_TOKEN to a long random value and present it as
+    `x-enrolment-token`. It gates ONLY enrolment, never login: a stolen token
+    cannot produce a session, because signing in still requires the fingerprint
+    credential registered on the enrolled device.
+    """
+    expected = (getattr(get_settings(), "SYSTEM_ADMIN_ENROLMENT_TOKEN", "") or "").strip()
+    if not expected:
+        return False
+    presented = req.headers.get("x-enrolment-token", "")
+    return bool(presented) and secrets.compare_digest(presented, expected)
+
+
+def _may_enrol(req: Request) -> tuple[bool, str]:
+    """Whether enrolment is permitted, and which gate allowed it."""
+    if _enrolment_token_ok(req):
+        return True, "enrolment token"
+    if _ip_allowed(_client_ip(req)):
+        return True, "address allowlist"
+    return False, ""
 
 
 def _ip_allowed(ip: str) -> bool:
@@ -131,23 +177,31 @@ async def _existing_sysadmin(db: AsyncSession) -> User | None:
 @router.get("/status", summary="Whether tier-0 enrolment is currently possible")
 async def sysadmin_status(request: Request, db: AsyncSession = Depends(get_db)):
     ip = _client_ip(request)
-    allowed = _ip_allowed(ip)
+    allowed, gate = _may_enrol(request)
     existing = await _existing_sysadmin(db)
-    configured = bool((get_settings().SYSTEM_ADMIN_ALLOWED_IPS or "").strip())
+    settings = get_settings()
+    configured = bool((settings.SYSTEM_ADMIN_ALLOWED_IPS or "").strip())
+    token_configured = bool((getattr(settings, "SYSTEM_ADMIN_ENROLMENT_TOKEN", "") or "").strip())
     return {
         "your_ip": ip,
         "enrolment_open": allowed and existing is None,
-        "ip_allowed": allowed,
+        "ip_allowed": _ip_allowed(ip),
         "allowlist_configured": configured,
+        "token_configured": token_configured,
+        "gate": gate or None,
         "already_enrolled": existing is not None,
         "hint": (
             "A System Admin already exists; enrolment is closed."
             if existing is not None
-            else "Set SYSTEM_ADMIN_ALLOWED_IPS to enable enrolment — it is disabled by default."
-            if not configured
-            else f"Add {ip} to SYSTEM_ADMIN_ALLOWED_IPS to enrol from this machine."
-            if not allowed
             else "Enrolment is open from this machine."
+            if allowed
+            else (
+                "Enrolment is disabled. Set SYSTEM_ADMIN_ENROLMENT_TOKEN on the server "
+                "and supply it here — on a hosted platform your address changes, so the "
+                "token is the reliable route."
+            )
+            if not configured and not token_configured
+            else f"Add {ip} to SYSTEM_ADMIN_ALLOWED_IPS, or supply the enrolment token."
         ),
     }
 
@@ -167,13 +221,19 @@ async def register_challenge(
     db: AsyncSession = Depends(get_db),
 ):
     ip = _client_ip(request)
-    if not _ip_allowed(ip):
+    permitted, _gate = _may_enrol(request)
+    if not permitted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
-                "reason": "IP_NOT_ALLOWED",
+                "reason": "ENROLMENT_NOT_PERMITTED",
                 "your_ip": ip,
-                "message": "System Admin enrolment is restricted to approved addresses. Add this address to SYSTEM_ADMIN_ALLOWED_IPS on the server.",
+                "message": (
+                    f"Tier-0 enrolment is restricted. This request came from {ip}. Either add "
+                    "that address to SYSTEM_ADMIN_ALLOWED_IPS, or set SYSTEM_ADMIN_ENROLMENT_TOKEN "
+                    "and send it as the x-enrolment-token header — on a hosted platform the "
+                    "token is the reliable route, because your address is not stable."
+                ),
             },
         )
     if await _existing_sysadmin(db):
@@ -221,8 +281,24 @@ class RegisterRequest(BaseModel):
 @router.post("/register", status_code=201, summary="Complete tier-0 enrolment (IP-gated)")
 async def register(body: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     ip = _client_ip(request)
-    if not _ip_allowed(ip):
-        raise HTTPException(status_code=403, detail={"reason": "IP_NOT_ALLOWED", "your_ip": ip})
+    # The second gate, and the one that was missed: /register/challenge honoured
+    # the enrolment token while /register still demanded an allowlisted address,
+    # so a hosted bootstrap got a challenge and then a 403 — the least useful
+    # possible failure, because it looks like the token worked.
+    permitted, _gate = _may_enrol(request)
+    if not permitted:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason": "ENROLMENT_NOT_PERMITTED",
+                "your_ip": ip,
+                "message": (
+                    f"Tier-0 enrolment is restricted. This request came from {ip}. Add that "
+                    "address to SYSTEM_ADMIN_ALLOWED_IPS, or set SYSTEM_ADMIN_ENROLMENT_TOKEN "
+                    "and send it as the x-enrolment-token header."
+                ),
+            },
+        )
     if await _existing_sysadmin(db):
         raise HTTPException(status_code=409, detail={"reason": "ALREADY_ENROLLED", "message": "A System Admin is already enrolled, so enrolment is closed. Sign in instead, or remove the existing tier-0 account first."})
     if not _consume_challenge(body.challenge, "register"):
