@@ -709,3 +709,29 @@ async def update_enquiry(
 
     logger.info("Enquiry %s → %s by admin=%s", row.reference, new_status.value, current_user["user_id"])
     return {"ok": True, "reference": row.reference, "status": new_status.value}
+
+
+@router.get("/admins", summary="Administrator directory (for dual-control co-signing)")
+async def list_admins(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The real administrators who can co-sign a dual-control action.
+
+    Dual control means two DIFFERENT people authorise anything dangerous. The
+    emergency panel used to offer three invented names, so the control looked
+    operational while the co-signer was fictional — the one place a fake name
+    is not cosmetic. Identity only: no password material, no tokens.
+    """
+    rows = (await db.execute(
+        select(User)
+        .where(User.role.in_([UserRole.ADMIN, UserRole.SYSTEM_ADMIN]), User.is_active == True)  # noqa: E712
+        .order_by(User.full_name)
+    )).scalars().all()
+    return {
+        "admins": [
+            {"id": str(u.id), "full_name": u.full_name, "email": u.email, "role": u.role.value}
+            for u in rows
+        ]
+    }

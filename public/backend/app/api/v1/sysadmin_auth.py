@@ -224,9 +224,9 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     if not _ip_allowed(ip):
         raise HTTPException(status_code=403, detail={"reason": "IP_NOT_ALLOWED", "your_ip": ip})
     if await _existing_sysadmin(db):
-        raise HTTPException(status_code=409, detail={"reason": "ALREADY_ENROLLED"})
+        raise HTTPException(status_code=409, detail={"reason": "ALREADY_ENROLLED", "message": "A System Admin is already enrolled, so enrolment is closed. Sign in instead, or remove the existing tier-0 account first."})
     if not _consume_challenge(body.challenge, "register"):
-        raise HTTPException(status_code=400, detail={"reason": "CHALLENGE_INVALID_OR_EXPIRED"})
+        raise HTTPException(status_code=400, detail={"reason": "CHALLENGE_INVALID_OR_EXPIRED", "message": "This enrolment attempt expired before the fingerprint prompt completed. Start again — challenges are single-use and short-lived on purpose."})
 
     # A tier-0 account with no fingerprint could never log in (login demands an
     # assertion), so refuse the enrolment rather than create a dead account.
@@ -235,8 +235,29 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     except WebAuthnError as exc:
         raise HTTPException(status_code=400, detail={"reason": "BAD_CREDENTIAL", "message": str(exc)})
 
-    if (await db.execute(select(User).where(User.email == str(body.email).lower()))).scalar_one_or_none():
-        raise HTTPException(status_code=409, detail={"reason": "EMAIL_IN_USE"})
+    existing = (await db.execute(
+        select(User).where(User.email == str(body.email).lower())
+    )).scalar_one_or_none()
+    if existing:
+        # Naming the role that holds the address matters here. Enrolment and
+        # sign-in disagree in a way that looks like a bug otherwise: the login
+        # page correctly reports "no System Admin exists" while this endpoint
+        # correctly reports the address is taken — both true, because the
+        # address belongs to a DIFFERENT role. A bare "EMAIL_IN_USE" leaves the
+        # operator to work that out themselves.
+        held_by = existing.role.value if hasattr(existing.role, "value") else str(existing.role)
+        local, _, domain = str(body.email).lower().partition("@")
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": "EMAIL_IN_USE",
+                "message": (
+                    f"That address is already registered to a {held_by} account, and one address "
+                    f"cannot hold two roles. Use a different one — with Gmail, "
+                    f"{local}+admin@{domain} reaches the same inbox and counts as a separate address."
+                ),
+            },
+        )
 
     user = User(
         id=str(uuid4()),
@@ -293,11 +314,11 @@ async def login_challenge(body: LoginChallengeRequest, db: AsyncSession = Depend
 
     # One message for "no such account" and "wrong password" — a distinct error
     # would tell an attacker which tier-0 email exists.
-    invalid = HTTPException(status_code=401, detail={"reason": "INVALID_CREDENTIALS"})
+    invalid = HTTPException(status_code=401, detail={"reason": "INVALID_CREDENTIALS", "message": "That email and password combination was not accepted."})
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise invalid
     if not user.is_active:
-        raise HTTPException(status_code=403, detail={"reason": "ACCOUNT_DISABLED"})
+        raise HTTPException(status_code=403, detail={"reason": "ACCOUNT_DISABLED", "message": "This tier-0 account has been disabled. Another System Admin must re-enable it."})
 
     cred = (await db.execute(
         select(SystemAdminCredential).where(
@@ -338,13 +359,13 @@ class LoginRequest(BaseModel):
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     settings = get_settings()
     if not _consume_challenge(body.challenge, "login"):
-        raise HTTPException(status_code=400, detail={"reason": "CHALLENGE_INVALID_OR_EXPIRED"})
+        raise HTTPException(status_code=400, detail={"reason": "CHALLENGE_INVALID_OR_EXPIRED", "message": "This enrolment attempt expired before the fingerprint prompt completed. Start again — challenges are single-use and short-lived on purpose."})
 
     user = (await db.execute(
         select(User).where(User.email == str(body.email).lower(), User.role == UserRole.SYSTEM_ADMIN)
     )).scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=401, detail={"reason": "INVALID_CREDENTIALS"})
+        raise HTTPException(status_code=401, detail={"reason": "INVALID_CREDENTIALS", "message": "That email and password combination was not accepted."})
 
     cred = (await db.execute(
         select(SystemAdminCredential).where(
@@ -354,7 +375,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
         )
     )).scalar_one_or_none()
     if not cred:
-        raise HTTPException(status_code=401, detail={"reason": "UNKNOWN_CREDENTIAL"})
+        raise HTTPException(status_code=401, detail={"reason": "UNKNOWN_CREDENTIAL", "message": "This device's security key is not the one registered for that account. Tier-0 sign-in only works from the machine you enrolled on."})
 
     try:
         result = verify_assertion(

@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { emergencyApi, type EmergencyRequest, type EmergencyActionType } from '@/lib/api/emergency';
+import { getAuthToken } from '@/lib/api/client';
 
 const ACTIONS: { value: EmergencyActionType; label: string; severity: 'amber' | 'blue' | 'red' }[] = [
   { value: 'PAUSE_EXAM', label: 'Pause Exam', severity: 'amber' },
@@ -24,14 +25,37 @@ const ACTIONS: { value: EmergencyActionType; label: string; severity: 'amber' | 
 
 const SEVERITY_COLOR = { amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444' };
 
-const SEED_ADMINS = [
-  { id: 'admin-A', name: 'Vikram S. Rathore' },
-  { id: 'admin-B', name: 'Dr. Meera Kapoor' },
-  { id: 'admin-C', name: 'Adv. Suresh Iyer' },
-];
+/**
+ * Dual control needs two DIFFERENT real administrators to authorise a
+ * dangerous action. Three invented names ("Vikram S. Rathore", "Dr. Meera
+ * Kapoor", "Adv. Suresh Iyer") made the control look operational while
+ * authorising nothing — the co-signer was a fictional person.
+ *
+ * The roster is loaded from the real admin directory; when it cannot be
+ * loaded, the panel says so rather than offering fictional co-signers.
+ */
+interface AdminOption { id: string; name: string }
 
 export default function DualControlPanel() {
-  const [currentAdmin, setCurrentAdmin] = useState(SEED_ADMINS[0].id);
+  const [admins, setAdmins] = useState<AdminOption[] | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [currentAdmin, setCurrentAdmin] = useState('');
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/admin/admins`, {
+      headers: { ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
+      cache: 'no-store',
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('roster unavailable'))))
+      .then((d) => {
+        const list: AdminOption[] = (d.admins ?? []).map((a: { id: string; full_name?: string; email: string }) => ({
+          id: a.id, name: a.full_name || a.email,
+        }));
+        setAdmins(list);
+        if (list[0]) setCurrentAdmin(list[0].id);
+      })
+      .catch(() => setRosterError('The administrator roster could not be loaded, so no co-signer can be selected.'));
+  }, []);
   const [action, setAction] = useState<EmergencyActionType>('PAUSE_EXAM');
   const [examId, setExamId] = useState('neet-ug-2026-mock');
   const [reason, setReason] = useState('');
@@ -99,7 +123,7 @@ export default function DualControlPanel() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12 }}>
           You are signed in as
           <select value={currentAdmin} onChange={(e) => setCurrentAdmin(e.target.value)} style={selectMini}>
-            {SEED_ADMINS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {(admins ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </label>
       </header>
@@ -131,7 +155,7 @@ export default function DualControlPanel() {
             ? <div style={empty}>No pending emergency requests.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {pending.map((r) => {
-                  const initiatorName = SEED_ADMINS.find((a) => a.id === r.initiator_id)?.name ?? r.initiator_id;
+                  const initiatorName = (admins ?? []).find((a) => a.id === r.initiator_id)?.name ?? r.initiator_id;
                   const isOwn = currentAdmin === r.initiator_id;
                   const expSec = Math.max(0, Math.floor((Date.parse(r.expires_at) - Date.now()) / 1000));
                   return (
@@ -182,8 +206,8 @@ export default function DualControlPanel() {
                 <tr key={r.request_id} style={{ borderTop: '1px solid #1A2D5A' }}>
                   <td style={td}>{r.action.replace('_', ' ')}</td>
                   <td style={td}>{r.exam_id}</td>
-                  <td style={td}>{SEED_ADMINS.find((a) => a.id === r.initiator_id)?.name ?? r.initiator_id}</td>
-                  <td style={td}>{r.confirmer_id ? (SEED_ADMINS.find((a) => a.id === r.confirmer_id)?.name ?? r.confirmer_id) : '—'}</td>
+                  <td style={td}>{(admins ?? []).find((a) => a.id === r.initiator_id)?.name ?? r.initiator_id}</td>
+                  <td style={td}>{r.confirmer_id ? ((admins ?? []).find((a) => a.id === r.confirmer_id)?.name ?? r.confirmer_id) : '—'}</td>
                   <td style={{ ...td, color: r.status === 'CONFIRMED' ? '#86efac' : r.status === 'REJECTED' ? '#fca5a5' : '#fcd34d' }}>{r.status}</td>
                   <td style={td}>{(r.execution_result as { status?: string })?.status ?? '—'}</td>
                 </tr>
