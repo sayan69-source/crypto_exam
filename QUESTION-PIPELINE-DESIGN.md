@@ -889,3 +889,122 @@ What the prototype does **not** yet cover, and should next: gauntlet stages S2
 (multi-model consensus) and S3 (novelty/contamination), the pool sealing scheme of
 §6.2, drand BLS verification (§6.3), and real IRT estimation from response data (§7) —
 which cannot be prototyped at all until there is response data to estimate from.
+
+---
+
+## 5.1a Template hardening — two measured flaws in §5.1
+
+Added 2026-08-10 after working the template mechanism against the prototype
+rather than the prose. §5.1 is the strongest idea in this document, and both
+problems below are in its *accounting*, not its principle.
+
+### A. The security parameter is the TEMPLATE, not the item — §5.4's margin is 25× optimistic
+
+§5.4 sets a pool-to-paper ratio target of "≥ 100:1", and §8/§9 plan for 400
+templates × 25 variants = 10,000 items against k=90. Those are not the same
+ratio, because **§6.1 forbids two siblings of one template on a form** — so a
+90-item paper draws from **90 distinct templates**:
+
+| Quantity | Ratio to a 90-item paper |
+|---|---|
+| Items in the pool (10,000) | 111 : 1 — what §5.4 measures |
+| **Templates in the pool (400)** | **4.4 : 1** — what an attacker actually faces |
+
+The variants are not independent secrets. A template's parameters are *printed
+on the page*; anyone holding the template answers all 25 of its children by
+doing the arithmetic the item exists to test. The unit of secrecy is the
+template, so the pool is effectively 400 deep, not 10,000.
+
+This does **not** break §2 or §3 — those are stated as fractions, and the
+fractions survive. A setter who authors 2 templates leaks 2/400 = 0.5% of the
+pool either way, and the §5.3.3 contribution cap still binds at 5% of a form.
+What it breaks is the **residual-risk argument in §5.4**:
+
+> "memorising 10,000 items with worked answers is approximately
+> indistinguishable from studying"
+
+becomes *"memorising 400 templates"* — which is a term of coaching, not an
+education. That sentence is the whole load-bearing claim of §5.4.
+
+**Three consequences, in order of importance:**
+
+1. **State the ratio in templates everywhere.** A true 100:1 margin on the
+   quantity that matters needs **9,000 templates** (225,000 items at 25
+   variants), not 400. That is a different programme — and if it is not
+   affordable, the honest move is to lower the claimed margin, not to keep
+   quoting the item count.
+2. **Exposure tracking and rotation must be per-TEMPLATE.** §5.4's "retire items
+   after N exposures" retires one variant while its 24 siblings — which a
+   compromised party can already answer — stay live. Retire the family.
+3. **Statistical leak detection should cluster by template family.** A cohort
+   that is anomalously fast on three variants of one template has been drilled
+   on the template. The per-item signal is 25× weaker than the per-family
+   signal and may not clear noise at all.
+
+### B. The distractor check tests inequality, not distinguishability
+
+`expand_and_verify` rejects an item when the four rendered options are not four
+distinct strings. That check is better than it looks — comparing *rendered* text
+rather than raw floats catches near-collisions inside display precision and
+absorbs float noise (`0.1+0.2` and `0.3` both render `0.3`, so no false
+rejection).
+
+It still ships items whose options a candidate cannot tell apart. A distractor
+differing from the key by a lower-order term converges on it as parameters grow.
+Measured, for `key = n(n+1)/2` against the common "drops the +1" misconception
+`n^2/2`:
+
+| n | key | distractor | separation | distinct strings? |
+|---|---|---|---|---|
+| 5 | 15 | 12.5 | 16.7 % | yes |
+| 10 | 55 | 50 | 9.1 % | yes |
+| **20** | **210** | **200** | **4.8 %** | yes — **ships** |
+| **80** | **3240** | **3200** | **1.2 %** | yes — **ships** |
+
+Every row passes the current test. The bottom rows are items where two options
+sit a couple of percent apart: the candidate is being graded on transcription
+care rather than on physics, and the item's discrimination collapses.
+
+**Fix — a relative separation floor in S0:**
+
+```python
+MIN_REL_SEPARATION = 0.05      # 5% of the key's magnitude
+
+for w in wrongs:
+    if abs(w - answer) < MIN_REL_SEPARATION * max(abs(answer), 1e-9):
+        raise VerificationError(
+            f"distractor {w} is within {MIN_REL_SEPARATION:.0%} of the key {answer} — "
+            "distinct on the page but not distinguishable to a candidate"
+        )
+```
+
+Apply it distractor-to-distractor as well, for the same reason. It costs a few
+percent of variants on top of the ~12% already lost to exact collisions, and it
+is the cheapest place in the whole gauntlet to buy item quality: deterministic,
+free, and it catches a defect no human reviewer reliably spots in a list of four
+numbers.
+
+**Related, smaller:** the docstring claims key position is "balanced across the
+pool", but the implementation shuffles each item independently — that gives ~25%
+per position *in expectation*, not balance. Across 90 items the binomial spread
+is wide enough to produce a visible bias in one paper. If the claim is kept,
+allocate positions from a running counter rather than an independent draw.
+
+### What is NOT wrong with templates
+
+Worth recording, because the mechanism is sound and both entries above are
+corrections rather than objections:
+
+- **The anti-hallucination property holds completely.** The key is the output of
+  evaluating an expression, so a wrong key requires a wrong *expression* — which
+  a human reviewing 400 templates will catch, and which the planted
+  `BAD-HALLUCINATED-001` case demonstrates being rejected on every variant.
+- **Forcing the key's unit onto every option is correct**, and worth stating
+  explicitly because it looks like a bug: a distractor computed from `v/R` has
+  units of 1/s, and rendering it honestly would let a candidate eliminate it by
+  dimensional analysis without knowing any physics. The misconception is the
+  point; the units are not part of what is being asked.
+- **Sibling IRT similarity is a real property**, not an assumption — siblings
+  differ only in parameter values, so §5.1's claim that swapping them is
+  fairness-neutral is sound, and it is what makes the §6.1 candidate-form set
+  viable in the first place.
