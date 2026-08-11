@@ -1,0 +1,92 @@
+# Render Blueprint — one-click deploy of the public CryptoExam website.
+# Defines: a free Postgres DB, the FastAPI backend, and the Next.js frontend.
+#
+# USAGE:
+#   1. Copy this file to render.yaml:  cp render.yaml.example render.yaml
+#   2. Fill in the secret values marked <GENERATE_...> below.
+#   3. Push this repo to GitHub.
+#   4. On https://render.com → New → Blueprint → pick this repo.
+#   5. After deploy, verify CORS_ALLOW_ORIGINS and NEXT_PUBLIC_API_URL match
+#      the actual service URLs and redeploy both services if needed.
+#
+# Free tier note: web services sleep after ~15 min idle (first hit is slow);
+# the free Postgres expires after 90 days. Region `singapore` is closest to India.
+
+databases:
+  - name: cryptoexam-db-sayan
+    databaseName: cryptoexam
+    user: cryptoexam
+    plan: free
+    region: singapore
+
+services:
+  # ── FastAPI backend ──────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-api-sayan
+    runtime: docker
+    rootDir: public/backend
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cryptoexam-db-sayan
+          property: connectionString
+      # DEBUG=true enables the dev OTP path (OTP returned in response) so
+      # login works without Twilio. Set to "false" + provide Twilio creds
+      # for production-grade SMS delivery.
+      - key: DEBUG
+        value: "true"
+      # Seed the DB once on a fresh deploy (admin/exams/centres) while
+      # keeping the deploy autonomous. Idempotent — no-ops once seeded.
+      - key: SEED_ON_START
+        value: "true"
+      # ── RS256 JWT keys ──
+      # Generate a 2048-bit RSA keypair:
+      #   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt_private.pem
+      #   openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
+      # Paste the full PEM content (with -----BEGIN/END----- headers) below.
+      # Use \n for line breaks inside the YAML string.
+      - key: JWT_PRIVATE_KEY_PEM
+        value: "<GENERATE_RSA_PRIVATE_KEY>"
+      - key: JWT_PUBLIC_KEY_PEM
+        value: "<GENERATE_RSA_PUBLIC_KEY>"
+      # Comma-separated allowed origins — set to the frontend's URL after deploy.
+      - key: CORS_ALLOW_ORIGINS
+        value: "https://cryptoexam-web-sayan.onrender.com"
+      # The System Admin identity — seeded on first boot.
+      - key: SEED_ADMIN_EMAIL
+        value: "<YOUR_ADMIN_EMAIL>"
+      - key: SEED_ADMIN_PASSWORD
+        value: "<YOUR_ADMIN_PASSWORD>"
+      - key: SEED_ADMIN_PHONE
+        value: "<YOUR_PHONE_NUMBER>"
+      # Twilio not configured — DEBUG=true enables dev-OTP (returned in response).
+      # To switch to real SMS: set these + set DEBUG=false.
+      - key: TWILIO_ACCOUNT_SID
+        value: ""
+      - key: TWILIO_AUTH_TOKEN
+        value: ""
+      - key: TWILIO_FROM_NUMBER
+        value: ""
+      # HQ→Edge provisioning shared secret (only needed if syncing to a centre Edge).
+      - key: EDGE_PROVISIONING_KEY
+        value: ""
+
+  # ── Next.js frontend ─────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-web-sayan
+    runtime: docker
+    rootDir: public/frontend
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    region: singapore
+    envVars:
+      # MUST be the backend's public URL + /api/v1. It is baked in at BUILD time,
+      # so after the backend is live, set this and trigger a frontend redeploy.
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://cryptoexam-api-sayan.onrender.com/api/v1"
+      - key: NEXT_PUBLIC_USE_MOCK
+        value: "false"
