@@ -22,7 +22,12 @@ import s from './pipeline.module.css';
 
 const EXAM_ID = 'e1a2b3c4-5678-90ab-cdef-1234567890ab';
 
-const MOCK_QUESTIONS = [
+// Six specimen questions. The CRYPTOGRAPHY on this page is real — the root
+// below is computed in your browser, the sealing is AES-GCM under per-question
+// keys, and the tamper control genuinely breaks the inclusion proof. Only the
+// question text is sample content, because the page has to show something and
+// a live paper is sealed precisely so it cannot be shown.
+const SPECIMEN_QUESTIONS = [
   { id: 'q1-aaaa', sequence_number: 1, subject: 'Physics', text: 'A body moves with constant acceleration. Which quantity stays constant?', options: { A: 'Velocity', B: 'Acceleration', C: 'Displacement', D: 'Kinetic energy' }, correct_option: 'B' },
   { id: 'q2-bbbb', sequence_number: 2, subject: 'Mathematics', text: 'The derivative of sin(x) with respect to x is:', options: { A: 'cos(x)', B: '−cos(x)', C: 'tan(x)', D: '−sin(x)' }, correct_option: 'A' },
   { id: 'q3-cccc', sequence_number: 3, subject: 'Chemistry', text: 'Which gas is liberated when a metal reacts with a dilute acid?', options: { A: 'Oxygen', B: 'Nitrogen', C: 'Hydrogen', D: 'Chlorine' }, correct_option: 'C' },
@@ -56,10 +61,18 @@ export default function PipelineDemoPage() {
       const salt = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
       beaconRef.current = { beacon, salt };
       const masterSeed = await deriveMasterSeed(beacon, salt, EXAM_ID);
-      const sealedBundle = await sealExamQuestions(MOCK_QUESTIONS, masterSeed, EXAM_ID);
+      const sealedBundle = await sealExamQuestions(SPECIMEN_QUESTIONS, masterSeed, EXAM_ID);
       setBundle(sealedBundle);
-      // a believable Polygon tx hash derived from the root (demo only)
-      setTxHash('0x' + sealedBundle.questionsRoot.slice(2, 10) + 'b9f3a1c7d2e4…' + sealedBundle.questionsRoot.slice(-6));
+      // No transaction hash is invented here.
+      //
+      // This used to build one from the Merkle root with an ellipsis in the
+      // middle — "a believable Polygon tx hash", in its own comment — on the
+      // page whose entire claim is that anyone can check the chain. A string
+      // shaped like a receipt, for a transaction that never happened, is the
+      // exact failure this project exists to prevent. The commit step now
+      // reports what it genuinely knows: the root that WOULD be committed, and
+      // whether a contract is configured to receive it.
+      setTxHash('');
       setPhase('sealed');
     })();
   }, []);
@@ -161,7 +174,15 @@ export default function PipelineDemoPage() {
             </div>
             <div className={s.commitItem}>
               <span className={s.commitK}>Polygon tx</span>
-              <code className={s.commitV}>{stageIdx >= 2 ? txHash : '— not committed yet —'}</code>
+              {/* Honest in both states. Before commit: nothing happened. After:
+                  this browser sealed and committed a root locally, but it did
+                  not transact — no key, no contract, no chain. Saying so beats
+                  a hash-shaped string nobody can look up. */}
+              <code className={s.commitV}>
+                {stageIdx < 2
+                  ? '— not committed yet —'
+                  : txHash || '— no chain configured in this demo —'}
+              </code>
             </div>
             {ctaLabel && (
               <button className={`btn btn-primary ${s.cta}`} onClick={advance}>
