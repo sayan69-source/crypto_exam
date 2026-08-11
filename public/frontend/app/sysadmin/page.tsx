@@ -20,10 +20,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { adminApi, type StaffApproval } from '@/lib/api/admin';
+import { adminApi, type Enquiry, type StaffApproval } from '@/lib/api/admin';
 import { sysLedgerApi } from '@/lib/api/sys-ledger';
 import {
-  AdminPage, PageHeader, Card, CardGrid, Stat, Badge, Button, Table,
+  AdminPage, PageHeader, Card, CardGrid, Stat, Badge, Button, LinkButton, Table,
   ErrorState, EmptyState, SkeletonRows, cellMono, cellStrong,
 } from '@/components/admin/AdminUI';
 
@@ -163,6 +163,10 @@ export default function SysAdminConsolePage() {
       )}
 
       <div style={{ marginTop: 'var(--space-xl)' }}>
+        <Enquiries />
+      </div>
+
+      <div style={{ marginTop: 'var(--space-xl)' }}>
         <AnswerVault />
       </div>
 
@@ -258,6 +262,98 @@ function AnswerVault() {
         >
           {result.text}
         </p>
+      )}
+    </Card>
+  );
+}
+
+
+/**
+ * Enquiries from the public site, surfaced here as well as in the tier-1
+ * console.
+ *
+ * Not duplication for its own sake: a fresh deployment has NO tier-1 admin —
+ * the seeder only runs with DEBUG or SEED_ON_START — so the first and only
+ * account an operator can create is this one. Without this panel, a request to
+ * conduct an exam arrives on a live site and no existing account can read it.
+ * That is the public's only channel into the platform.
+ */
+function Enquiries() {
+  const [rows, setRows] = useState<Enquiry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    adminApi.enquiries()
+      .then((r) => { setRows(r.items); setError(null); })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load enquiries'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  const waiting = rows.filter((r) => r.status === 'NEW' || r.status === 'IN_REVIEW').length;
+
+  return (
+    <Card
+      title={`Enquiries${waiting ? ` · ${waiting} awaiting reply` : ''}`}
+      actions={<Button onClick={load} disabled={loading}>Refresh</Button>}
+      flush
+    >
+      {error && <div style={{ padding: 'var(--space-lg)' }}><ErrorState message={error} onRetry={load} /></div>}
+      {!error && (
+        <Table head={['From', 'Organisation', 'Reference', 'Topic', 'Status', '']}>
+          {loading && <SkeletonRows rows={2} cols={6} />}
+          {!loading && rows.length === 0 && (
+            <tr>
+              <td colSpan={6} style={{ padding: 0, borderBottom: 0 }}>
+                <EmptyState
+                  title="No enquiries yet"
+                  hint="Requests to conduct an exam, sent from the public contact form, arrive here."
+                />
+              </td>
+            </tr>
+          )}
+          {!loading && rows.map((e) => (
+            <>
+              <tr key={e.id} onClick={() => setOpenId(openId === e.id ? null : e.id)} style={{ cursor: 'pointer' }}>
+                <td className={cellStrong}>{e.fullName}</td>
+                <td>{e.organisation ?? '—'}</td>
+                <td className={cellMono}>{e.reference}</td>
+                <td>{e.topic}</td>
+                <td><Badge tone={e.status === 'NEW' ? 'info' : e.status === 'IN_REVIEW' ? 'warn' : 'ok'} dot>{e.status}</Badge></td>
+                <td style={{ textAlign: 'right' }}>
+                  <Button onClick={(ev) => { ev.stopPropagation(); setOpenId(openId === e.id ? null : e.id); }}>
+                    {openId === e.id ? 'Hide' : 'Open'}
+                  </Button>
+                </td>
+              </tr>
+              {openId === e.id && (
+                <tr key={`${e.id}-detail`}>
+                  <td colSpan={6} style={{ background: 'color-mix(in srgb, var(--color-navy-900) 2%, transparent)' }}>
+                    <div style={{ display: 'grid', gap: 12, maxWidth: 760 }}>
+                      <span style={{ fontSize: 13 }}>
+                        <strong>Email </strong><a href={`mailto:${e.email}`}>{e.email}</a>
+                        {e.roleTitle && <> · <strong>Role </strong>{e.roleTitle}</>}
+                      </span>
+                      <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, margin: 0, fontSize: 13.5 }}>{e.message}</p>
+                      <div>
+                        <LinkButton
+                          variant="primary"
+                          href={`mailto:${e.email}?subject=${encodeURIComponent(`Re: your enquiry ${e.reference}`)}`}
+                        >
+                          Reply by email
+                        </LinkButton>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
+          ))}
+        </Table>
       )}
     </Card>
   );

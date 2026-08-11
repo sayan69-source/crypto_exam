@@ -645,7 +645,12 @@ async def list_enquiries(
     page: int = 1,
     per_page: int = 50,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    # Tier-0 too, and not as a convenience. A fresh deployment has NO tier-1
+    # admin — the seeder only runs with DEBUG or SEED_ON_START — so the first
+    # and only account an operator can create is the System Admin. Restricting
+    # this to ADMIN meant enquiries arrived on a live site and no existing
+    # account could read them: the public's only channel, delivered to nobody.
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """
     The queue the contact form feeds.
@@ -706,7 +711,7 @@ async def update_enquiry(
     enquiry_id: str,
     body: EnquiryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """Move an enquiry along the queue and record who touched it."""
     from app.models import Enquiry, EnquiryStatus
