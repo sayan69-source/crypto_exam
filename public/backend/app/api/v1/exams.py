@@ -131,11 +131,29 @@ async def get_exam(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get detailed exam information."""
-    stmt = select(Exam).where(Exam.id == exam_id)
-    result = await db.execute(stmt)
-    exam = result.scalar_one_or_none()
+    """
+    Get detailed exam information, scoped exactly like the list.
 
+    This endpoint had NO scoping: the list correctly showed a setter only their
+    own exams, but anyone holding any token could read any exam in full by id —
+    name, schedule, subject blueprint, IRT targets, authoring setter. A rival
+    setter with a guessed or leaked id learned the shape of a paper they have
+    no part in, which is precisely the compartmentalisation the design relies
+    on. Scoping is now identical on both routes.
+
+    404 rather than 403 for an exam you may not see: telling a stranger that a
+    given id exists is itself a disclosure.
+    """
+    stmt = select(Exam).where(Exam.id == exam_id)
+    role = current_user["role"]
+    if role == UserRole.SETTER:
+        stmt = stmt.where(Exam.setter_id == current_user["user_id"])
+    elif role == UserRole.CANDIDATE:
+        from app.models import Enrollment
+
+        stmt = stmt.join(Enrollment).where(Enrollment.candidate_id == current_user["user_id"])
+
+    exam = (await db.execute(stmt)).scalar_one_or_none()
     if not exam:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
 

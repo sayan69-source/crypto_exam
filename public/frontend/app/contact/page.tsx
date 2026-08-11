@@ -92,11 +92,17 @@ export default function ContactPage() {
               </p>
 
               <div className={s.channels}>
+                {/* These were three invented mailboxes on a domain nobody owns
+                    and an office address for a company that is not registered.
+                    A contact page whose contacts do not exist is worse than one
+                    with none — someone writes to it and hears nothing back. The
+                    form on this page is the channel that genuinely works: it
+                    lands in the HQ queue with a reference. */}
                 {[
-                  { icon: "mail", label: "Programme enquiries", value: "access@cryptoexamcore.in" },
-                  { icon: "building-2", label: "Examining bodies", value: "boards@cryptoexamcore.in" },
-                  { icon: "search-check", label: "Audit & press", value: "audit@cryptoexamcore.in" },
-                  { icon: "map-pin", label: "Registered office", value: "Bengaluru · Karnataka · India", isText: true },
+                  { icon: "mail", label: "Programme enquiries", value: "Use the form on this page", isText: true },
+                  { icon: "clock", label: "Response time", value: "Within two working days", isText: true },
+                  { icon: "search-check", label: "Audit & press", value: "Use the form — choose Press", isText: true },
+                  { icon: "shield", label: "Your enquiry", value: "Recorded with a quotable reference", isText: true },
                 ].map((ch) => (
                   <div className={s.channel} key={ch.label}>
                     <span className={`icon-chip ${s.channelChip}`}>
@@ -104,13 +110,11 @@ export default function ContactPage() {
                     </span>
                     <div>
                       <div className={s.ctLabel}>{ch.label}</div>
-                      <div className={s.ctVal}>
-                        {"isText" in ch ? (
-                          ch.value
-                        ) : (
-                          <a href={`mailto:${ch.value}`}>{ch.value}</a>
-                        )}
-                      </div>
+                      {/* No mailto branch any more: every channel here is
+                          descriptive text now that the invented mailboxes are
+                          gone, and TypeScript correctly narrowed the unused
+                          branch to `never`. */}
+                      <div className={s.ctVal}>{ch.value}</div>
                     </div>
                   </div>
                 ))}

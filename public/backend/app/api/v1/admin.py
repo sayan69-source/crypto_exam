@@ -28,6 +28,7 @@ from app.models import (
     StaffRegistrationRequest, StaffApprovalStatus,
 )
 from app.services.auth import require_role
+from app.services.health import system_health
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +106,11 @@ async def dashboard(
             "online": online_nodes,
             "offline": total_nodes - online_nodes,
         },
-        "system_health": {
-            "database": "healthy",
-            "redis": "healthy",
-            "blockchain": "connected",
-            "ipfs": "connected",
-        },
+        # Probed, not asserted. These were four string literals — Redis and
+        # IPFS were reported "connected" on a machine where neither was
+        # running, and the console header's "System Healthy" badge read from
+        # exactly that.
+        "system_health": await system_health(db),
     }
 
 

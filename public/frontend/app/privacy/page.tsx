@@ -171,9 +171,9 @@ export default function PrivacyPage() {
 
           <Article number="11" title="Contact">
             <p>
-              For privacy-specific requests:{" "}
-              <a className={s.link} href="mailto:dpo@cryptoexam.core">dpo@cryptoexam.core</a>.
-              For everything else, see <Link className={s.link} href="/contact">/contact</Link>.
+              For privacy-specific requests use the{" "}
+              <Link className={s.link} href="/contact">enquiry form</Link> and choose the
+              privacy topic — it is recorded with a reference you can quote.
             </p>
           </Article>
         </div>

@@ -6,7 +6,12 @@
 import type { ApiResponse, AuthResponse, OtpChallengeResponse, PaginatedResponse } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== 'false'; // default: mock enabled
+// Mock data is opt-IN. This defaulted to ENABLED (`!== 'false'`), so any
+// deployment that forgot NEXT_PUBLIC_USE_MOCK=false served fixtures to real
+// users while looking completely normal — the one failure mode this project
+// cannot afford, on the one variable nobody remembers to set. Now a build with
+// no configuration talks to the real API and fails loudly if it is absent.
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
 let authToken: string | null = null;
 

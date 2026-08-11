@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -63,18 +63,26 @@ async def login(
     Candidate: identifier=roll_number, dob=YYYY-MM-DD
     Setter/Admin: identifier=email, password=<password>
     """
-    # Find user by email or full name
+    # Find user by email or full name.
+    #
+    # Email is matched case-INSENSITIVELY. Registration lowercases the address
+    # before storing it, so anyone who typed a capital in the login box —
+    # "Setter@x.com", or a phone keyboard auto-capitalising the first letter —
+    # got 401 Invalid credentials against an account that exists and a password
+    # that is correct. Names keep exact matching; they are not identifiers.
+    identifier = request.identifier.strip()
     stmt = select(User).where(
-        (User.email == request.identifier) | (User.full_name == request.identifier)
+        (func.lower(User.email) == identifier.lower()) | (User.full_name == identifier)
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     # Candidate identity is their enrolment roll number — resolve it to the user.
-    # Roll numbers are not guaranteed unique across enrolments, so take the first.
+    # Roll numbers are globally unique (see enroll.py), so this resolves to one
+    # person; the limit is belt-and-braces against legacy rows.
     if not user:
         enr = (await db.execute(
-            select(Enrollment).where(Enrollment.roll_number == request.identifier).limit(1)
+            select(Enrollment).where(Enrollment.roll_number == identifier).limit(1)
         )).scalars().first()
         if enr and enr.candidate_id:
             user = (await db.execute(
