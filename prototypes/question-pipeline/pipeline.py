@@ -224,6 +224,11 @@ class Item:
         return (a * a) * (q / p) * (((p - c) / (1.0 - c)) ** 2)
 
 
+# Two options must be far enough apart that choosing between them is a question
+# about the subject, not about reading care. 5% of the larger magnitude.
+MIN_REL_SEPARATION = 0.05
+
+
 def _fmt(value: float, unit: str) -> str:
     """Render a number the way a candidate would see it."""
     text = f"{value:.4f}".rstrip("0").rstrip(".") if value % 1 else str(int(value))
@@ -285,6 +290,27 @@ def expand_and_verify(
                         "a distractor collides with the key or another distractor "
                         f"(rendered: {rendered})"
                     )
+
+                # Distinct strings are not distinguishable options. A distractor
+                # differing from the key by a lower-order term converges on it as
+                # parameters grow: for key = n(n+1)/2 against the "drops the +1"
+                # misconception n^2/2, the two sit 4.8% apart at n=20 and 1.2%
+                # apart at n=80 — and every one of those renders as a different
+                # string, so the exact check above passes them. Such an item
+                # grades transcription care rather than the subject, and its
+                # discrimination collapses. See design doc section 5.1a-B.
+                values = [answer, *wrongs]
+                for a_idx in range(len(values)):
+                    for b_idx in range(a_idx + 1, len(values)):
+                        a_val, b_val = values[a_idx], values[b_idx]
+                        scale = max(abs(a_val), abs(b_val), 1e-9)
+                        if abs(a_val - b_val) < MIN_REL_SEPARATION * scale:
+                            raise VerificationError(
+                                f"options {_fmt(a_val, tpl.unit)!r} and {_fmt(b_val, tpl.unit)!r} "
+                                f"are only {abs(a_val - b_val) / scale:.1%} apart "
+                                f"(floor {MIN_REL_SEPARATION:.0%}) — distinct on the page, "
+                                "not distinguishable to a candidate"
+                            )
 
                 stem = tpl.stem
                 for key, value in combo.items():
