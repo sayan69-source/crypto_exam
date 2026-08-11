@@ -72,6 +72,18 @@ const tsxFiles = walk(FRONTEND).filter((f) => f.endsWith(".tsx"));
 const rel = (f) => relative(ROOT, f).split(sep).join("/");
 const lineOf = (src, index) => src.slice(0, index).split("\n").length;
 
+/**
+ * Split on either line ending.
+ *
+ * A trailing \r is a LINE TERMINATOR to a JS regex, so `.` will not match it and
+ * `$` will not step over it: any rule anchored with `$` matches nothing at all
+ * on a CRLF file, and the checker then reports "ok" having read zero lines. The
+ * rules below happen to be unanchored, so this is prevention rather than a fix —
+ * but the sibling check-no-secrets did exactly this, passing clean on Windows
+ * while finding real lines on the Linux runner.
+ */
+const lines = (src) => src.split(/\r?\n/);
+
 // ── 1. Controls that render and do nothing ──────────────────────────────────
 {
   let dead = 0;
@@ -101,7 +113,7 @@ const lineOf = (src, index) => src.slice(0, index).split("\n").length;
   let bad = 0;
   for (const file of tsxFiles) {
     const src = stripComments(readFileSync(file, "utf8"), "ts");
-    src.split("\n").forEach((line, i) => {
+    lines(src).forEach((line, i) => {
       const m = line.match(/mailto:[^"'`\s)]+@([a-z0-9.-]+)/i);
       if (!m) return;
       const domain = m[1].toLowerCase();
@@ -126,7 +138,7 @@ const lineOf = (src, index) => src.slice(0, index).split("\n").length;
   let bad = 0;
   for (const file of tsxFiles) {
     const src = stripComments(readFileSync(file, "utf8"), "ts");
-    src.split("\n").forEach((line, i) => {
+    lines(src).forEach((line, i) => {
       // Cosmetic randomness is fine — timing, jitter, decoration.
       if (/delay|duration|jitter|shimmer|particle|sparkle|animation|opacity/i.test(line)) return;
       for (const [re, why] of SUSPECT) {
@@ -141,7 +153,7 @@ const lineOf = (src, index) => src.slice(0, index).split("\n").length;
 {
   const client = join(FRONTEND, "lib", "api", "client.ts");
   const src = readFileSync(client, "utf8");
-  const line = src.split("\n").find((l) => l.includes("const USE_MOCK"));
+  const line = lines(src).find((l) => l.includes("const USE_MOCK"));
   if (!line || !line.includes("=== 'true'")) {
     fail("mock-opt-in", rel(client),
       "USE_MOCK must be opt-IN (=== 'true'). Defaulting it on means a deploy that " +
@@ -158,7 +170,7 @@ const lineOf = (src, index) => src.slice(0, index).split("\n").length;
     const file = join(ROOT, "public", "backend", ...f.split("/"));
     let src;
     try { src = stripComments(readFileSync(file, "utf8"), "py"); } catch { continue; }
-    src.split("\n").forEach((line, i) => {
+    lines(src).forEach((line, i) => {
       if (/"(redis|database|ipfs|blockchain)":\s*"(healthy|up|connected|ready|pending)"/.test(line)) {
         fail("asserted-health", `${rel(file)}:${i + 1}`,
           `${line.trim()} — report what a probe returned, not a literal`);

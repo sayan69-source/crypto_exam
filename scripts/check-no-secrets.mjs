@@ -36,8 +36,20 @@ const fail = (what, where, why) => {
   console.log(`  FAIL  ${what}\n        ${where}\n        ${why}`);
 };
 
-const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" })
-  .split("\n")
+/**
+ * Split into lines on either ending.
+ *
+ * `src.split("\n")` leaves a trailing \r on every line of a CRLF file, and in a
+ * JS regex \r is a LINE TERMINATOR — `.` will not match it and `$` will not
+ * step over it. So `/…(.*)$/` returns null for every line of every CRLF file,
+ * and this script printed "No secrets tracked by git" on Windows because it had
+ * parsed nothing at all. It found two lines on the Linux runner that it could
+ * not see locally. A checker that silently inspects zero lines is the exact
+ * failure these guards exist to catch.
+ */
+const lines = (src) => src.split(/\r?\n/);
+
+const tracked = lines(execFileSync("git", ["ls-files"], { encoding: "utf8" }))
   .map((l) => l.trim())
   .filter(Boolean);
 
@@ -75,8 +87,14 @@ const NOT_A_SECRET =
 const ASSIGNMENT = /^[\s"'-]*([A-Za-z_][A-Za-z0-9_.-]*)"?\s*[:=]\s*(.*)$/;
 
 // An example file exists to show the shape; placeholders are the point.
+//
+// `dev_secret` is in here because CI found it in public/.env.example and
+// public/docker-compose.yml — the Postgres password for a local container that
+// listens on a loopback port and holds nothing. A value that announces its own
+// scope (dev/local/test/demo/changeme) is a default someone is meant to
+// replace, not a credential that leaked.
 const PLACEHOLDER =
-  /^$|(example|placeholder|your[-_ ]?|dummy|sample|xxx+|\.\.\.|<[^>]+>|\{\{|\$\{|\$\(|changeme|replace[-_ ]?me|redacted|generate|paste|fill|TODO|\bnull\b|\btrue\b|\bfalse\b|^0x0+$|^"?\s*"?$)/i;
+  /^$|(example|placeholder|your[-_ ]?|dummy|sample|xxx+|\.\.\.|<[^>]+>|\{\{|\$\{|\$\(|changeme|replace[-_ ]?me|redacted|generate|paste|fill|TODO|^(dev|local|test|demo)[-_]|[-_](dev|local|test|demo)$|\bnull\b|\btrue\b|\bfalse\b|^0x0+$|^"?\s*"?$)/i;
 
 /**
  * A credential is high-entropy by construction; a stand-in almost never is.
@@ -120,7 +138,7 @@ for (const path of tracked) {
   let pendingName = null;
   let pendingLine = 0;
 
-  src.split("\n").forEach((line, i) => {
+  lines(src).forEach((line, i) => {
     for (const [re, why] of HARD_SHAPES) {
       if (re.test(line)) { fail("secret-in-tracked-file", `${path}:${i + 1}`, why); shaped++; }
     }
