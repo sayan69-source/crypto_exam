@@ -691,3 +691,120 @@ class Enquiry(Base):
     # Kept for abuse handling only, never shown alongside the message body.
     source_ip = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ITEM POOL (design doc §5.1, §5.3, §6.1)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Questions used to belong to an exam from birth (`questions.exam_id`), so
+# there was nothing to assemble *from*: one setter authored one paper and knew
+# all of it. These two tables are the change that makes "the setter cannot leak
+# the paper" a statement about arithmetic rather than about trust.
+#
+# A template is authored once and expands into many sibling items. A pool item
+# belongs to NO exam until a form selects it, and the selection happens from a
+# beacon that did not exist when the item was written.
+
+
+class ItemStatus(str, enum.Enum):
+    DRAFT = "DRAFT"                 # authored, not yet expanded
+    PROVISIONAL = "PROVISIONAL"     # verified, difficulty is an estimate not a measurement
+    CALIBRATED = "CALIBRATED"       # IRT estimated from real response data
+    RETIRED = "RETIRED"             # over-exposed or withdrawn
+    REJECTED = "REJECTED"           # failed the gauntlet
+
+
+class ItemTemplate(Base):
+    """
+    A parametric item model. The answer is an EXPRESSION, never an asserted
+    value — which is what makes a hallucinated key structurally impossible
+    (§5.1). One template yields many siblings that differ only in parameters.
+    """
+    __tablename__ = "item_templates"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    template_id = Column(String(64), unique=True, nullable=False, index=True)
+    author_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    subject = Column(String(120), nullable=False, index=True)
+    topic = Column(String(200), nullable=True)
+    blooms_level = Column(Integer, nullable=True)
+
+    stem = Column(Text, nullable=False)                  # with {param} placeholders
+    params = Column(JSON, nullable=False)                # {"R": [2,3,4], "v": [4,6]}
+    param_constraint = Column(Text, nullable=True)       # optional filter expression
+    answer_expr = Column(Text, nullable=False)           # evaluated, never trusted
+    distractors = Column(JSON, nullable=False)           # [{expr, misconception}, ...]
+    unit = Column(String(32), nullable=True)
+
+    # Family-level IRT prior. Siblings inherit it — they differ only in numbers,
+    # so §5.1's claim that swapping them is fairness-neutral holds.
+    irt_a = Column(Numeric(6, 3), nullable=True)
+    irt_b = Column(Numeric(6, 3), nullable=True)
+    irt_c = Column(Numeric(6, 3), nullable=True)
+
+    status = Column(
+        Enum(ItemStatus, name="item_status", create_type=True),
+        nullable=False, default=ItemStatus.DRAFT, index=True,
+    )
+    # Exposure is tracked per FAMILY, not per variant: retiring one variant
+    # leaves its siblings answerable by anyone who has the template (§5.1a-A).
+    exposure_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    items = relationship("PoolItem", back_populates="template", cascade="all, delete-orphan")
+
+
+class PoolItem(Base):
+    """
+    One expanded, machine-verified sibling. Belongs to no exam until a form
+    selects it — that decoupling is the whole point of the pool.
+    """
+    __tablename__ = "pool_items"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    template_pk = Column(GUID, ForeignKey("item_templates.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Random, unrelated to position — §6.2's defence against pool enumeration.
+    blob_id = Column(String(32), unique=True, nullable=False, index=True)
+
+    stem = Column(Text, nullable=False)
+    options = Column(JSON, nullable=False)               # ["8 m/s²", "2 m/s²", ...]
+    correct_index = Column(Integer, nullable=False)      # position after shuffle
+    subject = Column(String(120), nullable=False, index=True)
+    topic = Column(String(200), nullable=True)
+    blooms_level = Column(Integer, nullable=True)
+
+    irt_a = Column(Numeric(6, 3), nullable=True)
+    irt_b = Column(Numeric(6, 3), nullable=True)
+    irt_c = Column(Numeric(6, 3), nullable=True)
+
+    status = Column(
+        Enum(ItemStatus, name="pool_item_status", create_type=True),
+        nullable=False, default=ItemStatus.PROVISIONAL, index=True,
+    )
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    template = relationship("ItemTemplate", back_populates="items")
+
+
+class ExamForm(Base):
+    """
+    One candidate form: an ordered list of pool item ids, produced at T−14d.
+
+    N of these are committed together as `formSetRoot`; at T₀ the beacon picks
+    an index (§6.1). Storing the selection rather than re-deriving it is what
+    makes 3,000 centres agree — an index cannot drift, a solver can.
+    """
+    __tablename__ = "exam_forms"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    form_index = Column(Integer, nullable=False)         # 0..N-1
+    item_ids = Column(JSON, nullable=False)              # ordered pool_items.id
+    form_hash = Column(String(64), nullable=False)       # sha256 over the id list
+    # Worst single-author share, recorded so the cap is auditable after the fact.
+    max_author_share = Column(Numeric(5, 4), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
