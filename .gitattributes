@@ -1,0 +1,33 @@
+# Line endings.
+#
+# This repo is developed on Windows and runs its CI on Ubuntu. Without this,
+# git stores whatever the editor produced, and a CRLF file whose content is a
+# shell script breaks on the runner in a way that reads as nonsense: the
+# trailing \r becomes part of the last argument, so a `run: |` block fails with
+# `$'\r': command not found` and a .sh hook fails on a line that looks correct.
+#
+# Everything textual is normalised to LF in the repository. Checkout on Windows
+# is unaffected for ordinary source files; the entries below are the ones that
+# are *executed* by something other than Windows.
+* text=auto eol=lf
+
+# Explicitly LF — these are read by Linux runners, containers, or the OS image.
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.sh       text eol=lf
+*.mjs      text eol=lf
+*.py       text eol=lf
+Dockerfile* text eol=lf
+
+# Windows-only helpers keep CRLF, or cmd.exe mis-parses them.
+*.bat      text eol=crlf
+*.ps1      text eol=crlf
+
+# Binary — never touch these.
+*.png      binary
+*.jpg      binary
+*.ico      binary
+*.pdf      binary
+*.wasm     binary
+*.zkey     binary
+*.img      binary

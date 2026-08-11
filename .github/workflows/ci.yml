@@ -179,9 +179,13 @@ jobs:
     needs: [guards, backend, frontend, node-services, contracts]
     runs-on: ubuntu-latest
     steps:
+      # String literals in a ${{ }} expression must be SINGLE-quoted. Writing
+      # join(needs.*.result, " ") is not a runtime error in this step — it makes
+      # the whole workflow file unparseable, so every job is skipped and the run
+      # fails in 0s with no logs to read.
       - name: Verify every job succeeded
         run: |
-          RESULTS='${{ join(needs.*.result, " ") }}'
+          RESULTS="${{ join(needs.*.result, ' ') }}"
           echo "job results: $RESULTS"
           for r in $RESULTS; do
             if [ "$r" != "success" ]; then
