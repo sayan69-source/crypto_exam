@@ -63,9 +63,8 @@ export default function SysAdminLayout({ children }: { children: React.ReactNode
       <main className={s.main}>{children}</main>
 
       <footer className={s.foot}>
-        This tier can approve Centre Admins and authorise decryption. It cannot run
-        day-to-day operations — those live in the{' '}
-        <Link href="/admin/dashboard">Administrator console</Link>.
+        Tier 0 · Centre Admin approval and decryption authority.{' '}
+        <Link href="/admin/dashboard">Operations console</Link>
       </footer>
     </div>
   );

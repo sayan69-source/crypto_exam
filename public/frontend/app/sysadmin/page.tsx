@@ -93,7 +93,7 @@ export default function SysAdminConsolePage() {
         subtitle={
           loading && first.current
             ? 'Loading…'
-            : `${rows.length} Centre Admin registration(s) awaiting approval. Approving issues a one-time code the applicant redeems IN PERSON at their centre — a web approval alone never creates an active identity.`
+            : `${rows.length} pending · approval issues a one-time activation code, redeemed in person at the centre`
         }
         actions={
           <>
@@ -112,10 +112,10 @@ export default function SysAdminConsolePage() {
       {counts && (
         <div style={{ marginBottom: 'var(--space-xl)' }}>
           <CardGrid minColumn={200}>
-            <Stat label="Awaiting approval" value={rows.length} hint="Centre Admins" />
-            <Stat label="Live exams" value={counts.live} hint="across the estate" />
-            <Stat label="Enrolments" value={counts.candidates} hint="candidates registered" />
-            <Stat label="Hardware nodes" value={counts.centres} hint="terminals provisioned" />
+            <Stat label="Pending approvals" value={rows.length} />
+            <Stat label="Exams live" value={counts.live} />
+            <Stat label="Enrolments" value={counts.candidates} />
+            <Stat label="Terminals" value={counts.centres} />
           </CardGrid>
         </div>
       )}
@@ -166,18 +166,13 @@ export default function SysAdminConsolePage() {
         <AnswerVault />
       </div>
 
-      <div style={{ marginTop: 'var(--space-lg)' }}>
-        <Card title="Looking for invigilator approvals?">
-          <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--color-navy-600)', margin: 0 }}>
-            They are not here, and that is deliberate. An invigilator is approved by{' '}
-            <strong>their own Centre Admin</strong>, from the Centre Admin console that runs
-            inside the locked OS on the centre LAN — a network with no route to this site.
-            Their registration reaches that centre in the provisioning bundle, and the
-            approval, the one-time code and the in-person fingerprint enrolment all happen
-            there. <Link href="/center-access">How centre access works</Link>.
-          </p>
-        </Card>
-      </div>
+      {/* One line of scope, not a lecture. The reader is the root of trust for
+          the estate and knows the architecture; the only useful fact is where
+          the other queue lives. */}
+      <p style={{ marginTop: 'var(--space-lg)', fontSize: 12.5, color: 'var(--color-navy-400)' }}>
+        Scope: Centre Admins only. Invigilator approvals are held by each Centre Admin on
+        the centre LAN. <Link href="/center-access" style={{ color: 'var(--color-navy-600)' }}>Reference</Link>
+      </p>
     </AdminPage>
   );
 }
@@ -228,11 +223,9 @@ function AnswerVault() {
 
   return (
     <Card title="Answer Vault — tier-0 only">
-      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--color-navy-600)', margin: '0 0 14px' }}>
-        Paste the sync bundle a centre exported after its exam. <strong>Verify</strong> re-walks
-        the hash chain and checks the node signature against the key registered for that centre.
-        <strong> Decrypt</strong> unwraps the data keys — the only point in the whole system
-        where a plaintext answer exists.
+      <p style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-navy-500)', margin: '0 0 14px' }}>
+        Verify re-walks the chain and checks the node signature against the registered centre
+        key. Decrypt unwraps the data keys.
       </p>
       <textarea
         value={bundle}
