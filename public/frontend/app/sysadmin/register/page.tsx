@@ -70,6 +70,7 @@ export default function SysAdminRegisterPage() {
   return (
     <main className={s.shell}>
       <div className={s.panel}>
+        <Link href="/" className={s.back}>← CryptoExam Core</Link>
         <span className={s.tier}>Tier 0</span>
         <h1 className={s.h1}>Enrol the System Administrator</h1>
         <p className={s.lead}>
@@ -109,19 +110,19 @@ export default function SysAdminRegisterPage() {
         <form onSubmit={submit} className={s.form}>
           <label className={s.field}>
             <span>Full name</span>
-            <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
+            <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Your full legal name" autoComplete="name" required />
           </label>
           <label className={s.field}>
             <span>Email</span>
-            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@organisation.in" autoComplete="username" required />
           </label>
           <label className={s.field}>
             <span>Password <em>(12+ characters)</em></span>
-            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} minLength={12} required />
+            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 12 characters" autoComplete="new-password" minLength={12} required />
           </label>
           <label className={s.field}>
             <span>Confirm password</span>
-            <input type="password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} required />
+            <input type="password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} placeholder="Type it again" autoComplete="new-password" required />
           </label>
 
           {error && <p className={s.error} role="alert">{error}</p>}

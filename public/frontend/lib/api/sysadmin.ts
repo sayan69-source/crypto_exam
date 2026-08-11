@@ -32,17 +32,65 @@ const bufToB64u = (b: ArrayBuffer): string =>
     .replace(/=+$/, '');
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}/sysadmin${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: body === undefined ? {} : { 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: 'no-store',
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/sysadmin${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: 'no-store',
+    });
+  } catch {
+    // A dead backend surfaces as the browser's bare "Failed to fetch", which
+    // reads like a fingerprint problem on this page and sends people looking
+    // at their sensor. Name the actual cause.
+    throw new Error(
+      `Cannot reach the API at ${API_BASE}. Start the backend (\`npm run backend\`) and try again — this is not a fingerprint problem.`,
+    );
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(describeApiError(json, res.status));
   }
   return json as T;
+}
+
+/**
+ * Turn a WebAuthn DOMException into something actionable.
+ *
+ * The browser's own messages are famously unhelpful ("The operation either
+ * timed out or was not allowed"), and every distinct cause below arrives as
+ * the same NotAllowedError.
+ */
+function describeWebAuthnError(e: unknown, action: 'enrol' | 'sign in'): Error {
+  const name = (e as DOMException)?.name;
+
+  // The commonest real misconfiguration: RP ID is "localhost" but the page was
+  // opened on 127.0.0.1. Same machine, different host — WebAuthn refuses.
+  if (typeof window !== 'undefined' && window.location.hostname === '127.0.0.1') {
+    return new Error(
+      'Open the site at http://localhost:3000 instead of 127.0.0.1:3000. ' +
+        'The security key is registered to the host name "localhost", and the browser treats 127.0.0.1 as a different site.',
+    );
+  }
+  if (name === 'NotAllowedError') {
+    return new Error(
+      `The fingerprint prompt was dismissed or timed out. Try again and complete the Windows Hello / Touch ID prompt to ${action}.`,
+    );
+  }
+  if (name === 'InvalidStateError') {
+    return new Error('This device already has a credential registered for that account. Sign in instead.');
+  }
+  if (name === 'NotSupportedError') {
+    return new Error('This device has no fingerprint sensor (platform authenticator) that the browser can use.');
+  }
+  if (name === 'SecurityError') {
+    return new Error(
+      `The page origin is not one the server accepts for security keys. Use http://localhost:3000. (${(e as Error).message})`,
+    );
+  }
+  if (name === 'AbortError') return new Error('The fingerprint prompt was cancelled.');
+  return new Error((e as Error)?.message || `Could not ${action} with a fingerprint.`);
 }
 
 export const sysadminApi = {
@@ -70,7 +118,9 @@ export const sysadminApi = {
   }) {
     const opts = await call<any>('/register/challenge', { email: input.email });
 
-    const cred = (await navigator.credentials.create({
+    let cred: PublicKeyCredential | null;
+    try {
+      cred = (await navigator.credentials.create({
       publicKey: {
         challenge: b64uToBuf(opts.challenge),
         rp: opts.rp,
@@ -84,7 +134,10 @@ export const sysadminApi = {
         timeout: opts.timeout,
         attestation: opts.attestation,
       },
-    })) as PublicKeyCredential | null;
+      })) as PublicKeyCredential | null;
+    } catch (e) {
+      throw describeWebAuthnError(e, 'enrol');
+    }
     if (!cred) throw new Error('Fingerprint enrolment was cancelled.');
 
     const response = cred.response as AuthenticatorAttestationResponse;
@@ -116,7 +169,9 @@ export const sysadminApi = {
   async login(email: string, password: string) {
     const opts = await call<any>('/login/challenge', { email, password });
 
-    const assertion = (await navigator.credentials.get({
+    let assertion: PublicKeyCredential | null;
+    try {
+      assertion = (await navigator.credentials.get({
       publicKey: {
         challenge: b64uToBuf(opts.challenge),
         rpId: opts.rpId,
@@ -127,7 +182,10 @@ export const sysadminApi = {
         userVerification: opts.userVerification,
         timeout: opts.timeout,
       },
-    })) as PublicKeyCredential | null;
+      })) as PublicKeyCredential | null;
+    } catch (e) {
+      throw describeWebAuthnError(e, 'sign in');
+    }
     if (!assertion) throw new Error('Fingerprint verification was cancelled.');
 
     const r = assertion.response as AuthenticatorAssertionResponse;

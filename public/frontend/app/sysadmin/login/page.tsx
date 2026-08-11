@@ -48,6 +48,7 @@ export default function SysAdminLoginPage() {
   return (
     <main className={s.shell}>
       <div className={s.panel}>
+        <Link href="/" className={s.back}>← CryptoExam Core</Link>
         <span className={s.tier}>Tier 0</span>
         <h1 className={s.h1}>System Administration</h1>
         <p className={s.lead}>
@@ -84,6 +85,7 @@ export default function SysAdminLoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="username"
+              placeholder="you@organisation.in"
               required
             />
           </label>
@@ -94,6 +96,7 @@ export default function SysAdminLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              placeholder="Your tier-0 password"
               required
             />
           </label>
