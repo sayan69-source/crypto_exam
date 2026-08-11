@@ -11,8 +11,8 @@ env/
 .env.local
 .env.production
 
-# Render Blueprint (contains JWT keys + admin credentials — use render.yaml.example)
-render.yaml
+# Render secrets (local only — never commit)
+render.local.yaml
 
 # Build outputs
 public/frontend/.next/
