@@ -32,6 +32,7 @@ from app.models import (
     ExamBody,
     ExamLocation,
     ExamOffering,
+    ExamAdministrator,
     ExamRequest,
     ExamRequestStatus,
     ExamStatus,
@@ -139,6 +140,13 @@ async def materialise(db: AsyncSession, req: ExamRequest) -> ExamOffering:
             offering_id=offering.id, name=sub.name, code=sub.code,
             is_compulsory=sub.is_compulsory, display_order=sub.display_order,
         ))
+
+    # The administrator named on the request now has a live exam to run. Until
+    # this point they were a name on a proposal that might never be approved.
+    for admin in (await db.execute(
+        select(ExamAdministrator).where(ExamAdministrator.request_id == req.id)
+    )).scalars().all():
+        admin.offering_id = offering.id
 
     req.exam_id = exam.id
     req.status = ExamRequestStatus.ACTIVE

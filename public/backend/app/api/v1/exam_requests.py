@@ -30,8 +30,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import (
-    ExamRequest, ExamRequestLocation, ExamRequestStatus, ExamRequestSubject,
-    UserRole,
+    ExamAdministrator, ExamRequest, ExamRequestLocation, ExamRequestStatus,
+    ExamRequestSubject, UserRole,
 )
 from app.services.auth import require_role
 from app.services.exam_registration import both_approved, materialise, new_reference, normalise
@@ -54,6 +54,19 @@ class SubjectIn(BaseModel):
     compulsory: bool = True
 
 
+class AdministratorIn(BaseModel):
+    """
+    The person the conducting body puts in charge of THIS exam.
+
+    `reference` is the organisation's own identifier for them — a staff number, a
+    file reference. It is recorded and displayed, never treated as proof of
+    anything, which is why it is free text and optional.
+    """
+    fullName: str = Field(min_length=2, max_length=200)
+    email: str = Field(min_length=3, max_length=255)
+    reference: str | None = None
+
+
 class ExamRequestIn(BaseModel):
     examName: str = Field(min_length=2, max_length=500)
     organisation: str = Field(min_length=2, max_length=255)
@@ -63,6 +76,9 @@ class ExamRequestIn(BaseModel):
     proposedDate: datetime | None = None
     durationMinutes: int | None = Field(default=None, ge=1)
     notes: str | None = None
+    # Required: an exam with no named administrator has nobody who can staff
+    # it, and the approval chain would stall with no way to say why.
+    administrator: AdministratorIn
     locations: list[LocationIn] = Field(min_length=1)
     subjects: list[SubjectIn] = Field(min_length=1)
     subjectChoiceMin: int | None = Field(default=None, ge=0)
@@ -143,6 +159,14 @@ async def submit(body: ExamRequestIn, db: AsyncSession = Depends(get_db)) -> dic
     )
     db.add(req)
     await db.flush()
+
+    db.add(ExamAdministrator(
+        id=str(uuid.uuid4()), request_id=req.id,
+        full_name=body.administrator.fullName.strip(),
+        email=body.administrator.email.strip(),
+        email_norm=normalise(body.administrator.email),
+        reference=body.administrator.reference,
+    ))
 
     for i, loc in enumerate(body.locations):
         db.add(ExamRequestLocation(

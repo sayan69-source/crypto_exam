@@ -211,7 +211,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests
+from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 from app.database import commit_before_response
@@ -227,7 +227,7 @@ for _router in (
     ceremony.router, generation_router, lifecycle_router, sys_ledger.router,
     enquiries.router,
     sysadmin_auth.router,
-    staff_reg.router, provisioning.router, enroll.router, exam_requests.router,
+    staff_reg.router, provisioning.router, enroll.router, exam_requests.router, exam_setters.router,
 ):
     commit_before_response(_router)
 
@@ -255,5 +255,6 @@ app.include_router(staff_reg.router, prefix="/api/v1/staff", tags=["Centre Staff
 app.include_router(provisioning.router, prefix="/api/v1/provisioning", tags=["HQ→Edge Pre-Exam Provisioning (§12)"])
 app.include_router(enroll.router, prefix="/api/v1/enroll", tags=["Candidate Enrolment (public; no web login)"])
 app.include_router(exam_requests.router, prefix="/api/v1/exam-requests", tags=["Exam Requests (organisation → dual approval → active exam)"])
+app.include_router(exam_setters.router, prefix="/api/v1/exam-setters", tags=["Exam Setters (nominate → tier-0 approve → email-verified)"])
 
 

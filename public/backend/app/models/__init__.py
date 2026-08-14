@@ -1058,3 +1058,136 @@ class CandidateChoice(Base):
     # exam_subjects.id.
     subject_ids = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PER-EXAM ADMINISTRATION AND ITS SETTERS
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Authority here is scoped to ONE exam, never to the platform. The conducting
+# body names the administrator for the exam it is asking us to run; that
+# administrator nominates the setters who may author for it; the System Admin
+# approves each nomination; and the setter still has to prove they control the
+# nominated mailbox before they can author anything.
+#
+# Why this shape. The first cut of the approval chain required a single global
+# ADMIN role that nothing in the codebase could create — the seeder made one and
+# the seeder had been purged, so in production no exam could ever have been
+# approved. Scoping the administrator to the exam removes that dependency
+# entirely: the authority arrives WITH the request that needs it.
+#
+# Separate tables rather than columns on `exam_requests`, for the same reason as
+# before: `create_all` adds missing tables but never adds a column to a table
+# that already exists, and `exam_requests` is already deployed.
+
+
+class SetterNominationStatus(str, enum.Enum):
+    """
+    Three gates, and all three must pass before a setter can author.
+
+    NOMINATED          the exam's administrator has named them
+    APPROVED           the System Admin has agreed — but they still cannot author
+    VERIFIED           they proved control of the nominated mailbox; now they can
+    REJECTED / REVOKED refused, or withdrawn after the fact
+    """
+    NOMINATED = "NOMINATED"
+    APPROVED = "APPROVED"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    REVOKED = "REVOKED"
+
+
+class ExamAdministrator(Base):
+    """
+    The administrator for ONE exam, named by the body conducting it.
+
+    Deliberately not a `users` row and not a login: at this stage they are a
+    named point of authority on a request that may never be approved. The `id`
+    the organisation supplies is their own reference (a staff number, a file
+    reference) and is demonstrative — it is recorded and shown, never trusted as
+    proof of anything.
+    """
+    __tablename__ = "exam_administrators"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    # Set when the request is approved and the offering exists.
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"),
+                         nullable=True, index=True)
+
+    full_name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False, index=True)
+    email_norm = Column(String(255), nullable=False, index=True)
+    # The organisation's own identifier for this person. Demonstrative.
+    reference = Column(String(120), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class ExamSetterNomination(Base):
+    """
+    One setter, for one exam, at whatever stage of the chain they have reached.
+
+    An exam may have many of these, and one person may hold nominations for
+    several exams — which is what the item pool already assumes, since authorship
+    is tracked per item so that no author may own more than 5% of a form.
+
+    A nomination is NOT permission. `can_author` is the only thing any caller
+    should ask, and it is true solely when the System Admin has approved AND the
+    nominee has proved they hold the mailbox they were nominated at. Nomination
+    alone would mean an administrator could grant authoring rights to an address
+    they typed — including one they control themselves.
+    """
+    __tablename__ = "exam_setter_nominations"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    nominated_by = Column(GUID, ForeignKey("exam_administrators.id", ondelete="SET NULL"),
+                          nullable=True)
+
+    full_name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False)
+    email_norm = Column(String(255), nullable=False, index=True)
+    reference = Column(String(120), nullable=True)
+
+    status = Column(
+        Enum(SetterNominationStatus, name="setter_nomination_status", create_type=True),
+        nullable=False, default=SetterNominationStatus.NOMINATED, index=True,
+    )
+    approved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
+    # ── mailbox verification ────────────────────────────────────────────────
+    # Only the HASH of the token is stored. A verification link sitting in the
+    # database in clear would let anyone with read access finish someone else's
+    # registration, which is the whole thing this step exists to prevent.
+    verification_token_hash = Column(String(64), nullable=True)
+    verification_sent_at = Column(DateTime(timezone=True), nullable=True)
+    verification_expires_at = Column(DateTime(timezone=True), nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The account created when they completed registration.
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        # One nomination per person per exam. Without this an administrator
+        # could nominate the same address repeatedly and collect several
+        # authoring slots for it, which quietly defeats the per-author share cap
+        # on a form.
+        UniqueConstraint("offering_id", "email_norm", name="uq_setter_nomination_exam_email"),
+    )
+
+    @property
+    def can_author(self) -> bool:
+        """Approved AND verified. Anything less is not permission."""
+        return (
+            self.status == SetterNominationStatus.VERIFIED
+            and self.approved_at is not None
+            and self.verified_at is not None
+        )
