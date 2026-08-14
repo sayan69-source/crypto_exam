@@ -142,3 +142,50 @@ async def send_otp_email(to: str, code: str, ttl_seconds: int) -> bool:
         raise RuntimeError(f"EMAIL_SEND_FAILED: {exc}") from exc
     logger.info("OTP email sent to %s", mask_email(to))
     return True
+
+
+async def send_setter_invitation(
+    to: str, full_name: str, exam_name: str, token: str, expires_at: str
+) -> bool:
+    """
+    Send a nominated setter the token that proves they hold this mailbox.
+
+    This is the whole point of the verification gate: the administrator TYPED
+    this address, so the only thing that distinguishes the intended person from
+    an address the administrator controls is that a secret arrives here and is
+    redeemed. Which means the token must go to the nominee and to nobody else —
+    in particular it must not come back in the approving admin's API response.
+
+    Raises on failure rather than returning False, so a caller can refuse to
+    record an approval whose invitation never left the building.
+    """
+    s = get_settings()
+    msg = EmailMessage()
+    msg["Subject"] = f"You have been nominated to set questions for {exam_name}"
+    msg["From"] = s.SMTP_FROM
+    msg["To"] = to
+    msg.set_content(
+        f"""{full_name},
+
+You have been nominated as a question setter for:
+
+    {exam_name}
+
+The nomination has been approved by the System Administrator. To complete it you
+need to prove that this mailbox is yours, by redeeming the code below.
+
+    {token}
+
+It can be used once and expires at {expires_at}.
+
+If you were not expecting this, ignore it — the nomination cannot be completed
+without this code, and nobody else has been sent it.
+"""
+    )
+    try:
+        await asyncio.to_thread(_send_blocking, msg)
+    except Exception as exc:
+        logger.warning("setter invitation failed to %s: %s", mask_email(to), exc)
+        raise RuntimeError(f"EMAIL_SEND_FAILED: {exc}") from exc
+    logger.info("setter invitation sent to %s", mask_email(to))
+    return True

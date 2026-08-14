@@ -38,6 +38,7 @@ from app.models import (
     User, UserRole,
 )
 from app.services.auth import hash_password, require_role
+from app.services.email import email_configured, mask_email, send_setter_invitation
 from app.services.exam_registration import normalise
 
 logger = logging.getLogger(__name__)
@@ -157,12 +158,14 @@ async def approve(
     current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ) -> dict[str, Any]:
     """
-    Tier-0 agrees to the nomination and a verification token is issued.
+    Tier-0 agrees to the nomination, and the nominee is emailed a token.
 
-    The token is returned ONCE, here, and only its hash is stored. In a
-    deployment with SMTP configured this is what gets mailed to the nominee;
-    returning it also keeps the flow usable — and testable — before mail is set
-    up, without inventing a second, weaker way in later.
+    Only the token's HASH is stored. Where SMTP is configured the raw value goes
+    to the nominee and is NOT returned here — handing the approver a copy would
+    let them redeem it themselves, which is precisely the substitution the
+    verification gate exists to prevent. Without SMTP it is returned instead, so
+    the flow still works before mail is set up rather than growing a second,
+    weaker way in.
     """
     n = await _load(db, nomination_id)
     if n.status in (SetterNominationStatus.REJECTED, SetterNominationStatus.REVOKED):
@@ -178,16 +181,39 @@ async def approve(
     n.verification_token_hash = _hash_token(raw)
     n.verification_sent_at = now
     n.verification_expires_at = now + TOKEN_TTL
-    await db.commit()
+    # Send BEFORE committing. If the invitation cannot be delivered, the
+    # approval is rolled back rather than recorded against a token nobody
+    # received — which would leave tier-0 believing they had actioned it and the
+    # nominee waiting for a mail that never comes.
+    expires_iso = n.verification_expires_at.isoformat()
+    delivered = False
+    if email_configured():
+        try:
+            await send_setter_invitation(n.email, n.full_name, "this examination", raw, expires_iso)
+            delivered = True
+        except RuntimeError as exc:
+            await db.rollback()
+            raise HTTPException(status_code=502, detail={
+                "reason": "INVITATION_NOT_SENT",
+                "message": f"Approval not recorded — the invitation could not be delivered. {exc}",
+            }) from exc
 
-    logger.info("setter nomination approved: %s", n.email)
-    return {
-        "ok": True,
-        "nomination": _serialise(n),
-        "verificationToken": raw,
-        "expiresAt": n.verification_expires_at.isoformat(),
-        "note": "Send this to the nominee. They cannot author until they redeem it.",
-    }
+    await db.commit()
+    logger.info("setter nomination approved: %s (emailed=%s)", n.email, delivered)
+
+    out: dict[str, Any] = {"ok": True, "nomination": _serialise(n), "expiresAt": expires_iso}
+    if delivered:
+        # Deliberately NOT returned once it has been mailed: the token is the
+        # nominee's proof of holding the mailbox, and handing a copy to the
+        # approver would let the approver complete the registration themselves.
+        out["delivered"] = True
+        out["sentTo"] = mask_email(n.email)
+        out["note"] = "The nominee has been emailed. They cannot author until they redeem it."
+    else:
+        out["verificationToken"] = raw
+        out["note"] = ("No SMTP configured, so the token is returned here instead. "
+                       "Configure SMTP_HOST/SMTP_FROM so it goes to the nominee alone.")
+    return out
 
 
 @router.post("/{nomination_id}/reject")
