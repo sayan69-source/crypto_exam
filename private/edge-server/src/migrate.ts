@@ -13,11 +13,37 @@ import { loadConfig } from "./config.ts";
 
 const MIG_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
+/**
+ * One lock for the whole migration run, held for the session.
+ *
+ * `migrate()` is called by every integration test file, and the test runner runs
+ * files in PARALLEL. Against an already-migrated database that is harmless —
+ * each one reads `_migrations`, skips everything, and exits. Against an EMPTY
+ * one they all start applying 000 at once, and two concurrent `CREATE TYPE`
+ * statements collide inside Postgres's own catalog:
+ *
+ *     duplicate key value violates unique constraint "pg_type_typname_nsp_index"
+ *
+ * That is exactly why this passed on every developer machine and failed in CI:
+ * locally the database has been migrated for weeks, so the race never opens;
+ * CI hands the suite a database created seconds earlier. `CREATE TABLE IF NOT
+ * EXISTS` does not help, because the race is between two statements that are
+ * both still in flight.
+ *
+ * An advisory lock is the right tool: it is held on the session rather than on
+ * any row, so it works when there is not yet a single table to lock, and a
+ * loser simply waits and then finds the work already done.
+ */
+const MIGRATION_LOCK = 0x7a757570;   // "zuup"
+
 export async function migrate(databaseUrl: string): Promise<string[]> {
   const pool = makePool(databaseUrl);
   const applied: string[] = [];
   const client = await pool.connect();
+  let locked = false;
   try {
+    await client.query(`SELECT pg_advisory_lock($1)`, [MIGRATION_LOCK]);
+    locked = true;
     await client.query(
       `CREATE TABLE IF NOT EXISTS _migrations (
          name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT NOW())`,
@@ -45,6 +71,12 @@ export async function migrate(databaseUrl: string): Promise<string[]> {
       }
     }
   } finally {
+    // Released explicitly rather than left to session teardown: the pool may
+    // hand this connection straight to the next caller, and a lock that outlives
+    // its work would deadlock the run it was meant to protect.
+    if (locked) {
+      await client.query(`SELECT pg_advisory_unlock($1)`, [MIGRATION_LOCK]).catch(() => {});
+    }
     client.release();
     await pool.end();
   }
