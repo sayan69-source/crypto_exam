@@ -98,8 +98,35 @@
   <footer>
     <span id="probe">Still probing @@EDGE@@ — this screen will switch over
     automatically the moment the centre answers.</span>
+    <br>
+    <!--
+      The keyboard readout belongs HERE most of all. This page is what a failed
+      boot puts on the screen, so it is the one surface an operator is
+      guaranteed to be looking at when something is wrong — and "do the keys
+      work?" is unanswerable on a page with no field to type into.
+    -->
+    <span id="kbd">Press any key to test the keyboard — nothing received yet.</span>
   </footer>
 </main>
+
+<script>
+  (function () {
+    var out = document.getElementById("kbd");
+    var seen = 0;
+    // Capture phase, on the document: no element needs focus for this to fire,
+    // which matters on a page that has no input of any kind.
+    document.addEventListener("keydown", function (e) {
+      seen++;
+      var mods = [
+        e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null,
+        e.shiftKey ? "Shift" : null, e.metaKey ? "Meta" : null,
+      ].filter(Boolean).join("+");
+      out.textContent =
+        "Keyboard works — last key: " + (mods ? mods + "+" : "") + e.key +
+        "  (" + seen + " keystroke" + (seen === 1 ? "" : "s") + " received)";
+    }, true);
+  })();
+</script>
 
 <script>
   // Probe by loading a script FROM the origin: unlike an image or a fetch from

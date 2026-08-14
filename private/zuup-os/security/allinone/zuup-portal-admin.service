@@ -2,11 +2,14 @@
 # basePath /admin, loopback only. Demo app layer.
 [Unit]
 Description=ZUUP-OS all-in-one Centre Admin portal
-# Also after commissioning, so a machine that registers its own stations has
-# written /run/zuup-identity before the portal serves its first request.
+# Deliberately NOT After=zuup-commission.service — it closed an ordering cycle
+# (commission → proxy → portal-admin → commission) that systemd resolved
+# differently on two consecutive boots of the same image. See
+# zuup-portal-terminal.service for the full account. /local/identity reads the
+# roles file per request and fail-closes, so the ordering bought nothing.
 # Wants=, not Requires=: a portal that comes up and says what is missing is
 # triageable; one that never starts is a blank screen.
-After=zuup-edge.service zuup-commission.service
+After=zuup-edge.service
 Wants=zuup-edge.service
 
 [Service]

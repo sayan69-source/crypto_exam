@@ -245,6 +245,59 @@ elif [[ ! -d "$MIGRATIONS" ]]; then
   echo "[zuup-os]   NOTE: $MIGRATIONS not readable — baked schema NOT verified" >&2
 fi
 
+# ── the unit ordering graph must be acyclic ────────────────────────────────
+#
+# systemd does not refuse a cyclic ordering — it breaks the cycle by deleting one
+# edge, and which edge is not something you can predict or rely on. Two boots of
+# the SAME image resolved commission → proxy → portal-terminal → commission
+# differently: the first started the proxy early and commissioning reached the
+# Edge, the second deferred the whole origin and commissioning died after 240 s
+# with "the Edge never answered". A fault that changes its mind between boots is
+# the single worst thing to debug through a reflash, so it is caught here where
+# it is deterministic.
+mapfile -t UNIT_FILES < <(ls "$ROOT"/etc/systemd/system/zuup-*.service 2>/dev/null)
+if ((${#UNIT_FILES[@]})); then
+  if ! cycle_out="$(awk -f - "${UNIT_FILES[@]}" <<'AWK'
+function add(f, t,   key) {
+  if (f == "" || t == "") return
+  key = f SUBSEP t
+  if (!(key in seen)) { seen[key] = 1; E++; from[E] = f; to[E] = t }
+  nodes[f] = 1; nodes[t] = 1
+}
+FNR == 1 { unit = FILENAME; sub(/.*[\/]/, "", unit) }
+/^After=/  { l = $0; sub(/^After=/,  "", l); n = split(l, a, /[ \t]+/); for (i = 1; i <= n; i++) add(a[i], unit) }
+/^Before=/ { l = $0; sub(/^Before=/, "", l); n = split(l, a, /[ \t]+/); for (i = 1; i <= n; i++) add(unit, a[i]) }
+END {
+  for (e = 1; e <= E; e++) indeg[to[e]]++
+  for (n in nodes) { if (!(n in indeg)) indeg[n] = 0; left++ }
+  changed = 1
+  while (changed) {
+    changed = 0
+    for (n in nodes) {
+      if (gone[n] || indeg[n] != 0) continue
+      gone[n] = 1; left--; changed = 1
+      for (e = 1; e <= E; e++) if (from[e] == n && !gone[to[e]]) indeg[to[e]]--
+    }
+  }
+  if (left == 0) exit 0
+  for (n in nodes) if (!gone[n]) {
+    edges = ""
+    for (e = 1; e <= E; e++) if (from[e] == n && !gone[to[e]]) edges = edges " -> " to[e]
+    print "    " n edges
+  }
+  exit 1
+}
+AWK
+  )"; then
+    echo "[zuup-os]   ORDERING CYCLE among the units — systemd will break it by" >&2
+    echo "[zuup-os]   dropping an arbitrary edge, differently on different boots:" >&2
+    printf '%s\n' "$cycle_out" >&2
+    missing=1
+  else
+    echo "[zuup-os] stage 25:   unit ordering acyclic (${#UNIT_FILES[@]} units)"
+  fi
+fi
+
 # The all-in-one must NOT carry a baked identity: it commissions its own, and a
 # leftover constant would make every image built from this tree the same machine.
 if grep -qE '^[0-9a-f]{8}-' "$ROOT/etc/zuup/terminal-id" 2>/dev/null; then

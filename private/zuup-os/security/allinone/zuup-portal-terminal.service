@@ -2,11 +2,21 @@
 # surfaces, /locked). Next standalone server, loopback only. Demo app layer.
 [Unit]
 Description=ZUUP-OS all-in-one exam-terminal portal
-# Also after commissioning, so a machine that registers its own stations has
-# written /run/zuup-identity before the portal serves its first request.
+# Deliberately NOT After=zuup-commission.service. That edge closed an ordering
+# cycle — commission → proxy → portal-terminal → commission — and systemd breaks
+# a cycle by deleting one edge ARBITRARILY. The first hardware boot happened to
+# lose an edge that let the proxy start early, so commissioning reached the Edge;
+# the next boot lost a different one, the origin did not exist for 240 s, and
+# commissioning failed with "the Edge never answered". Same image, same machine,
+# opposite outcome — the worst kind of bug to chase by reflashing.
+#
+# It bought nothing anyway: /local/identity reads the roles file per REQUEST
+# (force-dynamic) and fail-closes with 503 when it is absent, so the portal has
+# never needed commissioning to have finished before it starts — only before
+# someone opens a station, which is minutes later.
 # Wants=, not Requires=: a portal that comes up and says what is missing is
 # triageable; one that never starts is a blank screen.
-After=zuup-edge.service zuup-commission.service
+After=zuup-edge.service
 Wants=zuup-edge.service
 
 [Service]
