@@ -808,3 +808,253 @@ class ExamForm(Base):
     # Worst single-author share, recorded so the cap is auditable after the fact.
     max_author_share = Column(Numeric(5, 4), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXAM REQUESTS → ACTIVE EXAMS → CANDIDATE CHOICES
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Where an exam comes from, and what a candidate is allowed to choose about it.
+#
+# Before this, `Exam` rows appeared from nowhere in particular and the public
+# enrolment form listed every one whose status happened to be enrollable. There
+# was no record of WHO asked for the exam, no organisation against which a
+# candidate could recognise it, and no approval anyone had to give. A candidate
+# picked an exam name out of one list and a centre out of a separate list, and
+# nothing connected the two.
+#
+# The chain is now: an organisation submits an ExamRequest -> the System Admin
+# (tier-0) and the administration BOTH approve it -> an Exam and its
+# ExamOffering are materialised -> and only then can a candidate register.
+#
+# Everything here is a NEW table on purpose. The app creates its schema with
+# `Base.metadata.create_all`, which adds missing tables but never adds a column
+# to a table that already exists -- so extending `exams` or `enrollments` in
+# place would work on a fresh SQLite file and silently do nothing to a
+# long-lived Postgres. Additive tables migrate themselves on both.
+
+
+class ExamRequestStatus(str, enum.Enum):
+    """
+    Dual approval, tracked as one state rather than two booleans.
+
+    Both authorities must approve, in either order, and either may reject. The
+    states name which approval is still outstanding, so a queue can show an
+    approver only what is actually theirs to act on.
+    """
+    SUBMITTED = "SUBMITTED"                    # awaiting both
+    SYSADMIN_APPROVED = "SYSADMIN_APPROVED"    # tier-0 done, administration outstanding
+    ADMIN_APPROVED = "ADMIN_APPROVED"          # administration done, tier-0 outstanding
+    ACTIVE = "ACTIVE"                          # both approved; the exam is registerable
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class ExamRequest(Base):
+    """
+    An organisation asking us to conduct an examination.
+
+    This is the only way an exam becomes registerable. It carries the proposal
+    exactly as the organisation stated it -- the exam name, who is conducting
+    it, where it will be sat, and which subjects a candidate may choose --
+    because those are the things a candidate is later asked to match against,
+    and they must come from the requesting body rather than from us.
+    """
+    __tablename__ = "exam_requests"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    reference = Column(String(20), unique=True, nullable=False, index=True)
+
+    # What a candidate selects at registration. Stored as given AND normalised
+    # (case- and punctuation-insensitive), because "N.T.A." and "nta" are the
+    # same body to a candidate and a lookup that disagrees is a lookup that
+    # tells a real applicant their exam does not exist.
+    exam_name = Column(String(500), nullable=False)
+    exam_name_norm = Column(String(500), nullable=False, index=True)
+    organisation = Column(String(255), nullable=False)
+    organisation_norm = Column(String(255), nullable=False, index=True)
+
+    contact_name = Column(String(200), nullable=False)
+    contact_email = Column(String(255), nullable=False)
+    contact_phone = Column(String(32), nullable=True)
+
+    proposed_date = Column(DateTime(timezone=True), nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    # How many optional subjects a candidate must choose. Null means the subject
+    # list is not a choice at all and every subject applies.
+    subject_choice_min = Column(Integer, nullable=True)
+    subject_choice_max = Column(Integer, nullable=True)
+
+    status = Column(
+        Enum(ExamRequestStatus, name="exam_request_status", create_type=True),
+        nullable=False, default=ExamRequestStatus.SUBMITTED, index=True,
+    )
+    # Recorded separately so an audit can answer "who let this exam exist", and
+    # so neither authority can be mistaken for the other.
+    sysadmin_approved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    sysadmin_approved_at = Column(DateTime(timezone=True), nullable=True)
+    admin_approved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    admin_approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
+    # Set when both approvals land and the Exam is materialised.
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    locations = relationship(
+        "ExamRequestLocation", back_populates="request",
+        cascade="all, delete-orphan", order_by="ExamRequestLocation.display_order",
+    )
+    subjects = relationship(
+        "ExamRequestSubject", back_populates="request",
+        cascade="all, delete-orphan", order_by="ExamRequestSubject.display_order",
+    )
+
+
+class ExamRequestLocation(Base):
+    """
+    One named place the requesting organisation intends to run the exam.
+
+    Named, because a candidate chooses between these by name -- "Kolkata - Salt
+    Lake" means something to them and a centre UUID does not.
+    """
+    __tablename__ = "exam_request_locations"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    city = Column(String(120), nullable=True)
+    state = Column(String(120), nullable=True)
+    address = Column(Text, nullable=True)
+    # Null means "no stated limit"; allotment then never refuses this location.
+    capacity = Column(Integer, nullable=True)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    request = relationship("ExamRequest", back_populates="locations")
+
+
+class ExamRequestSubject(Base):
+    """A subject on the proposed paper, and whether a candidate may decline it."""
+    __tablename__ = "exam_request_subjects"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(40), nullable=True)
+    # Compulsory subjects are not offered as a choice; they simply apply.
+    is_compulsory = Column(Boolean, nullable=False, default=True)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    request = relationship("ExamRequest", back_populates="subjects")
+
+
+class ExamOffering(Base):
+    """
+    The public, registerable face of an exam: who is conducting it and what a
+    candidate may choose. One per Exam, created when both approvals land.
+
+    `Exam` itself is the sealed-content lifecycle record (questions, ZK proof,
+    Merkle roots). Registration needs none of that and would otherwise have to
+    reach into it, so the two are kept apart: this table is what the public API
+    reads, and it holds nothing sealed.
+    """
+    __tablename__ = "exam_offerings"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="SET NULL"), nullable=True)
+
+    organisation = Column(String(255), nullable=False, index=True)
+    organisation_norm = Column(String(255), nullable=False, index=True)
+    exam_name_norm = Column(String(500), nullable=False, index=True)
+
+    # Registration is open only while this is true AND the Exam's own status
+    # still permits it. Two gates because they answer different questions:
+    # "should the public see it" and "has the paper already been sat".
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    registration_opens_at = Column(DateTime(timezone=True), nullable=True)
+    registration_closes_at = Column(DateTime(timezone=True), nullable=True)
+
+    subject_choice_min = Column(Integer, nullable=True)
+    subject_choice_max = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    locations = relationship(
+        "ExamLocation", back_populates="offering",
+        cascade="all, delete-orphan", order_by="ExamLocation.display_order",
+    )
+    subjects = relationship(
+        "ExamSubject", back_populates="offering",
+        cascade="all, delete-orphan", order_by="ExamSubject.display_order",
+    )
+
+
+class ExamLocation(Base):
+    """A location a candidate may be allotted for a specific exam."""
+    __tablename__ = "exam_locations"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    city = Column(String(120), nullable=True)
+    state = Column(String(120), nullable=True)
+    address = Column(Text, nullable=True)
+    capacity = Column(Integer, nullable=True)
+    display_order = Column(Integer, nullable=False, default=0)
+    # Bound to a real centre once one exists for this location. Until then the
+    # location is a stated place, not yet a provisioned centre -- and saying so
+    # is better than inventing a Center row nobody has commissioned.
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+
+    offering = relationship("ExamOffering", back_populates="locations")
+
+
+class ExamSubject(Base):
+    """A subject on a live exam, and whether choosing it is optional."""
+    __tablename__ = "exam_subjects"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(40), nullable=True)
+    is_compulsory = Column(Boolean, nullable=False, default=True)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    offering = relationship("ExamOffering", back_populates="subjects")
+
+
+class CandidateChoice(Base):
+    """
+    What one candidate chose at registration, and what they were allotted.
+
+    Kept beside `Enrollment` rather than inside it because `enrollments` is an
+    existing table and this schema is created with `create_all`, which would
+    never have added these columns to a database that already had it.
+
+    `location_preferences` is an ORDERED list of exam_locations.id. The order is
+    the whole point: allotment walks it and takes the first location with room,
+    so a candidate who cannot have their first choice lands on their second
+    rather than somewhere nobody asked for.
+    """
+    __tablename__ = "candidate_choices"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    enrollment_id = Column(GUID, ForeignKey("enrollments.id", ondelete="CASCADE"),
+                           nullable=False, unique=True, index=True)
+    location_preferences = Column(JSON, nullable=False, default=list)   # ordered [exam_locations.id]
+    allotted_location_id = Column(GUID, ForeignKey("exam_locations.id", ondelete="SET NULL"),
+                                  nullable=True, index=True)
+    # Which preference index was satisfied (0 = first choice). Null until allotted.
+    allotted_preference_rank = Column(Integer, nullable=True)
+    allotted_at = Column(DateTime(timezone=True), nullable=True)
+    # The compulsory subjects plus whichever optional ones were chosen, as
+    # exam_subjects.id.
+    subject_ids = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
