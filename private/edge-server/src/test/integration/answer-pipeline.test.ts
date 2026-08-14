@@ -16,6 +16,7 @@ import type { FastifyInstance } from "fastify";
 import { makePool, type Pool } from "../../db.ts";
 import { migrate } from "../../migrate.ts";
 import { buildApp } from "../../http.ts";
+import { issueToken } from "../../lib/token.ts";
 import type { EdgeConfig } from "../../config.ts";
 import { open, type Sealed } from "../../lib/envelope.ts";
 import { verifyChain, type ChainRecord } from "../../lib/merkle-chain.ts";
@@ -40,6 +41,8 @@ const config: EdgeConfig = {
   tokenSecret: new Uint8Array(32).fill(1),
   bindSecret: new Uint8Array(32).fill(2),
   nodeSignSeed: new Uint8Array(32).fill(3),
+  // Explicitly off: a test must never inherit a trust concession.
+  allowFirstBootCommissioning: false,
 };
 
 let pool: Pool | null = null;
@@ -71,6 +74,28 @@ async function seedSeat(p: Pool, state: string) {
   return { centreId, examId, terminalId };
 }
 
+/**
+ * The session a real candidate holds after roll+DOB login (§13.3).
+ *
+ * `answer/submit` has required one since the 2026-08-10 remediation:
+ * possession of a seat id stopped being possession of the seat, because
+ * anyone on the LAN could enumerate seats and submit junk for one, leaving the
+ * real candidate permanently locked out with a node-signed commitment to the
+ * attacker's envelope in the ledger. This suite predates that and, being
+ * DB-gated, had never run to notice — it was asserting 200 on a route that now
+ * correctly answers 403.
+ */
+const candidateSession = (examId: string, terminalId: string, centre: string) => ({
+  authorization: `Bearer ${issueToken(config.tokenSecret, {
+    sub: `cand:${examId}:R-1`,
+    tid: terminalId,
+    tpm: "attested",
+    role: "CANDIDATE",
+    centre,
+    exp: Date.now() + 3_600_000,
+  })}`,
+});
+
 function makeRecord(examId: string): AnswerRecord {
   return {
     exam_id: examId,
@@ -93,6 +118,7 @@ test("Phase 10: submit → ciphertext-only ledger row, verifiable signed receipt
 
   const res = await app.inject({
     method: "POST", url: "/api/answer/submit",
+    headers: candidateSession(S.examId, S.terminalId, S.centreId),
     payload: {
       terminalId: S.terminalId,
       ct: toHexStr(sealed.ct), iv: toHexStr(sealed.iv),
@@ -112,6 +138,7 @@ test("Phase 10: submit → ciphertext-only ledger row, verifiable signed receipt
   // the seat is now SUBMITTED and refuses a second envelope
   const again = await app.inject({
     method: "POST", url: "/api/answer/submit",
+    headers: candidateSession(S.examId, S.terminalId, S.centreId),
     payload: { terminalId: S.terminalId, ct: "00", iv: "00", tag: "00", wrappedDk: "00" },
   });
   assert.equal(again.statusCode, 409);
@@ -148,7 +175,11 @@ test("INV-9: tampering a stored ledger leaf breaks the re-walked chain", { skip 
     };
     // re-arm the same seat for the demo chain (state back to ATTENDED)
     await pool.query(`UPDATE terminals SET state='ATTENDED' WHERE id=$1`, [S.terminalId]);
-    const r: { statusCode: number } = await app!.inject({ method: "POST", url: "/api/answer/submit", payload });
+    const r: { statusCode: number } = await app!.inject({
+      method: "POST", url: "/api/answer/submit",
+      headers: candidateSession(S.examId, S.terminalId, S.centreId),
+      payload,
+    });
     assert.equal(r.statusCode, 200);
   }
 
@@ -183,6 +214,7 @@ test("fail-closed: an AVAILABLE seat (no authenticated candidate) cannot submit"
   const sealed = await sealRecord(makeRecord(S.examId), hq.publicKey);
   const res = await app.inject({
     method: "POST", url: "/api/answer/submit",
+    headers: candidateSession(S.examId, S.terminalId, S.centreId),
     payload: {
       terminalId: S.terminalId,
       ct: toHexStr(sealed.ct), iv: toHexStr(sealed.iv),

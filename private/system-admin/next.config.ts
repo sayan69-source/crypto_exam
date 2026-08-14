@@ -7,11 +7,19 @@ import type { NextConfig } from "next";
 // key never leaves this process (stand-in for the HSM).
 const EDGE_URL = process.env.EDGE_URL ?? "http://127.0.0.1:4000";
 
+// The on-device biometric daemon (zuup-biometric.service) binds loopback only
+// and is never on the LAN (§8). Proxying it through this origin keeps the kiosk
+// CSP to a single host and keeps the page code origin-agnostic.
+const BIOMETRIC_URL = process.env.BIOMETRIC_URL ?? "http://127.0.0.1:7700";
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@zuup/exam-ui"],
   reactStrictMode: true,
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${EDGE_URL}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${EDGE_URL}/api/:path*` },
+      { source: "/biometric/:path*", destination: `${BIOMETRIC_URL}/:path*` },
+    ];
   },
 };
 

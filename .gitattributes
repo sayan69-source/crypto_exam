@@ -15,6 +15,12 @@
 *.yml      text eol=lf
 *.yaml     text eol=lf
 *.sh       text eol=lf
+# systemd units are read inside the image, where a trailing \r lands in the
+# VALUE — `ExecStart=/usr/lib/zuup/foo.sh\r` is a path that does not exist. Same
+# class of failure as a shell script with CRLF, and just as invisible on Windows.
+*.service  text eol=lf
+*.conf     text eol=lf
+*.fstab    text eol=lf
 *.mjs      text eol=lf
 *.py       text eol=lf
 Dockerfile* text eol=lf

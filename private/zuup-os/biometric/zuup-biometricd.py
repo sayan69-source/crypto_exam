@@ -4,18 +4,33 @@ ZUUP-OS on-device biometric daemon (spec §8) — zuup-biometric.service.
 
 Serves the capture side of the §8.1 identity factors to the kiosk browser on
 loopback ONLY. The MATCHING policy (the §8.2 match-all rule) lives on the
-Edge; this daemon's job is to turn hardware into scores and templates without
-ever letting a raw biometric touch a persistent medium (DPDP §8.4):
+Edge; this daemon's job is to turn hardware into SIGNED scores and templates
+without ever letting a raw biometric touch a persistent medium (DPDP §8.4):
 
-    GET  /health        → {"ok": true, "face": bool, "fp": bool}
-    POST /face/verify   {"enrolled_embedding_hex": …}
-                        → {"score": 0.0–1.0, "liveness": 0.0–1.0, "faces": n}
-    POST /fp/verify     {"enrolled_template_hex": …}
-                        → {"score": 0.0–1.0, "template_hash": hex}
+    GET  /health         → {"ok": true, "face": bool, "fp": bool, "signing": bool}
+    POST /attest/verify  {"nonce": hex, "subject": "LOGIN"|"checkin:<roll>",
+                          "enrolled_embedding_hex": …, "enrolled_template_hex": …}
+                         → {"envelope": {...}, "sig": hex}
+    POST /attest/enrol   {"nonce": hex}
+                         → {"envelope": {...}, "sig": hex}
+
+WHY THE SIGNATURE (§8.4). The daemon used to answer with a bare number and the
+browser forwarded it to the Edge, so the face and fingerprint clauses of the
+match-all rule were, in the end, two integers in an HTTP body that anything on
+the machine could have written. The Edge now accepts a score only inside an
+envelope signed by this daemon's attestation key, whose public half is
+registered against this terminal at commissioning. The envelope also carries the
+Edge's nonce (so a capture cannot be replayed) and a SUBJECT (so a capture of one
+candidate cannot be used to check in the next).
+
+Scores travel as integer BASIS POINTS, never floats: the verifier is JavaScript,
+`json.dumps(1.0)` is "1.0" and `JSON.stringify(1.0)` is "1", and a signature over
+a float would have failed exactly when the match was perfect.
 
 FAIL-CLOSED: missing camera, missing models, >1 face, no face, low liveness —
-every abnormal path returns score 0.0 (which the Edge's match-all rule turns
-into a denial). There is no degraded "assume human" mode.
+every abnormal path scores 0 (which the Edge's match-all rule turns into a
+denial). A missing signing key means the daemon serves no scores at all rather
+than unsigned ones. There is no degraded "assume human" mode.
 
 Privacy invariants enforced here (§8.4):
   • capture buffers live in /run/biometric (tmpfs, RAM) and are zeroised
@@ -29,11 +44,36 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BIND = ("127.0.0.1", 7700)            # loopback only — never the LAN (§8)
 RUN_DIR = "/run/biometric"            # tmpfs (rootfs/overlay.fstab)
+# Commissioning material. Two locations, in this order:
+#
+#   /etc/zuup/…            baked into the signed image by an authority. The
+#                          production case; read-only, survives reboots.
+#   /run/zuup-identity/…   written at first boot by a machine that commissioned
+#                          ITSELF (all-in-one only). RAM-only — /etc is on the
+#                          read-only verity root, so there is nowhere else it
+#                          could go, and the keys dying at power-off is the
+#                          correct behaviour for an ephemeral centre (INV-2).
+#
+# The baked one wins wherever both exist: a real commissioning is never
+# overridden by something the machine wrote about itself.
+BIO_KEY_CANDIDATES = [
+    os.environ.get("ZUUP_BIO_KEY"),
+    "/etc/zuup/biometric-attest.key",
+    "/run/zuup-identity/biometric-attest.key",
+]
+TERMINAL_ID_CANDIDATES = [
+    os.environ.get("ZUUP_TERMINAL_ID_FILE"),
+    "/etc/zuup/terminal-id",
+    "/run/zuup-identity/terminal-id",
+]
+BP = 10_000                           # scores travel as integer basis points
 MODEL_DIR = "/usr/share/zuup/models"  # baked into the signed image
 FACE_MODEL = os.path.join(MODEL_DIR, "face_embed.tflite")
 LIVE_MODEL = os.path.join(MODEL_DIR, "liveness.tflite")
@@ -47,6 +87,116 @@ LIVENESS_FLOOR = 0.80  # §8.3 passive-liveness floor before a score is emitted
 def _zeroise(buf: bytearray) -> None:
     """Overwrite a capture buffer in place before releasing it (§8.4)."""
     ctypes.memset((ctypes.c_char * len(buf)).from_buffer(buf), 0, len(buf))
+
+
+# ════════════════════════ attestation signing (§8.4) ════════════════════════
+def _canonical(obj: dict) -> bytes:
+    """The exact bytes the Edge will verify.
+
+    Must equal `canonicalJson()` in edge-server/src/lib/crypto.ts: sorted keys,
+    no whitespace, UTF-8. This is a paired implementation across two languages,
+    so `_selftest_canonical` below pins it and the daemon refuses to start if it
+    ever drifts — a mismatch here would look like a forged signature at the Edge
+    and be diagnosed as a broken fingerprint reader.
+    """
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+# One fixed sample and its canonical form, shared verbatim with
+# edge-server/src/test/bio-attest.test.ts.
+_CANON_SAMPLE = {
+    "capturedAt": 1800000000000,
+    "faceScoreBp": 9400,
+    "fpScoreBp": 8800,
+    "nonce": "ab12",
+    "subject": "checkin:R-1461",
+    "terminalId": "11111111-2222-3333-4444-555555555555",
+}
+_CANON_EXPECTED = (
+    b'{"capturedAt":1800000000000,"faceScoreBp":9400,"fpScoreBp":8800,'
+    b'"nonce":"ab12","subject":"checkin:R-1461",'
+    b'"terminalId":"11111111-2222-3333-4444-555555555555"}'
+)
+
+
+def _selftest_canonical() -> None:
+    produced = _canonical(dict(reversed(list(_CANON_SAMPLE.items()))))
+    if produced != _CANON_EXPECTED:
+        raise SystemExit(
+            "zuup-biometricd: canonical JSON does not match the pinned contract; "
+            "every signature this daemon produced would be rejected by the Edge.\n"
+            f"  produced: {produced!r}\n  expected: {_CANON_EXPECTED!r}"
+        )
+
+
+class Signer:
+    """Ed25519 attestation key for this terminal.
+
+    The private half never leaves the machine and is never served; the public
+    half is registered as `terminals.bio_pubkey_pem` at commissioning. Absent or
+    unreadable key → `available` is False and every capture route answers 503,
+    because serving an unsigned score would silently restore the hole this
+    exists to close.
+    """
+
+    # A commissioned identity is a UUID. The image ships a placeholder until a
+    # machine is commissioned, and signing envelopes as "REPLACE-AT-PROVISIONING"
+    # would produce captures the Edge can only reject — with a failure that
+    # points at the signature rather than at the real problem.
+    _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+
+    def __init__(self) -> None:
+        self.key = None
+        self.terminal_id = ""
+
+        for path in (p for p in TERMINAL_ID_CANDIDATES if p):
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    value = fh.read().strip()
+            except OSError:
+                continue
+            if self._UUID.match(value):
+                self.terminal_id = value.lower()
+                break
+        if not self.terminal_id:
+            sys.stderr.write(
+                "zuup-biometricd: no commissioned terminal identity; scores will not be served\n"
+            )
+            return
+
+        for path in (p for p in BIO_KEY_CANDIDATES if p):
+            if not os.path.exists(path):
+                continue
+            try:
+                from cryptography.hazmat.primitives import serialization
+
+                with open(path, "rb") as fh:
+                    self.key = serialization.load_pem_private_key(fh.read(), password=None)
+                break
+            except Exception as exc:  # noqa: BLE001 — any failure is a hard denial
+                sys.stderr.write(f"zuup-biometricd: cannot load {path} ({exc})\n")
+                self.key = None
+        if self.key is None:
+            sys.stderr.write("zuup-biometricd: no attestation key; scores will not be served\n")
+
+    @property
+    def available(self) -> bool:
+        return self.key is not None and bool(self.terminal_id)
+
+    def envelope(self, fields: dict) -> dict:
+        """Wrap measured fields into a signed envelope.
+
+        `terminalId` comes from the machine's own identity file, never from the
+        request: a daemon that signed whatever terminal id it was handed would
+        let one compromised station mint envelopes for every other seat.
+        """
+        env = dict(fields)
+        env["terminalId"] = self.terminal_id
+        env["capturedAt"] = int(time.time() * 1000)
+        return {"envelope": env, "sig": self.key.sign(_canonical(env)).hex()}
+
+
+SIGNER = Signer()
 
 
 class FaceEngine:
@@ -107,6 +257,27 @@ class FaceEngine:
         if faces != 1 or liveness < LIVENESS_FLOOR:
             return {"score": 0.0, "liveness": liveness, "faces": faces}
         return {"score": self._cosine(embedding, enrolled_embedding), "liveness": liveness, "faces": faces}
+
+    def enrol(self) -> str:
+        """One live capture, as the sha256 of its embedding (§9.2 step 3).
+
+        Same liveness and single-face gates as verification: an enrolment taken
+        from a photograph is a credential for whoever holds the photograph.
+        Returns "" on any abnormal path, which the caller turns into a refusal
+        rather than an identity with an empty biometric.
+        """
+        if not self.available:
+            return ""
+        frame = self.capture_frame()
+        if frame is None:
+            return ""
+        try:
+            faces, embedding, liveness = self._infer(frame)
+        finally:
+            _zeroise(frame)
+        if faces != 1 or liveness < LIVENESS_FLOOR or not embedding:
+            return ""
+        return hashlib.sha256(embedding).hexdigest()
 
     # ── internals ───────────────────────────────────────────────────────────
     def _infer(self, frame: bytearray) -> tuple[int, bytes, float]:
@@ -203,6 +374,25 @@ class FingerprintEngine:
         finally:
             _zeroise(buf)
 
+    def enrol(self) -> str:
+        """Capture a minutiae template for first-time enrolment (§9.2 step 3).
+
+        The TEMPLATE travels, not a hash of it: the vendor SDK matches template
+        against template, so a digest here would enrol something that can never
+        be matched. It is still not an image — the raw print never leaves the
+        reader/driver.
+        """
+        if not self.available:
+            return ""
+        buf = bytearray(4096)
+        n = self.lib.zfp_capture_template(
+            (ctypes.c_char * len(buf)).from_buffer(buf), len(buf)
+        )
+        try:
+            return bytes(buf[:n]).hex() if n > 0 else ""
+        finally:
+            _zeroise(buf)
+
 
 def _select_face_engine():
     """Prefer the real OpenCV (YuNet+SFace) engine when its models are present;
@@ -229,6 +419,27 @@ FACE = _select_face_engine()
 FP = FingerprintEngine()
 
 
+def _hex(value) -> bytes:
+    """Decode an enrolled template; anything malformed enrols nothing (score 0)."""
+    if not isinstance(value, str):
+        return b""
+    try:
+        return bytes.fromhex(value)
+    except ValueError:
+        return b""
+
+
+def _bp(score) -> int:
+    """A 0..1 engine score as whole basis points, clamped. Never a float."""
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        return 0
+    if s != s:  # NaN — an engine that could not decide does not get a pass
+        return 0
+    return max(0, min(BP, int(round(s * BP))))
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "zuup-biometricd"
 
@@ -249,17 +460,53 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
-            return self._json(200, {"ok": True, "face": FACE.available, "fp": FP.available})
+            return self._json(200, {
+                "ok": True, "face": FACE.available, "fp": FP.available,
+                "signing": SIGNER.available,
+            })
         self._json(404, {"ok": False})
 
     def do_POST(self) -> None:  # noqa: N802
         body = self._body()
-        if self.path == "/face/verify":
-            enrolled = bytes.fromhex(body.get("enrolled_embedding_hex", "") or "")
-            return self._json(200, FACE.verify(enrolled))
-        if self.path == "/fp/verify":
-            enrolled = bytes.fromhex(body.get("enrolled_template_hex", "") or "")
-            return self._json(200, FP.verify(enrolled))
+        # There is deliberately no unsigned route. The old /face/verify and
+        # /fp/verify returned bare numbers, and every caller of them was one
+        # forwarding hop away from the Edge treating those numbers as a
+        # biometric. Removing them means no code path can produce a score the
+        # Edge would accept without this daemon's signature.
+        if not SIGNER.available:
+            return self._json(503, {"ok": False, "reason": "NO_ATTESTATION_KEY"})
+
+        nonce = body.get("nonce")
+        if not isinstance(nonce, str) or not nonce:
+            return self._json(400, {"ok": False, "reason": "MISSING_NONCE"})
+
+        if self.path == "/attest/verify":
+            subject = body.get("subject")
+            if not isinstance(subject, str) or not subject:
+                return self._json(400, {"ok": False, "reason": "MISSING_SUBJECT"})
+            face = FACE.verify(_hex(body.get("enrolled_embedding_hex")))
+            finger = FP.verify(_hex(body.get("enrolled_template_hex")))
+            return self._json(200, SIGNER.envelope({
+                "nonce": nonce,
+                "subject": subject,
+                "faceScoreBp": _bp(face.get("score")),
+                "fpScoreBp": _bp(finger.get("score")),
+            }))
+
+        if self.path == "/attest/enrol":
+            face_hash = FACE.enrol()
+            template = FP.enrol()
+            if not face_hash or not template:
+                # A registration with nothing enrolled is worse than no
+                # registration: it creates an identity that can never match.
+                return self._json(503, {"ok": False, "reason": "CAPTURE_UNAVAILABLE"})
+            return self._json(200, SIGNER.envelope({
+                "nonce": nonce,
+                "subject": "ENROL",
+                "faceEmbeddingHash": face_hash,
+                "fingerprintTemplate": template,
+            }))
+
         self._json(404, {"ok": False})
 
     def log_message(self, fmt: str, *args) -> None:
@@ -268,12 +515,24 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    # Before anything is served: prove this process serialises exactly what the
+    # Edge will verify. A drift here produces signatures that look forged.
+    _selftest_canonical()
     os.makedirs(RUN_DIR, mode=0o700, exist_ok=True)
     os.chdir(RUN_DIR)  # any accidental relative write lands on tmpfs
     httpd = HTTPServer(BIND, Handler)
     sys.stderr.write(
-        f"zuup-biometricd on {BIND[0]}:{BIND[1]} face={FACE.available} fp={FP.available}\n"
+        f"zuup-biometricd on {BIND[0]}:{BIND[1]} face={FACE.available} "
+        f"fp={FP.available} signing={SIGNER.available}\n"
     )
+    if not SIGNER.available:
+        # Serving /health while refusing every capture is the honest state: the
+        # station is up, it simply cannot make a claim anyone should believe.
+        sys.stderr.write(
+            "zuup-biometricd: NOT COMMISSIONED — every capture route will answer 503. "
+            "Needs a terminal id and an attestation key in /etc/zuup (baked by an "
+            "authority) or /run/zuup-identity (written at first boot).\n"
+        )
     httpd.serve_forever()
 
 

@@ -16,5 +16,14 @@ tmpfs                  /var/log       tmpfs      rw,nosuid,nodev,noexec,size=64m
 tmpfs                  /run/firefox   tmpfs      rw,nosuid,nodev,noexec,size=512m,mode=0700    0      0
 # webcam capture buffers: RAM only, zeroised on unmount (DPDP §8.4)
 tmpfs                  /run/biometric tmpfs      rw,nosuid,nodev,noexec,size=128m,mode=0700    0      0
+# Runtime identity material for a machine that commissions ITSELF (the all-in-one
+# variant only — zuup-commission.sh): its station ids, its biometric daemon key,
+# its TPM attestation-key context. A production terminal carries these inside its
+# signed image and never touches this mount, because /etc is on the read-only
+# verity root — which is exactly why self-commissioning needs somewhere else to
+# put them. RAM only, so the keys die with the power (INV-2) and the machine
+# re-registers from scratch on the next boot. mode 0755: the roles file has to
+# be readable by the portal services; the private key inside is 0640 root:zuup-bio.
+tmpfs                  /run/zuup-identity tmpfs  rw,nosuid,nodev,noexec,size=4m,mode=0755      0      0
 # /proc with hidepid=2 so no process can see another's command line/env (§7.3)
 proc                   /proc          proc       rw,nosuid,nodev,noexec,hidepid=2              0      0

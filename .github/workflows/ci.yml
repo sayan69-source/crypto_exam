@@ -117,6 +117,28 @@ jobs:
   node-services:
     name: node services (edge-server, exam-terminal)
     runs-on: ubuntu-latest
+
+    # The integration suite is the only place the estate's invariants are
+    # exercised end to end — attestation, the signed-capture login, seat
+    # assignment under contention, the answer ledger, the egress gate. Without a
+    # database those 19 tests SKIP, and a skipped test reports green: they had
+    # drifted so far behind the code that 8 of them failed the first time they
+    # were ever run. Giving CI a Postgres is what stops that happening twice.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: zuup
+          POSTGRES_PASSWORD: zuup
+          POSTGRES_DB: zuup_edge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zuup -d zuup_edge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -130,11 +152,22 @@ jobs:
       - name: Install workspaces
         run: npm ci
 
-      # 17 of these skip without Postgres (src/test/integration/*). They are
-      # skipped, not silently passed — `npm run test:db` runs them against a
-      # real database locally.
-      - name: edge-server tests
-        run: node --test --experimental-strip-types "private/edge-server/src/**/*.test.ts"
+      # DATABASE_URL is set, so the integration suite RUNS here rather than
+      # skipping. If Postgres is ever unavailable the suite would go quiet
+      # instead of failing, so the guard below asserts that nothing skipped.
+      - name: edge-server tests (unit + integration)
+        env:
+          DATABASE_URL: postgres://zuup:zuup@127.0.0.1:5432/zuup_edge
+        run: |
+          set -o pipefail
+          node --test --experimental-strip-types \
+            "private/edge-server/src/**/*.test.ts" | tee /tmp/edge-tests.log
+          skipped=$(grep -E '^ℹ skipped' /tmp/edge-tests.log | grep -oE '[0-9]+$')
+          if [ "${skipped:-0}" -ne 0 ]; then
+            echo "::error::$skipped edge test(s) skipped — the database-backed"\
+                 "invariants did not run, and a skipped test reports green."
+            exit 1
+          fi
 
       - name: edge-server typecheck
         working-directory: private/edge-server

@@ -37,6 +37,26 @@ export interface EdgeConfig {
    * the Edge's sealed config. 32 bytes.
    */
   nodeSignSeed: Uint8Array;
+  /**
+   * Allow a machine to commission ITSELF into this Edge's terminal registry on
+   * first boot (`POST /api/terminal/commission`).
+   *
+   * This exists for exactly one deployment: the all-in-one image, where a
+   * single laptop IS the whole centre — it runs the Edge, the portals and the
+   * terminal surface, so there is no separate authority that could have
+   * registered it beforehand. Rather than shipping fixture rows (which is how a
+   * demo seed becomes the thing production runs on), the machine registers the
+   * identity, keys and measurements it actually has.
+   *
+   * It is a real trust concession and it is fenced accordingly:
+   *   • OFF by default — a production Edge never sets it;
+   *   • refuses any terminal id that already exists, so it cannot re-key or
+   *     re-measure a commissioned machine;
+   *   • writes `commissioned_via = 'FIRST_BOOT'`, which the portals display and
+   *     the audit chain records, so such a terminal can never be mistaken for
+   *     one an authority vouched for.
+   */
+  allowFirstBootCommissioning: boolean;
 }
 
 import { randomBytes } from "node:crypto";
@@ -148,5 +168,10 @@ export function loadConfig(): EdgeConfig {
     tokenSecret: secret("EDGE_TOKEN_SECRET"),
     bindSecret: secret("EDGE_BIND_SECRET"),
     nodeSignSeed: secret("EDGE_NODE_SIGN_SEED"),
+    // Opt-IN, and never in production regardless of what the env says: a
+    // variable that could be left set in the wrong deployment is the whole
+    // failure mode this flag would otherwise introduce.
+    allowFirstBootCommissioning:
+      process.env.EDGE_ALLOW_FIRST_BOOT_COMMISSION === "true" && !isProduction(),
   };
 }

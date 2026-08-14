@@ -15,10 +15,13 @@
  * pure function that was never the bug:
  *
  *   F2  `evaluateMatchAll` is correct in isolation and unchanged. The bug was
- *       the CALL SITE handing it request-body values; http.ts now measures the
- *       IP, the elapsed time and the TPM verdict server-side (gatherFactors).
- *       Proving that needs Fastify, which this hermetic suite deliberately
- *       avoids — see the integration tests.
+ *       the CALL SITE handing it request-body values. Every factor is now
+ *       measured: the IP from the connection, the elapsed time from a nonce the
+ *       Edge issued, the TPM from a verified quote (F2b), and the biometrics
+ *       from a daemon-signed envelope (F2c). The wiring needs Fastify, which
+ *       this hermetic suite deliberately avoids — see the integration tests —
+ *       but the two verifiers it now depends on are pure and are exercised here
+ *       and in tpm-quote.test.ts / bio-attest.test.ts.
  *   F3  `verifyToken` still only checks HMAC + expiry, by design. Revocation is
  *       enforced one layer up, in `auth()`, which re-loads the identity.
  *   F5  A hash chain genuinely cannot detect truncation — that is a true
@@ -55,6 +58,9 @@ import { generateKeyPairSync, randomBytes } from "node:crypto";
 
 import { loadConfig } from "../config.ts";
 import { evaluateMatchAll, DEFAULT_POLICY } from "../lib/match-all.ts";
+import { verifyQuote } from "../lib/tpm-quote.ts";
+import { verifyBioEnvelope } from "../lib/bio-attest.ts";
+import { buildQuote, goldenPcrSet, signQuote } from "./helpers/commissioning.ts";
 import { issueToken, verifyToken, type TokenClaims } from "../lib/token.ts";
 import { GENESIS, appendLeaf, verifyChain, type ChainRecord } from "../lib/merkle-chain.ts";
 import { makeNodeSigner } from "../lib/node-sign.ts";
@@ -178,16 +184,61 @@ test("F2: every match-all factor is attacker-supplied, so the gate always opens"
   // SYSTEM_ADMIN included, via /api/admin/login and /api/system/login.
 });
 
-test("F2b: the TPM attest endpoint result is never bound to the issued session", () => {
-  // /api/terminal/attest returns {ok} and writes nothing. The login handlers
-  // hardcode tpm:"attested" into the token regardless:
-  const token = issueToken(new Uint8Array(32).fill(7), {
-    sub: "i-1", tid: "t-1", tpm: "attested", role: "CENTER_INVIGILATOR",
-    centre: "c-1", exp: Date.now() + 60_000,
-  } satisfies TokenClaims);
-  const claims = verifyToken(new Uint8Array(32).fill(7), token, Date.now());
-  assert.equal(claims!.tpm, "attested",
-    "the literal string is stamped in by the handler; no attestation record is consulted");
+test("F2b [FIXED]: PCR values alone no longer attest — a quote must be signed", () => {
+  // The original defect had two halves. /api/terminal/attest returned {ok} and
+  // wrote nothing, so no login could consult it; and the check it performed was
+  // `JSON.stringify(golden) === JSON.stringify(provided)`, over values that are
+  // PUBLIC and identical across every correctly-built terminal in the estate.
+  // Anyone who could read one machine's PCRs could present them for any other.
+  //
+  // Now the Edge records the verdict (repo.recordAttestation, consulted by
+  // hasFreshAttestation) and the check is a signature over a nonce it issued.
+  const golden = goldenPcrSet();
+  const impostor = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const genuine = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const nonce = new Uint8Array(32).fill(3);
+  const quote = buildQuote({ nonce, pcrs: golden });
+
+  // The attacker has the right PCR values and signs with a key of their own.
+  const verdict = verifyQuote(
+    { quote, signature: signQuote(quote, impostor.privateKey), pcrs: golden },
+    {
+      akPubkeyPem: genuine.publicKey.export({ type: "spki", format: "pem" }).toString(),
+      nonce,
+      goldenPcr: golden,
+    },
+  );
+  assert.equal(verdict.ok, false, "correct measurements from the wrong TPM must not attest");
+  assert.ok(verdict.failures.includes("QUOTE_SIGNATURE_INVALID"));
+});
+
+test("F2c [FIXED]: biometric scores in a request body are refused outright", () => {
+  // The last self-asserted factor after the 2026-08-10 remediation: the two
+  // scores still arrived as plain numbers, so `{"faceScore":1,"fpScore":1}`
+  // satisfied both biometric clauses of INV-4 with no camera in the room.
+  const daemon = generateKeyPairSync("ed25519");
+  const pem = daemon.publicKey.export({ type: "spki", format: "pem" }).toString();
+
+  const asserted = verifyBioEnvelope(
+    { faceScoreBp: 10000, fpScoreBp: 10000 } as never,
+    { bioPubkeyPem: pem, terminalId: "t-1", nonce: "n-1", subject: "LOGIN", now: Date.now() },
+  );
+  assert.equal(asserted.ok, false);
+  assert.deepEqual(asserted.failures, ["BIOMETRIC_ENVELOPE_MISSING"]);
+  assert.equal(asserted.faceScore, 0, "a denied verdict must not carry usable scores");
+
+  // And the scores that DO reach evaluateMatchAll are the zeroes above, not the
+  // attacker's tens of thousands — so the gate denies rather than opens.
+  const verdict = evaluateMatchAll(
+    {
+      faceScore: asserted.faceScore, fpScore: asserted.fpScore,
+      sourceIp: "10.20.0.31", tpmValid: true, elapsedMs: 100,
+    },
+    { boundIp: "10.20.0.31", status: "ACTIVE", revoked: false },
+    DEFAULT_POLICY,
+  );
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.failures.includes("FACE_BELOW_THRESHOLD"));
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

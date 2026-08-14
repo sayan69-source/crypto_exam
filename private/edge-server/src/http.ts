@@ -16,6 +16,16 @@ import { appendAudit } from "./audit.ts";
 import { verifyToken, issueToken, DEFAULT_IDLE_MS, type TokenClaims } from "./lib/token.ts";
 
 import { evaluateMatchAll, DEFAULT_POLICY } from "./lib/match-all.ts";
+import { verifyQuote } from "./lib/tpm-quote.ts";
+import {
+  verifyBioEnvelope,
+  verifyEnrolEnvelope,
+  checkinSubject,
+  activateSubject,
+  LOGIN_SUBJECT,
+  type SignedBio,
+  type SignedEnrol,
+} from "./lib/bio-attest.ts";
 import { verifyDob } from "./lib/dob.ts";
 import {
   issueCode as issueCodeRule,
@@ -84,6 +94,15 @@ const CANDIDATE_SESSION_MS = 6 * 60 * 60 * 1000;
  * cannot ride an old verdict.
  */
 const ATTESTATION_TTL_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * How many terminals one Edge will accept from self-commissioning (§7.1).
+ *
+ * The all-in-one registers three. This is not a security boundary — the flag
+ * that permits self-commissioning at all is — but an unbounded write path on
+ * the appliance that has to run the exam is worth a ceiling.
+ */
+const FIRST_BOOT_TERMINAL_CAP = 64;
 
 
 export interface AppDeps {
@@ -174,6 +193,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return elapsed > LOGIN_CHALLENGE_TTL_MS ? null : elapsed;
   };
 
+  /** Is this nonce live for this terminal, without spending it? */
+  const peekChallenge = (nonce: unknown, terminalId: string): boolean => {
+    if (typeof nonce !== "string") return false;
+    const rec = challenges.get(nonce);
+    return !!rec && rec.terminalId === terminalId && now() - rec.issuedAt <= LOGIN_CHALLENGE_TTL_MS;
+  };
+
   app.post("/api/login/challenge", async (req, reply) => {
     const b = req.body as { terminalId?: string };
     if (!b?.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
@@ -184,35 +210,111 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   /**
    * Assemble the §8.2 factor set from what the SERVER knows.
    *
-   * Previously every field — the source IP, the TPM verdict, the elapsed time,
-   * and both biometric scores — was read straight out of the request body, so
-   * `evaluateMatchAll` (which is itself correct, and fails closed on NaN) was
-   * being handed the attacker's own answers. One unauthenticated POST claiming
-   * `faceScore: 1, tpmValid: true` returned a real SYSTEM_ADMIN token.
+   * Not one field here comes from the caller any more. Every field used to:
+   * the source IP, the TPM verdict, the elapsed time and both biometric scores
+   * were read out of the request body, so `evaluateMatchAll` — correct in
+   * itself, and fails closed on NaN — was being handed the attacker's own
+   * answers, and one unauthenticated POST claiming `faceScore: 1, tpmValid:
+   * true` returned a real SYSTEM_ADMIN token.
    *
-   * Now: the IP comes from the connection, the elapsed time from a nonce this
-   * server issued, and the TPM verdict from a persisted attestation row. The
-   * biometric scores still arrive from the terminal — closing that needs the
-   * on-device daemon to sign its output with a key the browser cannot reach,
-   * which is a ZUUP-OS change; `biometricSignatureRequired` is the switch that
-   * will enforce it, and until then the residual exposure is documented rather
-   * than hidden.
+   *   sourceIp   the connection, or the single pinned proxy hop
+   *   elapsedMs  a nonce this server issued and now consumes, one-shot
+   *   tpmValid   a persisted, signed-quote attestation for THIS terminal
+   *   face/fp    an envelope signed by THIS terminal's biometric daemon key,
+   *              bound to that same nonce (§8.4)
+   *
+   * The biometric clause was the one documented residual after the 2026-08-10
+   * remediation. It is closed here: unsigned scores are not accepted in any
+   * configuration, so there is no flag that can be left in the wrong position.
+   * `failures` carries any envelope-level denial through to the audit row.
    */
   const gatherFactors = async (
     req: FastifyRequest,
-    b: { terminalId: string; faceScore: number; fpScore: number; challengeNonce?: string },
-  ): Promise<{ faceScore: number; fpScore: number; sourceIp: string; tpmValid: boolean; elapsedMs: number }> => {
+    b: { terminalId: string; bio?: SignedBio; challengeNonce?: string },
+  ): Promise<{
+    factors: { faceScore: number; fpScore: number; sourceIp: string; tpmValid: boolean; elapsedMs: number };
+    bioFailures: string[];
+  }> => {
     const elapsed = consumeChallenge(b.challengeNonce, b.terminalId);
+    const bio = verifyBioEnvelope(b.bio, {
+      bioPubkeyPem: await repo.terminalBioPubkey(pool, b.terminalId),
+      terminalId: b.terminalId,
+      nonce: typeof b.challengeNonce === "string" ? b.challengeNonce : "",
+      subject: LOGIN_SUBJECT,
+      now: now(),
+      maxAgeMs: DEFAULT_POLICY.maxLoginBoxMs,
+    });
     return {
-      faceScore: b.faceScore,
-      fpScore: b.fpScore,
-      // Fastify resolves this from the socket, or from the pinned proxy hop.
-      sourceIp: req.ip,
-      // A fresh, passing attestation for THIS terminal — not the client's word.
-      tpmValid: await repo.hasFreshAttestation(pool, b.terminalId, now(), ATTESTATION_TTL_MS),
-      // No challenge → no measurement → a value that cannot pass the ≤20 s box.
-      elapsedMs: elapsed ?? Number.POSITIVE_INFINITY,
+      factors: {
+        // Zeroed unless the envelope verified, so a denial cannot pass a score.
+        faceScore: bio.faceScore,
+        fpScore: bio.fpScore,
+        sourceIp: req.ip,
+        tpmValid: await repo.hasFreshAttestation(pool, b.terminalId, now(), ATTESTATION_TTL_MS),
+        // No challenge → no measurement → a value that cannot pass the ≤20 s box.
+        elapsedMs: elapsed ?? Number.POSITIVE_INFINITY,
+      },
+      bioFailures: bio.failures,
     };
+  };
+
+  /**
+   * One privileged login, for whichever tier asked.
+   *
+   * Invigilator, Centre Admin and System Admin ran three copies of the same
+   * twenty lines, which is how the Centre Admin and System Admin portals came to
+   * be the two that never sent a challenge nonce: the rule lived in three places
+   * and only one of them was updated. One implementation, three call sites.
+   */
+  const privilegedLogin = async (
+    req: FastifyRequest,
+    reply: import("fastify").FastifyReply,
+    opts: {
+      /** Null → resolve an invigilator; otherwise the staff role to look up. */
+      role: "CENTER_ADMIN" | "SYSTEM_ADMIN" | null;
+      okAction: string;
+      denyAction: string;
+      /** Tier-0 is centre-less; its token must not carry one. */
+      centreless?: boolean;
+    },
+  ) => {
+    const b = req.body as { terminalId?: string; bio?: SignedBio; challengeNonce?: string };
+    if (!b?.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+
+    const ident = opts.role
+      ? await repo.findStaffByStation(pool, opts.role, b.terminalId)
+      : await repo.findInvigilatorByStation(pool, b.terminalId);
+
+    const gathered = await gatherFactors(req, { terminalId: b.terminalId, bio: b.bio, challengeNonce: b.challengeNonce });
+    const verdict = ident
+      ? evaluateMatchAll(
+          gathered.factors,
+          { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
+          DEFAULT_POLICY,
+        )
+      : { ok: false, failures: ["NO_IDENTITY_FOR_STATION"] };
+    // An envelope that failed to verify is reported as itself. "FACE_BELOW_
+    // THRESHOLD" for a missing signature would send an operator to re-scan
+    // their face over and over against a problem that is not their face.
+    const failures = [...verdict.failures, ...gathered.bioFailures];
+
+    await withTx(pool, (c) =>
+      appendAudit(c, {
+        centerId: opts.centreless ? null : (ident?.centerId ?? null),
+        actorId: ident?.id ?? null,
+        action: failures.length === 0 ? opts.okAction : opts.denyAction,
+        target: b.terminalId!,
+        details: failures.length === 0 ? null : { failures },
+      }),
+    );
+
+    if (failures.length > 0 || !ident) return reply.code(401).send({ ok: false, failures });
+    const token = issueToken(config.tokenSecret, {
+      sub: ident.id, tid: b.terminalId, tpm: "attested", role: ident.role,
+      centre: opts.centreless ? null : ident.centerId,
+      exp: now() + DEFAULT_IDLE_MS,
+    });
+    return { ok: true, token };
   };
 
   /**
@@ -261,6 +363,46 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }
   });
 
+  /**
+   * Everything a screen needs to explain itself, in one unauthenticated read.
+   *
+   * A terminal is either going to work or it is not, and the difference is a
+   * handful of facts that were previously only discoverable by attempting a
+   * login and reading a failure code. On hardware you may only get one boot to
+   * find out — so this reports, for THIS machine: is it in the registry, was it
+   * commissioned by an authority or by itself, does it have the keys it needs,
+   * and is its attestation currently valid.
+   *
+   * Nothing here is a secret: it is the presence or absence of PUBLIC key
+   * material and a boolean about this machine's own boot. It grants nothing —
+   * every login still has to pass in full.
+   */
+  app.get("/api/terminal/:id/readiness", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const placement = await repo.terminalPlacement(pool, id);
+    if (!placement) return deny(reply, 404, "UNKNOWN_TERMINAL");
+    // A machine may ask about ITSELF. These are only booleans, but "which
+    // stations have an invigilator enrolled" is still a map of the centre, and
+    // the panel that consumes this runs on the terminal in question — so the
+    // restriction costs nothing. Terminals with no bound address (candidate
+    // seats are often commissioned without one) cannot be checked this way and
+    // are left readable rather than made undiagnosable.
+    const bound = await repo.terminalBoundIp(pool, id);
+    if (bound !== null && bound !== req.ip) return deny(reply, 403, "NOT_THIS_TERMINAL");
+    const keys = await repo.terminalAttestKeys(pool, id);
+    const attested = await repo.hasFreshAttestation(pool, id, now(), ATTESTATION_TTL_MS);
+    return {
+      ok: true,
+      capability: placement.capability,
+      commissionedVia: placement.commissionedVia,
+      registeredAttestationKey: Boolean(keys?.akPubkeyPem),
+      registeredGoldenPcr: Boolean(keys?.goldenPcr),
+      registeredBiometricKey: Boolean(await repo.terminalBioPubkey(pool, id)),
+      attestationCurrent: attested,
+      enrolledIdentity: Boolean(await repo.staffEnrolmentForStation(pool, id)),
+    };
+  });
+
   app.get("/api/terminal/:id/capability", async (req, reply) => {
     const { id } = req.params as { id: string };
     const cap = await repo.terminalCapability(pool, id);
@@ -268,10 +410,246 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { capability: cap };
   });
 
-  app.post("/api/terminal/attest", async (req) => {
-    const body = req.body as { terminalId: string; pcr: unknown };
-    const ok = await repo.attestTerminal(pool, body.terminalId, body.pcr);
-    return { ok }; // mismatch → false; the boot flow HALTs on false (§7.1)
+  // §7.1 — boot-time remote attestation, in two legs.
+  //
+  // Leg 1 hands out a nonce. Leg 2 takes a TPM quote over that nonce and the
+  // machine's PCRs, signed by the Attestation Key registered at commissioning.
+  //
+  // The single-leg version this replaces accepted a JSON blob of PCR values and
+  // compared it to the stored golden set. PCR values are not secret — they are
+  // identical across every correctly-built terminal — so that check proved only
+  // that the caller had seen a good machine once, from any machine, at any time.
+  const ATTEST_CHALLENGE_TTL_MS = 60_000;
+  const attestNonces = new Map<string, { terminalId: string; issuedAt: number }>();
+
+  /**
+   * A machine registering ITSELF into this Edge's terminal registry (§7.1).
+   *
+   * Only the all-in-one image reaches this, and only into the Edge running on
+   * the same box, because there one laptop is the entire centre: it runs the
+   * Edge, both portals and the terminal surface, so there is no separate
+   * authority that could have registered it in advance. The alternative was
+   * shipping fixture rows in the image — which is precisely how a demo seed
+   * ends up being what a deployment runs on.
+   *
+   * Four fences:
+   *   • `allowFirstBootCommissioning` is opt-in AND forced off in production;
+   *   • an id that already exists is refused, so a machine cannot re-key or
+   *     re-measure itself once commissioned;
+   *   • the row is stamped FIRST_BOOT, which the portals show on screen;
+   *   • it is written to the audit chain like any other privileged act.
+   *
+   * What it is NOT: a way in. It creates a STATION, not a person. Every
+   * identity that logs in there still has to register, be approved by the tier
+   * above, and pass the full match-all rule.
+   */
+  app.post("/api/terminal/commission", async (req, reply) => {
+    if (!config.allowFirstBootCommissioning) {
+      return deny(reply, 403, "FIRST_BOOT_COMMISSIONING_DISABLED");
+    }
+    const b = req.body as {
+      terminalId?: string; seatNo?: string; capability?: string;
+      wgPubkey?: string; goldenPcr?: Record<string, string> | null;
+      akPubkeyPem?: string | null; bioPubkeyPem?: string | null;
+      centreName?: string;
+    };
+    if (!b?.terminalId || !b?.seatNo || !b?.capability) return deny(reply, 400, "MISSING_FIELDS");
+    if (!["CANDIDATE_SEAT", "INVIGILATOR_STATION", "ADMIN_STATION"].includes(b.capability)) {
+      return deny(reply, 400, "BAD_CAPABILITY");
+    }
+    // A ceiling on how much registry one machine can create for itself. The
+    // all-in-one commissions three stations; anything approaching this is a
+    // loop or a caller that should not be talking to this route, and an
+    // unbounded self-registration is a way to fill the disk of the appliance
+    // that has to run the exam.
+    if ((await repo.countTerminals(pool, config.centreId)) >= FIRST_BOOT_TERMINAL_CAP) {
+      return reply.code(409).send({ ok: false, reason: "COMMISSIONING_CAP_REACHED" });
+    }
+
+    const out = await withTx(pool, async (c) => {
+      const result = await repo.commissionSelf(c, {
+        id: b.terminalId!,
+        centerId: config.centreId,
+        centreName: b.centreName ?? "Self-commissioned centre",
+        seatNo: b.seatNo!,
+        capability: b.capability!,
+        wgPubkey: b.wgPubkey ?? `self:${b.terminalId}`,
+        // The address it is talking to us from IS its bound address. Nothing
+        // else would be true, and it is not the client's to choose.
+        boundIp: req.ip,
+        goldenPcr: b.goldenPcr ?? null,
+        akPubkeyPem: b.akPubkeyPem ?? null,
+        bioPubkeyPem: b.bioPubkeyPem ?? null,
+      });
+      await appendAudit(c, {
+        centerId: config.centreId, actorId: null,
+        action: result.created ? "TERMINAL_SELF_COMMISSIONED" : "TERMINAL_COMMISSION_REFUSED",
+        target: b.terminalId!,
+        details: {
+          capability: b.capability, seatNo: b.seatNo,
+          hasTpmQuoteKey: Boolean(b.akPubkeyPem), hasGoldenPcr: Boolean(b.goldenPcr),
+          hasBiometricKey: Boolean(b.bioPubkeyPem),
+          reason: result.reason ?? null,
+        },
+      });
+      return result;
+    });
+
+    if (!out.created) return reply.code(409).send({ ok: false, reason: out.reason });
+    return {
+      ok: true,
+      commissionedVia: "FIRST_BOOT",
+      // Say plainly what this machine will and will not be able to do, so the
+      // boot log carries the diagnosis instead of the operator inferring it
+      // from a denial three screens later.
+      canAttest: Boolean(b.akPubkeyPem && b.goldenPcr),
+      canCaptureBiometrics: Boolean(b.bioPubkeyPem),
+    };
+  });
+
+  app.post("/api/terminal/attest/challenge", async (req, reply) => {
+    const b = req.body as { terminalId?: string };
+    if (!b?.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    for (const [k, v] of attestNonces) {
+      if (now() - v.issuedAt > ATTEST_CHALLENGE_TTL_MS) attestNonces.delete(k);
+    }
+    // 32 bytes: the nonce travels in TPM2B_DATA (extraData) and is what makes a
+    // captured quote worthless tomorrow.
+    const nonce = toHex(randomBytes(32));
+    attestNonces.set(nonce, { terminalId: b.terminalId, issuedAt: now() });
+    return { ok: true, nonce, ttlMs: ATTEST_CHALLENGE_TTL_MS };
+  });
+
+  app.post("/api/terminal/attest", async (req, reply) => {
+    const b = req.body as { terminalId?: string; nonce?: string; quote?: string; signature?: string; pcrs?: Record<string, string> };
+    if (!b?.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+
+    // One-shot, whether or not it turns out to be valid for this terminal.
+    const issued = typeof b.nonce === "string" ? attestNonces.get(b.nonce) : undefined;
+    if (typeof b.nonce === "string") attestNonces.delete(b.nonce);
+
+    const record = async (ok: boolean, failures: string[]) => {
+      await repo.recordAttestation(pool, b.terminalId!, ok);
+      await withTx(pool, (c) =>
+        appendAudit(c, {
+          centerId: null, actorId: null,
+          action: ok ? "TERMINAL_ATTESTED" : "TERMINAL_ATTESTATION_DENIED",
+          target: b.terminalId!, details: ok ? null : { failures },
+        }),
+      );
+    };
+
+    const keys = await repo.terminalAttestKeys(pool, b.terminalId);
+    if (!keys) {
+      // Nothing to record against — an unknown machine has no registry row.
+      await withTx(pool, (c) =>
+        appendAudit(c, {
+          centerId: null, actorId: null, action: "TERMINAL_ATTESTATION_DENIED",
+          target: b.terminalId!, details: { failures: ["UNKNOWN_TERMINAL"] },
+        }),
+      );
+      return reply.code(404).send({ ok: false, failures: ["UNKNOWN_TERMINAL"] });
+    }
+    if (!issued || issued.terminalId !== b.terminalId || now() - issued.issuedAt > ATTEST_CHALLENGE_TTL_MS) {
+      await record(false, ["ATTEST_NONCE_INVALID"]);
+      return reply.code(401).send({ ok: false, failures: ["ATTEST_NONCE_INVALID"] });
+    }
+
+    let quote: Uint8Array, signature: Uint8Array;
+    try {
+      quote = hexStrict(b.quote, "quote");
+      signature = hexStrict(b.signature, "signature");
+    } catch (e) {
+      if (!(e instanceof BadHex)) throw e;
+      await record(false, [e.message]);
+      return reply.code(400).send({ ok: false, failures: [e.message] });
+    }
+
+    const verdict = verifyQuote(
+      { quote, signature, pcrs: b.pcrs ?? {} },
+      { akPubkeyPem: keys.akPubkeyPem ?? "", nonce: hex(b.nonce!), goldenPcr: keys.goldenPcr },
+    );
+    await record(verdict.ok, verdict.failures);
+    // The boot flow HALTs on ok:false (§7.1), so the failure list is the only
+    // diagnosis an operator gets in front of a powered-off machine.
+    if (!verdict.ok) return reply.code(401).send({ ok: false, failures: verdict.failures });
+    return { ok: true, pcrsCovered: verdict.selectedPcrs };
+  });
+
+  /**
+   * Is this request coming from the machine it claims to be about?
+   *
+   * `req.ip` is the tunnel source Fastify resolved from the socket (trustProxy
+   * is pinned to loopback), and a terminal's `bound_ip` is registered at
+   * commissioning — so this is the same server-measured fact the §8.2 IP clause
+   * uses. A terminal with no bound address cannot be distinguished this way and
+   * is treated as unverified.
+   */
+  const requestIsFromTerminal = async (req: FastifyRequest, terminalId: string): Promise<boolean> => {
+    const bound = await repo.terminalBoundIp(pool, terminalId);
+    return bound !== null && bound === req.ip;
+  };
+
+  /**
+   * The enrolled templates for the identity bound to THIS station (§8.1).
+   *
+   * The on-device daemon matches locally — a live capture must never cross the
+   * LAN (§8.4) — so the enrolled side has to come to it. Four gates, all of
+   * which must hold before a biometric template leaves the Edge:
+   *
+   *   1. the request comes FROM that terminal's own bound address;
+   *   2. the machine passed a TPM quote recently, so it is running the golden
+   *      image rather than merely claiming a station id;
+   *   3. it holds a live login challenge, so this is an actual login in
+   *      progress and not a sweep;
+   *   4. it only ever gets the identity bound to itself.
+   *
+   * (1) is not decoration. Without it the other three are satisfiable by ANY
+   * host on the centre LAN: `POST /api/login/challenge` is necessarily
+   * unauthenticated and issues a nonce for any terminal id, and attestation is
+   * a property of the target machine rather than of the caller — so a laptop
+   * plugged into the exam VLAN could have asked for, and received, the face
+   * hash and fingerprint template of every invigilator in the centre. Those are
+   * the enrolment secrets the whole §8.2 rule is checked against, and unlike a
+   * password they cannot be reissued.
+   *
+   * The nonce is peeked, not consumed: the login that follows spends it.
+   */
+  app.get("/api/station/enrolment", async (req, reply) => {
+    const q = req.query as { terminalId?: string; challengeNonce?: string };
+    if (!q.terminalId) return deny(reply, 400, "MISSING_TERMINAL");
+    if (!(await requestIsFromTerminal(req, q.terminalId))) return deny(reply, 403, "NOT_THIS_TERMINAL");
+    if (!peekChallenge(q.challengeNonce, q.terminalId)) return deny(reply, 401, "CHALLENGE_INVALID");
+    if (!(await repo.hasFreshAttestation(pool, q.terminalId, now(), ATTESTATION_TTL_MS))) {
+      return deny(reply, 403, "TERMINAL_NOT_ATTESTED");
+    }
+    const enrolment = await repo.staffEnrolmentForStation(pool, q.terminalId);
+    if (!enrolment) return deny(reply, 404, "NO_IDENTITY_FOR_STATION");
+    return enrolment;
+  });
+
+  /**
+   * The PENDING applicant's own enrolment, for the §9.2 step 7 re-supply.
+   *
+   * Same three gates as the station route, plus one more: the request must be
+   * the one filed at THIS station, so an applicant cannot pull another
+   * applicant's template by knowing a request id.
+   */
+  app.get("/api/activation/enrolment", async (req, reply) => {
+    const q = req.query as { requestId?: string; terminalId?: string; challengeNonce?: string };
+    if (!q.requestId || !q.terminalId) return deny(reply, 400, "MISSING_FIELDS");
+    // Same reason as the station route: this returns an applicant's enrolled
+    // biometric templates, and everything else here is satisfiable from any
+    // host on the LAN.
+    if (!(await requestIsFromTerminal(req, q.terminalId))) return deny(reply, 403, "NOT_THIS_TERMINAL");
+    if (!peekChallenge(q.challengeNonce, q.terminalId)) return deny(reply, 401, "CHALLENGE_INVALID");
+    if (!(await repo.hasFreshAttestation(pool, q.terminalId, now(), ATTESTATION_TTL_MS))) {
+      return deny(reply, 403, "TERMINAL_NOT_ATTESTED");
+    }
+    const enrolment = await repo.approvalEnrolment(pool, q.requestId);
+    if (!enrolment) return deny(reply, 404, "UNKNOWN_REQUEST");
+    if (enrolment.boundTerminalId !== q.terminalId) return deny(reply, 403, "ACTIVATION_WRONG_STATION");
+    return { faceEmbeddingHash: enrolment.faceEmbeddingHash, fingerprintTemplate: enrolment.fingerprintTemplate };
   });
 
   // §10.2 — seat heartbeat (zuup-heartbeatd). LAN/no-auth by design: the wg
@@ -285,94 +663,105 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { ok: true };
   });
 
-  // §9.2 step 3 — create a PENDING invigilator registration.
-  app.post("/api/invigilator/register", async (req, reply) => {
+  /**
+   * §9.2 step 3 / §10.1 step 3 — file a PENDING staff registration.
+   *
+   * Unauthenticated by necessity: an applicant has no identity yet. What binds
+   * it is the STATION. The applicant must be standing at a commissioned machine
+   * of the right kind, holding a nonce this Edge just issued, presenting an
+   * enrolment its biometric daemon signed.
+   *
+   * What that replaces: a body carrying `centerId`, `boundIp`, `boundTerminalId`
+   * and two constant "template" strings, all chosen by the caller. Anyone who
+   * could reach the Edge could file a registration against any centre and any
+   * station in the estate, with no biometric enrolled — and, because a PENDING
+   * row lands on the station, lock a real invigilator's station in the process.
+   */
+  const registerStaff = async (
+    req: FastifyRequest,
+    reply: import("fastify").FastifyReply,
+    opts: {
+      requiredCapability: "INVIGILATOR_STATION" | "ADMIN_STATION";
+      create: typeof repo.createInvigilatorRegistration;
+      auditAction: string;
+    },
+  ) => {
     const b = req.body as {
-      centerId: string; fullName: string;
-      faceEmbeddingHash: string; fingerprintTemplate: string;
-      boundIp: string | null; boundTerminalId: string | null;
+      fullName?: string; terminalId?: string; challengeNonce?: string; enrol?: SignedEnrol;
     };
-    if (!b.centerId || !b.fullName) return deny(reply, 400, "MISSING_FIELDS");
+    if (!b?.fullName || !b?.terminalId) return deny(reply, 400, "MISSING_FIELDS");
+
+    const placement = await repo.terminalPlacement(pool, b.terminalId);
+    if (!placement) return deny(reply, 404, "UNKNOWN_TERMINAL");
+    if (placement.capability !== opts.requiredCapability) return deny(reply, 403, "WRONG_STATION_TYPE");
+
+    if (consumeChallenge(b.challengeNonce, b.terminalId) === null) {
+      return deny(reply, 401, "CHALLENGE_INVALID");
+    }
+    const enrol = verifyEnrolEnvelope(b.enrol, {
+      bioPubkeyPem: await repo.terminalBioPubkey(pool, b.terminalId),
+      terminalId: b.terminalId,
+      nonce: b.challengeNonce!,
+      now: now(),
+    });
+    if (!enrol.ok) {
+      await withTx(pool, (c) =>
+        appendAudit(c, {
+          centerId: placement.centerId, actorId: null, action: "REGISTRATION_DENIED",
+          target: b.terminalId!, details: { failures: enrol.failures },
+        }),
+      );
+      return reply.code(401).send({ ok: false, failures: enrol.failures });
+    }
+
     const out = await withTx(pool, async (c) => {
-      const r = await repo.createInvigilatorRegistration(c, {
-        centerId: b.centerId,
-        fullName: b.fullName,
-        faceEmbeddingHash: hex(b.faceEmbeddingHash),
-        fingerprintTemplate: hex(b.fingerprintTemplate),
-        boundIp: b.boundIp,
-        boundTerminalId: b.boundTerminalId,
+      const r = await opts.create(c, {
+        centerId: placement.centerId,
+        fullName: b.fullName!,
+        faceEmbeddingHash: enrol.faceEmbeddingHash!,
+        fingerprintTemplate: enrol.fingerprintTemplate!,
+        // Both bindings are observed, not claimed: the station is the one that
+        // signed the enrolment, the address is the one it connected from.
+        boundIp: req.ip,
+        boundTerminalId: b.terminalId!,
       });
-      await appendAudit(c, { centerId: b.centerId, actorId: null, action: "INVIGILATOR_REGISTERED", target: r.requestId });
+      await appendAudit(c, {
+        centerId: placement.centerId, actorId: null, action: opts.auditAction, target: r.requestId,
+      });
       return r;
     });
     return { ...out, status: "PENDING_APPROVAL" };
-  });
+  };
+
+  app.post("/api/invigilator/register", (req, reply) =>
+    registerStaff(req, reply, {
+      requiredCapability: "INVIGILATOR_STATION",
+      create: repo.createInvigilatorRegistration,
+      auditAction: "INVIGILATOR_REGISTERED",
+    }),
+  );
 
   // Centre directory for registration forms (id/name/state — no counts, no
   // PII). Servable to the HQ relay so the PUBLIC website can offer a centre
   // picker while the centre LAN itself stays internet-free (§6).
   app.get("/api/centres", async () => ({ centres: await repo.listCentres(pool) }));
 
-  // §10.1 step 3 — create a PENDING Centre Admin registration. Tier-1 onboarding:
-  // only a SYSTEM_ADMIN (tier-0) can later approve it (canApprove). The applicant
-  // captures the SAME factors as an invigilator (face hash + fp template + bound
-  // IP/station); activation still needs the System-Admin-issued one-time code.
-  app.post("/api/centeradmin/register", async (req, reply) => {
-    const b = req.body as {
-      centerId: string; fullName: string;
-      faceEmbeddingHash: string; fingerprintTemplate: string;
-      boundIp: string | null; boundTerminalId: string | null;
-    };
-    if (!b.centerId || !b.fullName) return deny(reply, 400, "MISSING_FIELDS");
-    const out = await withTx(pool, async (c) => {
-      const r = await repo.createCenterAdminRegistration(c, {
-        centerId: b.centerId,
-        fullName: b.fullName,
-        faceEmbeddingHash: hex(b.faceEmbeddingHash),
-        fingerprintTemplate: hex(b.fingerprintTemplate),
-        boundIp: b.boundIp,
-        boundTerminalId: b.boundTerminalId,
-      });
-      await appendAudit(c, { centerId: b.centerId, actorId: null, action: "CENTER_ADMIN_REGISTERED", target: r.requestId });
-      return r;
-    });
-    return { ...out, status: "PENDING_APPROVAL" };
-  });
+  // §10.1 step 3 — a PENDING Centre Admin registration. Tier-1 onboarding: only
+  // a SYSTEM_ADMIN (tier-0) can later approve it (canApprove). Same station-bound,
+  // signed-enrolment rule as the invigilator path, filed from an ADMIN_STATION;
+  // activation still needs the System-Admin-issued one-time code.
+  app.post("/api/centeradmin/register", (req, reply) =>
+    registerStaff(req, reply, {
+      requiredCapability: "ADMIN_STATION",
+      create: repo.createCenterAdminRegistration,
+      auditAction: "CENTER_ADMIN_REGISTERED",
+    }),
+  );
 
   // §9.1 — invigilator login (face + fp + IP + TPM match-all → INV-4).
-  app.post("/api/invigilator/login", async (req, reply) => {
-    const b = req.body as {
-      terminalId: string;
-      faceScore: number; fpScore: number;
-      /** From POST /api/login/challenge — the Edge times the round trip itself. */
-      challengeNonce?: string;
-    };
-    const ident = await repo.findInvigilatorByStation(pool, b.terminalId);
-    const verdict = ident
-      ? evaluateMatchAll(
-          await gatherFactors(req, b),
-          { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
-          DEFAULT_POLICY,
-        )
-      : { ok: false, failures: ["NO_IDENTITY_FOR_STATION"] };
-
-    await withTx(pool, (c) =>
-      appendAudit(c, {
-        centerId: ident?.centerId ?? null,
-        actorId: ident?.id ?? null,
-        action: verdict.ok ? "LOGIN_OK" : "LOGIN_DENIED",
-        target: b.terminalId,
-        details: verdict.ok ? null : { failures: verdict.failures },
-      }),
-    );
-
-    if (!verdict.ok || !ident) return reply.code(401).send({ ok: false, failures: verdict.failures });
-    const token = issueToken(config.tokenSecret, {
-      sub: ident.id, tid: b.terminalId, tpm: "attested", role: ident.role,
-      centre: ident.centerId, exp: now() + DEFAULT_IDLE_MS,
-    });
-    return { ok: true, token };
-  });
+  app.post("/api/invigilator/login", (req, reply) =>
+    privilegedLogin(req, reply, { role: null, okAction: "LOGIN_OK", denyAction: "LOGIN_DENIED" }),
+  );
 
   // §9.2 step 7 / §9.4 — activate with one-time code + re-supplied fingerprint.
   // One handler serves BOTH tiers: an invigilator activating against a Centre-
@@ -380,15 +769,52 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // issued code. The kind/centre constraints were already enforced when the
   // code was issued; here we only consume the code + flip the identity ACTIVE.
   const activateHandler = async (req: FastifyRequest, reply: import("fastify").FastifyReply) => {
-    const b = req.body as { requestId: string; code: string; fingerprintMatch: boolean };
+    const b = req.body as {
+      requestId: string; code: string;
+      terminalId?: string; challengeNonce?: string; bio?: SignedBio;
+    };
     const record = await repo.getApproval(pool, b.requestId);
     if (!record) return deny(reply, 404, "UNKNOWN_REQUEST");
 
+    // The re-supplied fingerprint (§9.2 step 7) is measured, not declared. It
+    // used to arrive as `fingerprintMatch: true` — a boolean in the applicant's
+    // own request body, which made the second factor of activation a formality
+    // for anyone holding the one-time code.
+    const enrolment = await repo.approvalEnrolment(pool, b.requestId);
+    const station = b.terminalId ?? "";
+    let fingerprintMatches = false;
+    let bioFailures: string[] = ["BIOMETRIC_ENVELOPE_MISSING"];
+    if (enrolment && station && enrolment.boundTerminalId === station && consumeChallenge(b.challengeNonce, station) !== null) {
+      const bio = verifyBioEnvelope(b.bio, {
+        bioPubkeyPem: await repo.terminalBioPubkey(pool, station),
+        terminalId: station,
+        nonce: b.challengeNonce!,
+        subject: activateSubject(b.requestId),
+        now: now(),
+      });
+      bioFailures = bio.failures;
+      fingerprintMatches = bio.ok && bio.fpScore >= DEFAULT_POLICY.tauFp;
+    } else if (enrolment && enrolment.boundTerminalId !== station) {
+      bioFailures = ["ACTIVATION_WRONG_STATION"];
+    }
+
     const result = activateRule(record, {
       submittedCode: b.code,
-      resuppliedFingerprintMatches: b.fingerprintMatch,
+      resuppliedFingerprintMatches: fingerprintMatches,
       now: now(),
     });
+    if (!result.ok && !fingerprintMatches && bioFailures.length) {
+      // Say which of the two it was. "FINGERPRINT_MISMATCH" for an unreachable
+      // reader sends the applicant to press their thumb harder against a
+      // problem that is not their thumb.
+      await withTx(pool, (c) =>
+        appendAudit(c, {
+          centerId: record.centerId, actorId: null, action: "ACTIVATION_DENIED",
+          target: b.requestId, details: { reason: result.reason, bio: bioFailures },
+        }),
+      );
+      return reply.code(401).send({ ok: false, reason: result.reason, failures: bioFailures });
+    }
     if (!result.ok) {
       await withTx(pool, (c) =>
         appendAudit(c, { centerId: record.centerId, actorId: null, action: "ACTIVATION_DENIED", target: b.requestId, details: { reason: result.reason } }),
@@ -418,37 +844,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.post("/api/staff/activate", activateHandler); // tier-neutral alias (Centre Admin too)
 
   // §10.3 — Centre Admin login (same match-all rule as the invigilator, §8.2).
-  app.post("/api/admin/login", async (req, reply) => {
-    const b = req.body as {
-      terminalId: string;
-      faceScore: number; fpScore: number;
-      /** From POST /api/login/challenge — the Edge times the round trip itself. */
-      challengeNonce?: string;
-    };
-    const ident = await repo.findStaffByStation(pool, "CENTER_ADMIN", b.terminalId);
-    const verdict = ident
-      ? evaluateMatchAll(
-          await gatherFactors(req, b),
-          { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
-          DEFAULT_POLICY,
-        )
-      : { ok: false, failures: ["NO_IDENTITY_FOR_STATION"] };
-
-    await withTx(pool, (c) =>
-      appendAudit(c, {
-        centerId: ident?.centerId ?? null, actorId: ident?.id ?? null,
-        action: verdict.ok ? "ADMIN_LOGIN_OK" : "ADMIN_LOGIN_DENIED",
-        target: b.terminalId, details: verdict.ok ? null : { failures: verdict.failures },
-      }),
-    );
-
-    if (!verdict.ok || !ident) return reply.code(401).send({ ok: false, failures: verdict.failures });
-    const token = issueToken(config.tokenSecret, {
-      sub: ident.id, tid: b.terminalId, tpm: "attested", role: ident.role,
-      centre: ident.centerId, exp: now() + DEFAULT_IDLE_MS,
-    });
-    return { ok: true, token };
-  });
+  app.post("/api/admin/login", (req, reply) =>
+    privilegedLogin(req, reply, {
+      role: "CENTER_ADMIN", okAction: "ADMIN_LOGIN_OK", denyAction: "ADMIN_LOGIN_DENIED",
+    }),
+  );
 
   // ════════════════════ §13.5 SYSTEM ADMIN (tier-0) ══════════════════════
   // The System Admin is the root of trust (§3.1): it approves Centre Admins and
@@ -460,37 +860,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   };
 
   // §10.3-equivalent — System Admin login (same match-all rule, HQ-bound, §8.2).
-  app.post("/api/system/login", async (req, reply) => {
-    const b = req.body as {
-      terminalId: string;
-      faceScore: number; fpScore: number;
-      /** From POST /api/login/challenge — the Edge times the round trip itself. */
-      challengeNonce?: string;
-    };
-    const ident = await repo.findStaffByStation(pool, "SYSTEM_ADMIN", b.terminalId);
-    const verdict = ident
-      ? evaluateMatchAll(
-          await gatherFactors(req, b),
-          { boundIp: ident.boundIp, status: ident.status, revoked: ident.revoked },
-          DEFAULT_POLICY,
-        )
-      : { ok: false, failures: ["NO_IDENTITY_FOR_STATION"] };
-
-    await withTx(pool, (c) =>
-      appendAudit(c, {
-        centerId: null, actorId: ident?.id ?? null,
-        action: verdict.ok ? "SYSTEM_LOGIN_OK" : "SYSTEM_LOGIN_DENIED",
-        target: b.terminalId, details: verdict.ok ? null : { failures: verdict.failures },
-      }),
-    );
-
-    if (!verdict.ok || !ident) return reply.code(401).send({ ok: false, failures: verdict.failures });
-    const token = issueToken(config.tokenSecret, {
-      sub: ident.id, tid: b.terminalId, tpm: "attested", role: ident.role,
-      centre: null, exp: now() + DEFAULT_IDLE_MS,
-    });
-    return { ok: true, token };
-  });
+  app.post("/api/system/login", (req, reply) =>
+    privilegedLogin(req, reply, {
+      role: "SYSTEM_ADMIN", okAction: "SYSTEM_LOGIN_OK", denyAction: "SYSTEM_LOGIN_DENIED",
+      centreless: true,
+    }),
+  );
 
   // §13.5 — pending Centre Admin registrations across ALL centres (tier-0 queue).
   app.get("/api/system/approvals/pending", async (req, reply) => {
@@ -709,6 +1084,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return c && c.role === "CENTER_INVIGILATOR" && c.centre ? c : null;
   };
 
+  // Which exams THIS centre is running. The console reads its exam from here
+  // rather than from a hard-coded UUID, which is what made it a demo of one
+  // centre rather than a console for any of them.
+  app.get("/api/centre/exams", async (req, reply) => {
+    const claims = await requireInvigilator(req);
+    if (!claims) return deny(reply, 403, "FORBIDDEN");
+    return { exams: await repo.centreExams(pool, claims.centre!) };
+  });
+
   app.get("/api/centre/roster", async (req, reply) => {
     const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
@@ -717,17 +1101,70 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { roster: await repo.roster(pool, claims.centre!, examId) };
   });
 
-  // §9.5 — candidate check-in (invigilator verifies face + fingerprint).
+  /**
+   * The enrolled templates for ONE candidate the invigilator is about to verify.
+   *
+   * Same reason as the station route: the match happens at the desk, so the
+   * enrolment has to reach the daemon there. Scoped to the invigilator's own
+   * centre and to a roll on their own roster, and it is a read — the resulting
+   * capture still has to come back signed and bound to this roll before the
+   * candidate is checked in.
+   */
+  app.get("/api/candidate/enrolment", async (req, reply) => {
+    const claims = await requireInvigilator(req);
+    if (!claims) return deny(reply, 403, "FORBIDDEN");
+    const q = req.query as { examId?: string; roll?: string };
+    if (!q.examId || !q.roll) return deny(reply, 400, "MISSING_FIELDS");
+    const enrolment = await repo.candidateEnrolment(pool, claims.centre!, q.examId, q.roll);
+    if (!enrolment) return deny(reply, 404, "ROLL_NOT_ON_ROSTER");
+    return enrolment;
+  });
+
+  /**
+   * §9.5 — candidate check-in: the invigilator verifies the candidate's face and
+   * fingerprint against the enrolment before they can be seated.
+   *
+   * The scores must be signed by the daemon on the invigilator's own station and
+   * bound to THIS roll. Previously they were two numbers in the request body,
+   * and the console sent the constants `0.95` and `0.9` for every candidate —
+   * so the identity check that stands between a proxy candidate and a seat was
+   * a pair of literals in a React component.
+   */
   app.post("/api/candidate/checkin", async (req, reply) => {
     const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");
-    const b = req.body as { examId: string; roll: string; faceScore: number; fpScore: number };
-    const bioOk = b.faceScore >= DEFAULT_POLICY.tauFace && b.fpScore >= DEFAULT_POLICY.tauFp;
+    const b = req.body as { examId: string; roll: string; bio?: SignedBio; challengeNonce?: string };
+    if (!b?.examId || !b?.roll) return deny(reply, 400, "MISSING_FIELDS");
+
+    // The capture happened at the station this session was issued to.
+    const station = claims.tid;
+    if (consumeChallenge(b.challengeNonce, station) === null) {
+      return deny(reply, 401, "CHALLENGE_INVALID");
+    }
+    const bio = verifyBioEnvelope(b.bio, {
+      bioPubkeyPem: await repo.terminalBioPubkey(pool, station),
+      terminalId: station,
+      nonce: b.challengeNonce!,
+      // Binds the measurement to one candidate: a genuine capture of the person
+      // in front of the desk cannot be reused to seat the next 486.
+      subject: checkinSubject(b.roll),
+      now: now(),
+    });
+    const bioOk = bio.ok && bio.faceScore >= DEFAULT_POLICY.tauFace && bio.fpScore >= DEFAULT_POLICY.tauFp;
     if (!bioOk) {
       await withTx(pool, (c) =>
-        appendAudit(c, { centerId: claims.centre, actorId: claims.sub, action: "CHECKIN_DENIED", target: b.roll, details: { face: b.faceScore, fp: b.fpScore } }),
+        appendAudit(c, {
+          centerId: claims.centre, actorId: claims.sub, action: "CHECKIN_DENIED", target: b.roll,
+          details: bio.ok
+            ? { face: bio.faceScore, fp: bio.fpScore }
+            : { failures: bio.failures },
+        }),
       );
-      return reply.code(401).send({ ok: false, reason: "BIOMETRIC_MISMATCH" });
+      return reply.code(401).send({
+        ok: false,
+        reason: bio.ok ? "BIOMETRIC_MISMATCH" : "BIOMETRIC_ATTESTATION_INVALID",
+        failures: bio.ok ? undefined : bio.failures,
+      });
     }
     const ok = await withTx(pool, async (c) => {
       const updated = await repo.markCheckedIn(c, { centerId: claims.centre!, examId: b.examId, roll: b.roll, checkedInBy: claims.sub });

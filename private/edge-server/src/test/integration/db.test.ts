@@ -94,6 +94,24 @@ test("no two invigilators are ever assigned the same seat (FOR UPDATE SKIP LOCKE
     );
   }
 
+  // Every contender must be a candidate who is actually PRESENT. Assignment
+  // gained that precondition in the 2026-08-10 remediation (a seat could
+  // otherwise be bound to any string, and one roll could hold several seats at
+  // once — meaning several live papers for one person). This suite is DB-gated
+  // and had never run, so it never noticed: all 20 attempts were failing with
+  // ROLL_NOT_PRESENT and the concurrency property below — the actual subject of
+  // the test — was not being exercised at all.
+  for (let i = 0; i < CONTENDERS; i++) {
+    const candidateId = (
+      await p.query(`INSERT INTO users (role, full_name) VALUES ('CANDIDATE',$1) RETURNING id`, [`Cand ${i}`])
+    ).rows[0].id;
+    await p.query(
+      `INSERT INTO enrollments (candidate_id, exam_id, center_id, roll_number, status)
+       VALUES ($1,$2,$3,$4,'PRESENT')`,
+      [candidateId, examId, centreId, `R-${i}`],
+    );
+  }
+
   const bindSecret = new Uint8Array(32).fill(7);
   const attempts = Array.from({ length: CONTENDERS }, (_, i) =>
     withTx(p, (c) =>

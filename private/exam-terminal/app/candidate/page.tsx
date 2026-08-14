@@ -21,11 +21,11 @@ import { useRouter } from "next/navigation";
 import {
   candidateLogin,
   examBeacon,
-  getTerminalId,
   questionBundle,
   sealingKey,
   seatState,
   submitAnswer,
+  terminalIdentity,
   EdgeError,
   type Receipt,
 } from "@/lib/edge";
@@ -46,23 +46,22 @@ interface LiveQuestion {
   options: string[];
 }
 
-// Fallback exam id only until the seat binding names the real one. The exam a
-// seat serves is whatever the invigilator bound to it — NOT a constant — so a
-// centre running several exams at once delivers the correct paper per seat.
-const FALLBACK_EXAM_ID = "44444444-4444-4444-4444-444444444444";
-
 export default function CandidatePortal() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("BOOT");
   const [terminalId, setTid] = useState<string | null>(null);
-  const [examId, setExamId] = useState<string>(FALLBACK_EXAM_ID);
+  // The exam a seat serves is whatever the invigilator bound to it, and nothing
+  // renders until the binding names it. There is no fallback exam id: a wrong
+  // default here is a candidate handed the wrong paper.
+  const [examId, setExamId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = getTerminalId();
-    setTid(id);
-    setPhase(id ? "WAIT_ASSIGN" : "ERROR");
-    if (!id) setError("No terminal identity. Open the Gate first.");
+    void terminalIdentity("CANDIDATE_SEAT").then((id) => {
+      setTid(id);
+      setPhase(id ? "WAIT_ASSIGN" : "ERROR");
+      if (!id) setError("This machine has no commissioned identity (/etc/zuup/terminal-id).");
+    });
   }, []);
 
   // ── poll seat assignment (§9.6) ─────────────────────────────────────────
@@ -74,6 +73,8 @@ export default function CandidatePortal() {
         const s = await seatState(terminalId);
         if (stop) return;
         if (s.binding?.examId) setExamId(s.binding.examId); // the seat's real exam
+        // Only advance once the seat knows which paper it is serving.
+        if (!s.binding?.examId) return;
         if (s.state === "ASSIGNED") setPhase("LOGIN");
         else if (s.state === "ATTENDED" || s.state === "IN_EXAM") setPhase("EXAM");
       } catch {
@@ -118,6 +119,16 @@ export default function CandidatePortal() {
     return <LoginCard terminalId={terminalId!} onAttended={() => setPhase("EXAM")} />;
 
   if (phase === "RECEIPT") return null; // handled inside ExamCard
+
+  // Unreachable in practice — the watcher only leaves WAIT_ASSIGN once the
+  // binding names an exam — but the paper must never render without one.
+  if (!examId)
+    return (
+      <Shell state="AWAITING ASSIGNMENT">
+        <h1>Waiting for this seat&apos;s paper.</h1>
+        <p style={{ color: "#94a3b8" }}>The seat has not been bound to an examination yet.</p>
+      </Shell>
+    );
 
   return (
     <ExamCard

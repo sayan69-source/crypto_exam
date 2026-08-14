@@ -56,13 +56,21 @@ function stripComments(src, lang) {
     .replace(/\/\/[^\n]*/g, blank);        // line comments
 }
 
+// Build output is skipped by name, not just by extension: `image-build/out`
+// holds an unpacked kernel tree whose ~80k files include paths this process
+// cannot stat at all — and an unhandled EACCES there would take the whole guard
+// down, which reads as "checks passed" to anyone not watching the exit code.
+const SKIP_DIRS = new Set(["node_modules", ".next", ".git", "out", "dist", "build", "__pycache__"]);
+
 function walk(dir, out = []) {
   let entries;
   try { entries = readdirSync(dir); } catch { return out; }
   for (const e of entries) {
-    if (e === "node_modules" || e === ".next" || e === ".git") continue;
+    if (SKIP_DIRS.has(e)) continue;
     const p = join(dir, e);
-    if (statSync(p).isDirectory()) walk(p, out);
+    let stats;
+    try { stats = statSync(p); } catch { continue; }
+    if (stats.isDirectory()) walk(p, out);
     else out.push(p);
   }
   return out;
@@ -163,7 +171,50 @@ const lines = (src) => src.split(/\r?\n/);
   }
 }
 
-// ── 5. Health must be probed, not asserted ──────────────────────────────────
+// ── 5. Biometrics must be captured and signed, never stated ─────────────────
+//
+// Every portal in private/ once logged in by POSTing its own factors:
+//
+//     { faceScore: 0.95, fpScore: 0.9, tpmValid: true, elapsedMs: 1200 }
+//
+// and the invigilator console checked candidates in with the same two constants
+// for all 487 of them. A page that can name a biometric score is a page that
+// decides one. The scores now arrive inside an envelope signed by the on-device
+// daemon, and no client code has any business writing these identifiers.
+//
+// Scoped to private/** (the ZUUP-OS portals). The public website is a different
+// stack with its own WebAuthn/face-api flow.
+{
+  // The three ZUUP-OS portals — the client surfaces that talk to the Edge.
+  const PORTALS = ["exam-terminal", "centre-admin", "system-admin"].map((d) =>
+    join(ROOT, "private", d),
+  );
+  const CLIENT_FORBIDDEN = [
+    [/\b(faceScore|fpScore|faceScoreBp|fpScoreBp)\s*[:=]/,
+      "a biometric score written in client code is a score the client decides"],
+    [/\btpmValid\s*[:=]/,
+      "attestation is a server-side fact; a client cannot assert its own TPM"],
+    [/\bfingerprintMatch\s*[:=]/,
+      "whether a fingerprint matched is measured by the daemon, not declared"],
+    [/SIMULATE_BIOMETRICS/,
+      "a simulation switch is one deploy away from being the login path"],
+  ];
+  const files = PORTALS.flatMap((dir) => walk(dir)).filter(
+    (f) => (f.endsWith(".tsx") || f.endsWith(".ts")) && !f.endsWith(".test.ts"),
+  );
+  let bad = 0;
+  for (const file of files) {
+    const src = stripComments(readFileSync(file, "utf8"), "ts");
+    lines(src).forEach((line, i) => {
+      for (const [re, why] of CLIENT_FORBIDDEN) {
+        if (re.test(line)) { fail("client-asserted-biometric", `${rel(file)}:${i + 1}`, why); bad++; }
+      }
+    });
+  }
+  if (!bad) pass("client-asserted-biometric", `${files.length} private client files scanned`);
+}
+
+// ── 6. Health must be probed, not asserted ──────────────────────────────────
 {
   let bad = 0;
   for (const f of ["app/main.py", "app/api/v1/admin.py"]) {

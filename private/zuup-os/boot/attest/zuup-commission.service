@@ -1,0 +1,57 @@
+# ZUUP-OS first-boot commissioning — ALL-IN-ONE / DEV IMAGES ONLY.
+#
+# Registers THIS machine's stations, daemon key and measurements with the
+# on-board Edge, so the laptop that is standing in for a whole centre has a real
+# terminal registry instead of fixture rows baked into the image. The script
+# itself refuses to run on a production variant; this unit is only installed by
+# the all-in-one stage in the first place. See zuup-commission.sh for why.
+#
+# Ordering: after the Edge is serving (it registers over HTTP), before the
+# kiosk, because the kiosk asks the Edge what capability this terminal has and a
+# machine with no registry row would be sent to the fail-closed wall.
+
+[Unit]
+Description=ZUUP-OS first-boot self-commissioning (all-in-one)
+After=zuup-edge.service zuup-proxy.service
+Wants=zuup-edge.service
+Before=zuup-kiosk.service
+ConditionPathExists=/etc/zuup/image-variant
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=ZUUP_EDGE_URL=http://edge.local
+ExecStart=/usr/lib/zuup/zuup-commission.sh
+# 3 minutes covers a cold PostgreSQL restore on a 2011 laptop. On timeout the
+# unit fails and the kiosk still starts: the operator then sees the Gate's own
+# "not commissioned" wall, which names the problem, rather than a black screen.
+TimeoutStartSec=180
+# Deliberately NOT FailureAction=poweroff. A machine that failed to commission
+# has proved nothing about itself and gains nothing — but powering it off tells
+# whoever flashed it exactly nothing, and on hardware you may only get to flash
+# once. Fail visibly instead.
+
+# ── §7.5 hardening ─────────────────────────────────────────────────────────
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+LockPersonality=yes
+SystemCallArchitectures=native
+# It writes the daemon key, the AK context and the roles file onto the identity
+# tmpfs, and reads the TPM. /etc is on the read-only verity root and is not
+# writable by anything, including this.
+# '-' prefix: the tmpfs may not be mounted yet on a machine whose fstab has
+# not been extended, and a missing path here fails the unit outright with a
+# mount-namespace error — losing commissioning over a directory the script
+# creates itself a moment later.
+ReadWritePaths=-/run/zuup-identity /run
+DeviceAllow=/dev/tpmrm0 rw
+SupplementaryGroups=tss
+
+[Install]
+WantedBy=zuup-session.target

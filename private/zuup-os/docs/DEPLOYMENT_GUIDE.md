@@ -43,25 +43,63 @@ do and exits 0 without touching anything.
 
 ## 3. Commission a centre
 
-1. Register the centre + its terminals with the System Admin: each terminal's
-   WireGuard pubkey, TPM endorsement key hash, and **golden PCR set** go into the
-   Edge terminal registry (`terminals.golden_pcr`, `terminals.wg_pubkey`).
-2. Provision the Centre Edge appliance on the exam VLAN. Apply the §12 migrations:
+Commissioning is not paperwork: it is the step that produces every fact the
+login gate later checks. A terminal that skips it cannot attest, so it halts at
+boot and nobody can log in on it — by design.
+
+1. **Per terminal**, on the machine itself, create the two key pairs and write
+   the identity:
+   ```sh
+   echo "$TERMINAL_UUID" > /etc/zuup/terminal-id       # baked into the signed image
+   tpm2_createek  -c /etc/zuup/ek.ctx
+   tpm2_createak  -C /etc/zuup/ek.ctx -c /etc/zuup/ak.ctx -u /etc/zuup/ak.pub
+   tpm2_print -t TPM2B_PUBLIC /etc/zuup/ak.pub          # export the PUBLIC half as PEM
+   # the biometric daemon's signing key (public half is registered, private stays here)
+   openssl genpkey -algorithm ed25519 -out /etc/zuup/biometric-attest.key
+   openssl pkey -in /etc/zuup/biometric-attest.key -pubout -out /etc/zuup/biometric-attest.pub
+   chmod 600 /etc/zuup/biometric-attest.key
+   ```
+   Record the golden PCR set from a known-good boot of the signed image:
+   `tpm2_pcrread sha256:0,4,7,8,9,14`.
+
+2. **Build the centre's provisioning bundle** — terminals (with `golden_pcr`,
+   `ak_pubkey_pem`, `bio_pubkey_pem`, `wg_pubkey`, `bound_ip`), staff,
+   candidates, and the sealed question bundle. The exact shape:
+   ```sh
+   node private/edge-server/src/provision.ts --schema
+   ```
+   Only PUBLIC key material appears in it; the Edge never holds a private key.
+
+3. Provision the Centre Edge appliance on the exam VLAN, apply the §12
+   migrations, then commission it from the bundle:
    ```sh
    DATABASE_URL=postgres://… npm run migrate -w edge-server
+   DATABASE_URL=postgres://… node private/edge-server/src/provision.ts centre.json
    ```
-3. Activate the centre's single Centre Admin via the System Admin portal
-   (one-time code + fingerprint, §9.3). INV-7 enforces exactly one.
-4. Stand up PXE on the Edge (`network/pxe/dnsmasq.conf`); patch out the LAN
+   The same rows arrive over the HQ link via `POST /api/provisioning/ingest`;
+   this is the offline door to the same room. `provision.ts` warns loudly about
+   any terminal it wrote without a golden PCR set or attestation key, because
+   those machines will halt at boot.
+
+4. Activate the centre's single Centre Admin via the System Admin portal
+   (one-time code + a fingerprint re-supplied at their bound station, §9.3).
+   INV-7 enforces exactly one.
+
+5. Stand up PXE on the Edge (`network/pxe/dnsmasq.conf`); patch out the LAN
    switch's WAN uplink.
 
 ## 4. Boot the terminals (Phase 11)
 
 - Power on → PXE chainloads the **signed** image into RAM → measured boot extends
-  PCRs → terminal attests to the Edge (`POST /api/terminal/attest`) → on match,
-  the Login Gate renders. Target: power-on → Gate < 30 s.
-- A mismatched/edited image fails Secure Boot or PCR attestation and never
-  reaches the Gate (fail-closed).
+  PCRs → the terminal takes a nonce (`POST /api/terminal/attest/challenge`) and
+  submits a TPM quote over it (`POST /api/terminal/attest`) → on a verifying
+  signature over the golden PCRs, the Login Gate renders. Target: power-on →
+  Gate < 30 s.
+- A mismatched/edited image fails Secure Boot or the quote check and never
+  reaches the Gate (fail-closed). The Edge answers with the exact clause that
+  failed (`PCR_4_MISMATCH`, `QUOTE_SIGNATURE_INVALID`, …) and
+  `zuup-attest.sh` writes it to the journal before powering off — an operator
+  standing at a dark machine has nothing else to go on.
 
 ## 5. Pre-deployment gate (must be green — spec §17.2)
 

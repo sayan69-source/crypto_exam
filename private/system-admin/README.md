@@ -28,10 +28,15 @@ one tier up, and the ONLY tier where sealed answers are ever decrypted.
 ## Running it (dev)
 
 ```bash
-# 1. Edge DB + migrations + demo seed (see edge-server/README)
+# 1. Edge DB + migrations + commissioning (see edge-server/README)
 npm run db:up -w edge-server
 DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge npm run migrate -w edge-server
-DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge node --experimental-strip-types private/edge-server/src/seed-demo.ts
+# The Edge holds no built-in data. Commission it from a provisioning bundle —
+# `node private/edge-server/src/provision.ts --schema` prints the shape, and the
+# HQ workstation must appear in `terminals[]` with its golden PCRs and keys or
+# tier-0 cannot log in.
+DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge \
+  node --experimental-strip-types private/edge-server/src/provision.ts my-centre.json
 
 # 2. dev HQ keypair → Edge public half + portal private half
 node scripts/write-dev-hq-env.mjs

@@ -39,6 +39,8 @@ const config: EdgeConfig = {
   tokenSecret: new Uint8Array(32).fill(1),
   bindSecret: new Uint8Array(32).fill(2),
   nodeSignSeed: new Uint8Array(32).fill(9),
+  // Explicitly off: a test must never inherit a trust concession.
+  allowFirstBootCommissioning: false,
 };
 
 let pool: Pool | null = null;
@@ -53,6 +55,25 @@ const toHexStr = (b: Uint8Array) => Buffer.from(b).toString("hex");
 
 const adminToken = (centre: string, sub: string) =>
   issueToken(config.tokenSecret, { sub, tid: "s", tpm: "x", role: "CENTER_ADMIN", centre, exp: Date.now() + 3_600_000 });
+
+/**
+ * The session a real candidate holds after roll+DOB login (§13.3).
+ *
+ * `answer/submit`, the question bundle and the T₀ beacon have required one since
+ * the 2026-08-10 remediation — possession of a seat id stopped being possession
+ * of the seat. These tests predate that and, being DB-gated, had never run to
+ * notice: they were asserting 200 on routes that now correctly answer 403.
+ */
+const candidateSession = (examId: string, roll: string, terminalId: string, centre: string) => ({
+  authorization: `Bearer ${issueToken(config.tokenSecret, {
+    sub: `cand:${examId}:${roll}`,
+    tid: terminalId,
+    tpm: "attested",
+    role: "CANDIDATE",
+    centre,
+    exp: Date.now() + 3_600_000,
+  })}`,
+});
 
 async function seedAndSubmit(p: Pool, a: FastifyInstance, count: number) {
   const centreId = randomUUID();
@@ -86,6 +107,7 @@ async function seedAndSubmit(p: Pool, a: FastifyInstance, count: number) {
     const sealed = await sealRecord(record, hq.publicKey);
     const r = await a.inject({
       method: "POST", url: "/api/answer/submit",
+      headers: candidateSession(examId, `R-${i}`, terminalId, centreId),
       payload: { terminalId, ct: toHexStr(sealed.ct), iv: toHexStr(sealed.iv), tag: toHexStr(sealed.tag), wrappedDk: toHexStr(sealed.wrappedDk) },
     });
     assert.equal(r.statusCode, 200);

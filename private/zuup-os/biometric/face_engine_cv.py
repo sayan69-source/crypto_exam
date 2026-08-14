@@ -188,6 +188,17 @@ class FaceEngineCV:
             return None
         return self._embed(best[0], best[1])
 
+    def enrol(self, frames=None) -> str:
+        """`enroll()` as the daemon consumes it: sha256 hex, or "" if nothing
+        was captured. Both face engines expose this identical surface so
+        zuup-biometricd never has to know which one is behind it."""
+        import hashlib
+
+        embedding = self.enroll(frames)
+        if embedding is None or getattr(embedding, "size", 0) == 0:
+            return ""
+        return hashlib.sha256(embedding.astype("float32").tobytes()).hexdigest()
+
     def _capture_burst(self):
         cv2 = self._cv2
         src = int(CAMERA) if str(CAMERA).isdigit() else CAMERA

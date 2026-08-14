@@ -111,3 +111,10 @@ zuup-os-terminal.zip
 public/circuits/build/*.ptau
 public/circuits/build/difficulty_proof_0000.zkey
 public/circuits/build/*.sym
+
+# ── Centre provisioning bundles (§12) ──
+# Real rosters, real staff enrolment hashes and real terminal attestation keys.
+# The Edge is commissioned from one of these (private/edge-server/src/provision.ts);
+# they are operational data for a specific centre, never repository content.
+private/all-in-one/provisioning/
+*.centre-bundle.json

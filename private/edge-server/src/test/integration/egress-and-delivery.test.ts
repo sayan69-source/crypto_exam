@@ -28,10 +28,31 @@ const config: EdgeConfig = {
   host: "127.0.0.1", port: 0, databaseUrl: DB ?? "", centreId: "test", provisioningKey: null, systemAdminPublicKeyPem: null,
   argon: { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 },
   tokenSecret: new Uint8Array(32).fill(1), bindSecret: new Uint8Array(32).fill(2), nodeSignSeed: new Uint8Array(32).fill(3),
+  // Explicitly off: a test must never inherit a trust concession.
+  allowFirstBootCommissioning: false,
 };
 let pool: Pool | null = null;
 let app: FastifyInstance | null = null;
 after(async () => { if (app) await app.close(); if (pool) await pool.end(); });
+
+/**
+ * The session a real candidate holds after roll+DOB login (§13.3).
+ *
+ * `answer/submit`, the question bundle and the T₀ beacon have required one since
+ * the 2026-08-10 remediation — possession of a seat id stopped being possession
+ * of the seat. These tests predate that and, being DB-gated, had never run to
+ * notice: they were asserting 200 on routes that now correctly answer 403.
+ */
+const candidateSession = (examId: string, roll: string, terminalId: string, centre: string) => ({
+  authorization: `Bearer ${issueToken(config.tokenSecret, {
+    sub: `cand:${examId}:${roll}`,
+    tid: terminalId,
+    tpm: "attested",
+    role: "CANDIDATE",
+    centre,
+    exp: Date.now() + 3_600_000,
+  })}`,
+});
 
 const J = (r: { payload: string }) => JSON.parse(r.payload);
 const dummy = Buffer.from("aa".repeat(32), "hex");
@@ -120,21 +141,33 @@ test("§10.7 delivery: bound seat gets the keyless bundle; beacon withheld until
   );
 
   // bound seat gets the bundle; its root matches what we sealed
-  const got = J(await app.inject({ method: "GET", url: `/api/exam/${examId}/bundle?terminalId=${seat}` }));
+  const got = J(await app.inject({
+    method: "GET", url: `/api/exam/${examId}/bundle?terminalId=${seat}`,
+    headers: candidateSession(examId, "R-1", seat, centreId),
+  }));
   assert.equal(got.questionsRoot, bundle.questionsRoot);
   assert.equal(got.bundle.items.length, 1);
 
   // an UNbound seat is refused the bundle (a seat can only see its own exam)
-  const denied = await app.inject({ method: "GET", url: `/api/exam/${examId}/bundle?terminalId=${otherSeat}` });
+  const denied = await app.inject({
+    method: "GET", url: `/api/exam/${examId}/bundle?terminalId=${otherSeat}`,
+    headers: candidateSession(examId, "R-2", otherSeat, centreId),
+  });
   assert.equal(denied.statusCode, 403);
 
   // the beacon is withheld before T₀ (425 Too Early) — paper undecryptable
-  const early = await app.inject({ method: "GET", url: `/api/exam/${examId}/beacon?terminalId=${seat}` });
+  const early = await app.inject({
+    method: "GET", url: `/api/exam/${examId}/beacon?terminalId=${seat}`,
+    headers: candidateSession(examId, "R-1", seat, centreId),
+  });
   assert.equal(early.statusCode, 425);
 
   // move T₀ into the past → beacon releases, and it is the exact public value
   await pool.query(`UPDATE exam_question_bundle SET t0_at = NOW() - INTERVAL '1 min' WHERE exam_id=$1`, [examId]);
-  const released = J(await app.inject({ method: "GET", url: `/api/exam/${examId}/beacon?terminalId=${seat}` }));
+  const released = J(await app.inject({
+    method: "GET", url: `/api/exam/${examId}/beacon?terminalId=${seat}`,
+    headers: candidateSession(examId, "R-1", seat, centreId),
+  }));
   assert.equal(released.ok, true);
   assert.equal(released.beacon, "ab".repeat(32));
 });

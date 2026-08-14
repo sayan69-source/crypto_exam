@@ -16,6 +16,18 @@ Type=simple
 # hand the mount to the service user here ('+' = run as root) or the daemon's
 # os.chdir(/run/biometric) dies with PermissionError and crash-loops.
 ExecStartPre=+/bin/chown zuup-bio:zuup-bio /run/biometric
+# The attestation key this daemon signs every score with (§8.4). Written at
+# commissioning; root-owned, readable only by this service. Without it the
+# daemon starts but answers 503 to every capture — an unsigned score is a number
+# the browser could have typed, so there is no fallback.
+#
+# Two locations, neither guaranteed: /etc/zuup is on the read-only verity root
+# (so a baked key is already correctly moded and the chgrp is a no-op that
+# fails), and /run/zuup-identity only exists on a machine that commissioned
+# itself. `-` prefix: a missing key must leave the daemon RUNNING and answering
+# 503, not fail the unit — a station that reports "no attestation key" can be
+# diagnosed; one whose daemon never started looks like a dead camera.
+ExecStartPre=-/bin/sh -c 'for k in /etc/zuup/biometric-attest.key /run/zuup-identity/biometric-attest.key; do [ -f "$k" ] && chgrp zuup-bio "$k" 2>/dev/null && chmod 0640 "$k" 2>/dev/null; done; exit 0'
 ExecStart=/usr/bin/python3 /usr/lib/zuup/zuup-biometricd.py
 Restart=always
 RestartSec=2

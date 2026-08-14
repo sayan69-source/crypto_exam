@@ -14,6 +14,43 @@ only a hash/template is ever stored (§8.4).
 | Source IP | the Edge observes the tunnel source | IP bound to the identity | exact |
 | TPM | terminal TPM 2.0 quote | golden PCR set on the Edge | exact |
 
+## The daemon signs what it measures (§8.4)
+
+A score is only worth what the thing that produced it can prove. The daemon
+answers on two routes, both of which return a SIGNED envelope and neither of
+which returns a bare number:
+
+```
+POST /attest/verify  {nonce, subject, enrolled_embedding_hex, enrolled_template_hex}
+                     → {envelope: {terminalId, nonce, subject,
+                                   faceScoreBp, fpScoreBp, capturedAt}, sig}
+POST /attest/enrol   {nonce}
+                     → {envelope: {…, faceEmbeddingHash, fingerprintTemplate}, sig}
+```
+
+- **`sig`** is over the canonical JSON of `envelope`, made with the Ed25519 key
+  at `/etc/zuup/biometric-attest.key`. Its public half is registered as
+  `terminals.bio_pubkey_pem` at commissioning; the Edge accepts scores only
+  inside an envelope that verifies under it. No key → HTTP 503, never an
+  unsigned score.
+- **`nonce`** is issued by the Edge moments earlier, so a capture cannot be
+  replayed.
+- **`subject`** is `LOGIN`, `checkin:<roll>` or `activate:<requestId>` — it binds
+  the measurement to WHO it is about. Without it, one genuine capture of one
+  candidate would check in a whole hall.
+- **`terminalId`** is read from `/etc/zuup/terminal-id` by the daemon itself,
+  never from the request: a daemon that signed whatever id it was handed would
+  let one compromised station mint envelopes for every seat.
+- Scores are integer **basis points** (0–10000), because the verifier is
+  JavaScript and `json.dumps(1.0)` ≠ `JSON.stringify(1.0)` — a float would have
+  made the perfect match the one score whose signature never verified. The
+  daemon refuses to start if its canonical serialiser drifts from the byte
+  string pinned in `edge-server/src/test/bio-attest.test.ts`.
+
+Before this, the daemon returned `{"score": 0.94}` and the browser forwarded the
+number to the Edge — so the face and fingerprint clauses of the match-all rule
+were, at the end of the wire, two integers in an HTTP body.
+
 ## The match-all rule lives in the Edge (runnable + tested)
 
 The §8.2 intersection rule — **all** factors must pass inside one ≤20 s login

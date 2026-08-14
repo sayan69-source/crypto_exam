@@ -7,35 +7,96 @@
  */
 
 const TOKEN_KEY = "zuup_terminal_session";
-const TERMINAL_KEY = "zuup_terminal_id";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.sessionStorage.getItem(TOKEN_KEY);
 }
+// Guarded like getToken: these run during prerender and under `node --test`,
+// where touching `window` throws — and a throw inside the login path would be
+// caught upstream and reported as "Edge unreachable", which is a lie about a
+// login that actually succeeded.
 export function setToken(t: string): void {
+  if (typeof window === "undefined") return;
   window.sessionStorage.setItem(TOKEN_KEY, t);
 }
 export function clearToken(): void {
+  if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(TOKEN_KEY);
 }
 
 /**
- * The terminal's own identity. On a real ZUUP-OS terminal this is baked into
- * the signed image (it IS the device, §7.1); in dev it comes from ?terminal=
- * or localStorage so one browser can stand in for any seat/station.
+ * The terminal's own identity, from the signed image (§7.1).
+ *
+ * Read once from `/local/identity`, which reads `/etc/zuup/terminal-id` on this
+ * machine. It is NOT read from `?terminal=`, from localStorage, or from
+ * anything else a person in front of the kiosk can set: a terminal that can be
+ * told which seat it is can be told to be the seat whose paper it wants.
+ *
+ * `roles` is normally one entry. It is longer only on the all-in-one image,
+ * where one laptop was commissioned as several stations — and even then the
+ * list is the MACHINE's, so `?role=` selects among identities this hardware
+ * actually holds and can never name one it does not.
+ *
+ * Null identity means this machine is not commissioned, and the Gate stays shut.
  */
-export function getTerminalId(): string | null {
-  if (typeof window === "undefined") return null;
-  const fromQuery = new URLSearchParams(window.location.search).get("terminal");
-  if (fromQuery) {
-    window.localStorage.setItem(TERMINAL_KEY, fromQuery);
-    return fromQuery;
-  }
-  return window.localStorage.getItem(TERMINAL_KEY);
+export interface MachineIdentity {
+  terminalId: string | null;
+  roles: Array<{ role: TerminalCapability; terminalId: string; seatNo?: string }>;
+  /** PROVISIONED (an authority registered it) or FIRST_BOOT (it registered itself). */
+  commissionedVia: string;
 }
-export function setTerminalId(id: string): void {
-  window.localStorage.setItem(TERMINAL_KEY, id);
+
+// Only a SUCCESSFUL read is cached. On a machine that commissions itself the
+// identity appears a few seconds into boot, after the Edge is up — and the
+// kiosk may well have loaded this page before then. Caching the miss would
+// leave the screen saying "not commissioned" for the rest of the session, on a
+// machine that commissioned itself perfectly well ten seconds later.
+const NO_IDENTITY: MachineIdentity = { terminalId: null, roles: [], commissionedVia: "PROVISIONED" };
+let cachedIdentity: MachineIdentity | undefined;
+
+export async function machineIdentity(): Promise<MachineIdentity> {
+  if (cachedIdentity !== undefined) return cachedIdentity;
+  try {
+    const res = await fetch("/local/identity", { cache: "no-store" });
+    const json = (await res.json()) as {
+      ok?: boolean; terminalId?: string;
+      roles?: MachineIdentity["roles"]; commissionedVia?: string;
+    };
+    if (res.ok && json.ok && json.terminalId) {
+      cachedIdentity = {
+        terminalId: json.terminalId,
+        roles: json.roles ?? [],
+        commissionedVia: json.commissionedVia ?? "PROVISIONED",
+      };
+      return cachedIdentity;
+    }
+  } catch {
+    // fall through
+  }
+  return NO_IDENTITY;
+}
+
+/**
+ * The identity this surface should present.
+ *
+ * `?role=` names a ROLE, never an id: it is resolved against the machine's own
+ * commissioning list, so the worst a URL can do is ask for a station this
+ * hardware was already registered as — whose login then has to pass on its own
+ * merits anyway.
+ */
+export async function terminalIdentity(role?: string | null): Promise<string | null> {
+  const identity = await machineIdentity();
+  // A production terminal publishes no role list: it holds one identity, and
+  // the Edge's capability answer is what decides which surface it may open.
+  // Returning null here for "the role you asked for is not listed" would lock
+  // out every correctly-provisioned single-role machine in the estate.
+  if (identity.roles.length === 0) return identity.terminalId;
+  if (role) {
+    const match = identity.roles.find((r) => r.role === role);
+    return match ? match.terminalId : null;
+  }
+  return identity.terminalId;
 }
 
 export class EdgeError extends Error {
@@ -75,6 +136,52 @@ export async function health(): Promise<boolean> {
 
 export type TerminalCapability = "CANDIDATE_SEAT" | "INVIGILATOR_STATION" | "ADMIN_STATION";
 
+/**
+ * Why this terminal will or will not be able to log anyone in.
+ *
+ * Read once at the Gate and shown on screen. On real hardware you may only get
+ * one boot to find out what is missing, and "Denied · TPM_ATTESTATION_INVALID"
+ * three screens later is a poor way to learn that a laptop has no TPM.
+ */
+export interface TerminalReadiness {
+  capability: TerminalCapability;
+  commissionedVia: string;
+  registeredAttestationKey: boolean;
+  registeredGoldenPcr: boolean;
+  registeredBiometricKey: boolean;
+  attestationCurrent: boolean;
+  enrolledIdentity: boolean;
+}
+
+export async function readiness(terminalId: string): Promise<TerminalReadiness | null> {
+  try {
+    return await call<TerminalReadiness>(
+      `/terminal/${encodeURIComponent(terminalId)}/readiness`,
+      { auth: false },
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** What the on-device daemon reports about its own hardware (§8.4). */
+export interface BiometricHealth {
+  ok: boolean;
+  face: boolean;
+  fp: boolean;
+  signing: boolean;
+}
+
+export async function biometricHealth(): Promise<BiometricHealth | null> {
+  try {
+    const res = await fetch("/biometric/health", { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as BiometricHealth;
+  } catch {
+    return null; // no daemon at all
+  }
+}
+
 export async function capability(terminalId: string): Promise<TerminalCapability | null> {
   try {
     const r = await call<{ capability: TerminalCapability }>(
@@ -88,6 +195,15 @@ export async function capability(terminalId: string): Promise<TerminalCapability
 }
 
 // ── §13.2 invigilator console ─────────────────────────────────────────────
+export interface CentreExam {
+  id: string;
+  name: string;
+  scheduledAt: string;
+  durationMinutes: number;
+}
+/** The exams THIS centre is running — the console has no hard-coded exam id. */
+export const centreExams = () => call<{ exams: CentreExam[] }>("/centre/exams");
+
 export interface RosterRow {
   roll: string;
   name: string;
@@ -96,8 +212,17 @@ export interface RosterRow {
 export const roster = (examId: string) =>
   call<{ roster: RosterRow[] }>(`/centre/roster?examId=${encodeURIComponent(examId)}`);
 
-export const checkin = (body: { examId: string; roll: string; faceScore: number; fpScore: number }) =>
-  call<{ ok: boolean; status: string }>("/candidate/checkin", { method: "POST", body: JSON.stringify(body) });
+/**
+ * Check a candidate in. The scores are inside `bio` — an envelope the station's
+ * biometric daemon signed over this nonce and this roll — so this call cannot
+ * express "trust me, it matched".
+ */
+export const checkin = (body: {
+  examId: string;
+  roll: string;
+  challengeNonce: string;
+  bio: { envelope: Record<string, unknown>; sig: string };
+}) => call<{ ok: boolean; status: string }>("/candidate/checkin", { method: "POST", body: JSON.stringify(body) });
 
 export const assignSeat = (body: { examId: string; roll: string }) =>
   call<{ ok: boolean; seatNo: string; terminalId: string }>("/seat/assign", { method: "POST", body: JSON.stringify(body) });

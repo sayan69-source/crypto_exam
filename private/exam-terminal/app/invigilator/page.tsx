@@ -14,59 +14,73 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   assignSeat,
+  centreExams,
   checkin,
   clearToken,
-  getTerminalId,
   getToken,
   raiseIncident,
   roster as fetchRoster,
   seatMap as fetchSeatMap,
+  terminalIdentity,
   EdgeError,
+  type CentreExam,
   type RosterRow,
   type SeatMapRow,
 } from "@/lib/edge";
 import {
   activateWithCode,
-  captureProbe,
+  captureCheckin,
   invigilatorLogin,
-  registerInvigilator,
-  type CaptureSource,
+  registerStaff,
 } from "@/lib/identity";
-
-// Demo defaults provisioned by seed-demo.ts.
-const DEMO_CENTRE = "11111111-1111-1111-1111-111111111111";
-const DEMO_EXAM = "44444444-4444-4444-4444-444444444444";
-const DEMO_STATION = "55555555-5555-5555-5555-555555555555";
-const DEMO_IP = "10.0.0.6";
 
 export default function InvigilatorPortal() {
   const [authed, setAuthed] = useState<boolean>(false);
+  const [stationId, setStationId] = useState<string | null>(null);
+
   useEffect(() => {
     setAuthed(Boolean(getToken()));
+    // On a machine commissioned as several stations (the all-in-one), take the
+    // invigilator one; a single-role terminal returns its only identity.
+    void terminalIdentity("INVIGILATOR_STATION").then(setStationId);
   }, []);
-  return authed ? <Console onLock={() => { clearToken(); setAuthed(false); }} /> : <Login onAuthed={() => setAuthed(true)} />;
+
+  // The station id comes from the signed image; there is nothing to type and
+  // nothing to choose (§7.1).
+  if (!stationId) {
+    return (
+      <div className="screen">
+        <div className="screen-panel" style={{ maxWidth: 520 }}>
+          <span className="screen-state">STATION NOT COMMISSIONED</span>
+          <h1>This machine has no identity.</h1>
+          <p style={{ fontSize: 14 }}>
+            No commissioned identity was found in the signed image. An
+            invigilator station must be registered with the Edge before it can
+            take a login.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return authed
+    ? <Console stationId={stationId} onLock={() => { clearToken(); setAuthed(false); }} />
+    : <Login stationId={stationId} onAuthed={() => setAuthed(true)} />;
 }
 
 // ════════════════════════ login + registration ════════════════════════════
-function Login({ onAuthed }: { onAuthed: () => void }) {
-  const [stationId, setStationId] = useState(getTerminalId() ?? DEMO_STATION);
-  const [observedIp, setObservedIp] = useState(DEMO_IP);
+function Login({ stationId, onAuthed }: { stationId: string; onAuthed: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [capture, setCapture] = useState<CaptureSource | null>(null);
 
-  // Whether this station has capture hardware at all. The Docker proving ground
-  // has no camera, so it says so and stands the scores in; a real terminal never
-  // sets this, and a missing daemon there denies rather than pretends.
-  const simulate = process.env.NEXT_PUBLIC_SIMULATE_BIOMETRICS === "true";
-
-  async function login(spoof: "ip" | "face" | null) {
+  async function login() {
     setBusy(true);
     setError(null);
-    const probe = await captureProbe({ terminalId: stationId, observedIp, spoof, simulate });
-    setCapture(probe.source);
-    const verdict = await invigilatorLogin(probe);
+    // Everything happens outside this component: the daemon measures and signs,
+    // the Edge verifies and decides. There is no probe to assemble here and no
+    // switch that could make a station without a camera look like one with.
+    const verdict = await invigilatorLogin(stationId);
     setBusy(false);
     if (verdict.ok) return onAuthed();
     setError(`Denied · ${(verdict.failures ?? ["UNKNOWN"]).join(", ")}`);
@@ -84,41 +98,27 @@ function Login({ onAuthed }: { onAuthed: () => void }) {
               Face + fingerprint + bound IP + TPM must ALL match (§8.2). Any
               single miss denies and is logged (INV-4).
             </p>
-            <label style={label}>Station id</label>
-            <input value={stationId} onChange={(e) => setStationId(e.target.value)} style={field} />
-            <label style={label}>Edge-observed LAN IP</label>
-            <input value={observedIp} onChange={(e) => setObservedIp(e.target.value)} style={field} />
-            {capture && (
-              <p style={{ fontSize: 13, marginTop: 12, color: capture.face === "device" && capture.finger === "device" ? "#15803d" : "#b45309" }}>
-                Face: {capture.face} · Fingerprint: {capture.finger}
-                {capture.detail ? ` — ${capture.detail}` : ""}
-              </p>
-            )}
+            <p style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
+              station <code>{stationId.slice(0, 8)}…</code> · the Edge observes
+              this machine&apos;s address and attestation itself
+            </p>
             {error && <p role="alert" style={{ color: "#dc2626", fontSize: 14, marginTop: 12 }}>{error}</p>}
-            <button disabled={busy} onClick={() => login(null)} style={btnPrimary}>
-              {busy ? "Verifying…" : "Capture face + fingerprint & login"}
+            <button disabled={busy} onClick={login} style={btnPrimary}>
+              {busy ? "Look at the camera and hold your finger on the reader…" : "Capture face + fingerprint & login"}
             </button>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button disabled={busy} onClick={() => login("ip")} style={btnGhost}>
-                Spoof IP (deny)
-              </button>
-              <button disabled={busy} onClick={() => login("face")} style={btnGhost}>
-                Wrong face (deny)
-              </button>
-            </div>
             <button onClick={() => setMode("register")} style={{ ...btnGhost, marginTop: 18 }}>
               New invigilator? Register (§9.2)
             </button>
           </>
         ) : (
-          <Registration onBack={() => setMode("login")} stationId={stationId} observedIp={observedIp} />
+          <Registration onBack={() => setMode("login")} stationId={stationId} />
         )}
       </div>
     </div>
   );
 }
 
-function Registration({ onBack, stationId, observedIp }: { onBack: () => void; stationId: string; observedIp: string }) {
+function Registration({ onBack, stationId }: { onBack: () => void; stationId: string }) {
   const [fullName, setFullName] = useState("");
   const [requestId, setRequestId] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -128,12 +128,9 @@ function Registration({ onBack, stationId, observedIp }: { onBack: () => void; s
   async function submit() {
     setBusy(true);
     setStatus(null);
-    const r = await registerInvigilator({
-      centerId: DEMO_CENTRE,
-      fullName,
-      boundIp: observedIp,
-      boundTerminalId: stationId,
-    });
+    // No centre and no bindings are sent: the Edge reads the centre from this
+    // station's registry row and the address from the connection.
+    const r = await registerStaff("/invigilator/register", { terminalId: stationId, fullName });
     setBusy(false);
     if ("error" in r) return setStatus(`Registration failed · ${r.error}`);
     setRequestId(r.requestId);
@@ -143,7 +140,7 @@ function Registration({ onBack, stationId, observedIp }: { onBack: () => void; s
   async function activate() {
     if (!requestId) return;
     setBusy(true);
-    const r = await activateWithCode({ requestId, code, fingerprintMatch: true });
+    const r = await activateWithCode({ requestId, code, terminalId: stationId });
     setBusy(false);
     setStatus(r.ok ? "ACTIVE ✓ — you can now log in." : `Activation denied · ${r.reason}`);
   }
@@ -182,8 +179,9 @@ function Registration({ onBack, stationId, observedIp }: { onBack: () => void; s
 }
 
 // ═══════════════════════════ the console ══════════════════════════════════
-function Console({ onLock }: { onLock: () => void }) {
-  const [examId] = useState(DEMO_EXAM);
+function Console({ stationId, onLock }: { stationId: string; onLock: () => void }) {
+  const [exams, setExams] = useState<CentreExam[] | null>(null);
+  const [examId, setExamId] = useState<string | null>(null);
   const [rosterRows, setRosterRows] = useState<RosterRow[] | null>(null);
   const [seats, setSeats] = useState<SeatMapRow[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -200,7 +198,22 @@ function Console({ onLock }: { onLock: () => void }) {
     [onLock],
   );
 
+  // Which exam this console is invigilating comes from the centre's own data.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { exams: list } = await centreExams();
+        setExams(list);
+        setExamId((current) => current ?? list[0]?.id ?? null);
+      } catch (e) {
+        setNotice(`exams: ${guard(e)}`);
+        setExams([]);
+      }
+    })();
+  }, [guard]);
+
   const refreshRoster = useCallback(async () => {
+    if (!examId) return;
     try {
       setRosterRows((await fetchRoster(examId)).roster);
     } catch (e) {
@@ -223,13 +236,25 @@ function Console({ onLock }: { onLock: () => void }) {
     return () => clearInterval(t);
   }, [refreshRoster, refreshSeats]);
 
-  /** The v2 "Verify & Seat" widget (§10.2): check-in then random assignment. */
-  async function verifyAndSeat(roll: string, simulateBioFail = false) {
+  /**
+   * The "Verify & Seat" widget (§10.2): capture at the desk, check in, then
+   * random assignment.
+   *
+   * The capture is a live measurement of the person standing there, signed by
+   * this station's daemon and bound to this roll. It cannot be pre-recorded,
+   * reused for the next candidate, or replaced with a number.
+   */
+  async function verifyAndSeat(roll: string) {
+    if (!examId) return;
     setBusyRoll(roll);
     setNotice(null);
     try {
-      const bio = simulateBioFail ? { faceScore: 0.4, fpScore: 0.2 } : { faceScore: 0.95, fpScore: 0.9 };
-      await checkin({ examId, roll, ...bio });
+      const captured = await captureCheckin({ stationId, examId, roll });
+      if ("error" in captured) {
+        setNotice(`✗ ${roll}: ${captured.error}`);
+        return;
+      }
+      await checkin({ examId, roll, challengeNonce: captured.nonce, bio: captured.bio });
       const seat = await assignSeat({ examId, roll });
       setNotice(`✓ ${roll} verified & seated at ${seat.seatNo}`);
       await Promise.all([refreshRoster(), refreshSeats()]);
@@ -238,7 +263,9 @@ function Console({ onLock }: { onLock: () => void }) {
         setNotice(
           e.body.reason === "BIOMETRIC_MISMATCH"
             ? `✗ ${roll}: biometric mismatch — check-in DENIED and logged (§9.5)`
-            : `✗ ${roll}: ${e.body.reason ?? guard(e)}`,
+            : e.body.reason === "BIOMETRIC_ATTESTATION_INVALID"
+              ? `✗ ${roll}: the capture was not accepted (${(e.body.failures ?? []).join(", ")})`
+              : `✗ ${roll}: ${e.body.reason ?? guard(e)}`,
         );
       } else setNotice(`✗ ${roll}: ${guard(e)}`);
     } finally {
@@ -263,6 +290,17 @@ function Console({ onLock }: { onLock: () => void }) {
       <header style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 18 }}>
         <h1 style={{ fontSize: 22, letterSpacing: "0.03em" }}>INVIGILATOR CONSOLE</h1>
         <span style={{ fontSize: 13, color: "#64748b" }}>this centre · this session only (§3.2)</span>
+        {exams && exams.length > 1 && (
+          <select
+            value={examId ?? ""}
+            onChange={(e) => setExamId(e.target.value)}
+            style={{ ...miniBtn, padding: "6px 10px", fontSize: 12 }}
+          >
+            {exams.map((x) => (
+              <option key={x.id} value={x.id}>{x.name}</option>
+            ))}
+          </select>
+        )}
         <button onClick={onLock} style={{ ...btnGhost, marginLeft: "auto", width: "auto" }}>Lock station</button>
       </header>
 
@@ -280,7 +318,12 @@ function Console({ onLock }: { onLock: () => void }) {
             Biometric check-in (§9.5) then random free-seat assignment (§9.6).
             The seat number exists only after both succeed.
           </p>
-          {!rosterRows ? (
+          {exams?.length === 0 ? (
+            <p style={{ fontSize: 14, color: "#92400e" }}>
+              No exam is scheduled at this centre. The roster arrives with the
+              HQ provisioning sync before exam day.
+            </p>
+          ) : !rosterRows ? (
             <p style={{ fontSize: 14 }}>Loading roster…</p>
           ) : (
             <div style={{ maxHeight: 380, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 10, background: "#fff" }}>
@@ -303,16 +346,9 @@ function Console({ onLock }: { onLock: () => void }) {
                           disabled={busyRoll === r.roll}
                           onClick={() => verifyAndSeat(r.roll)}
                           style={{ ...miniBtn, background: "#1e40af", color: "#fff", border: "none" }}
+                          title="Capture this candidate's face and fingerprint now"
                         >
-                          {busyRoll === r.roll ? "…" : "Verify & Seat"}
-                        </button>{" "}
-                        <button
-                          disabled={busyRoll === r.roll}
-                          onClick={() => verifyAndSeat(r.roll, true)}
-                          style={miniBtn}
-                          title="INV-4 demo: a failed biometric denies check-in"
-                        >
-                          bio-fail
+                          {busyRoll === r.roll ? "capturing…" : "Verify & Seat"}
                         </button>
                       </td>
                     </tr>

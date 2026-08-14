@@ -106,6 +106,29 @@ export async function getApproval(q: Q, requestId: string): Promise<ApprovalReco
   return res.rowCount ? rowToApproval(res.rows[0]) : null;
 }
 
+/**
+ * The applicant's enrolled templates and the station they enrolled at (§9.2
+ * step 7), so the fingerprint they re-supply at activation can be matched
+ * on-device against the one they registered with.
+ */
+export async function approvalEnrolment(
+  q: Q,
+  requestId: string,
+): Promise<(EnrolmentTemplates & { boundTerminalId: string | null }) | null> {
+  const res = await q.query(
+    `SELECT s.face_embedding_hash, s.fingerprint_template, s.bound_terminal_id
+       FROM approval_requests a JOIN staff_identities s ON s.id = a.applicant_identity_id
+      WHERE a.id = $1`,
+    [requestId],
+  );
+  if (!res.rowCount) return null;
+  return {
+    faceEmbeddingHash: toHex(bytes(res.rows[0].face_embedding_hash)),
+    fingerprintTemplate: toHex(bytes(res.rows[0].fingerprint_template)),
+    boundTerminalId: res.rows[0].bound_terminal_id ?? null,
+  };
+}
+
 export async function saveApproval(
   client: pg.PoolClient,
   record: ApprovalRecord,
@@ -294,6 +317,65 @@ export async function findInvigilatorByStation(q: Q, terminalId: string): Promis
  * row inert. (A partial unique index enforces one active holder per station;
  * see migrations.)
  */
+/**
+ * The enrolled templates the on-device daemon needs in order to MATCH.
+ *
+ * Matching happens on the terminal, because the alternative is shipping a live
+ * capture across the LAN — exactly what §8.4 forbids. That means the enrolled
+ * side has to travel the other way: the daemon cannot compare a face to an
+ * enrolment it does not have. (Before this, the client called the daemon with an
+ * empty `enrolled_embedding_hex`, so the cosine was taken against nothing and
+ * the face factor could only ever score 0.)
+ *
+ * Only the DPDP-safe stored forms move — a hash and a vendor template, never an
+ * image — and http.ts gates the route on a freshly-attested terminal.
+ */
+export interface EnrolmentTemplates {
+  faceEmbeddingHash: string;
+  fingerprintTemplate: string;
+}
+
+export async function staffEnrolmentForStation(
+  q: Q,
+  terminalId: string,
+): Promise<EnrolmentTemplates | null> {
+  const res = await q.query(
+    `SELECT face_embedding_hash, fingerprint_template
+       FROM staff_identities
+      WHERE bound_terminal_id = $1 AND status = 'ACTIVE' AND revoked_at IS NULL
+      LIMIT 1`,
+    [terminalId],
+  );
+  if (!res.rowCount) return null;
+  return {
+    faceEmbeddingHash: toHex(bytes(res.rows[0].face_embedding_hash)),
+    fingerprintTemplate: toHex(bytes(res.rows[0].fingerprint_template)),
+  };
+}
+
+export async function candidateEnrolment(
+  q: Q,
+  centerId: string,
+  examId: string,
+  roll: string,
+): Promise<EnrolmentTemplates | null> {
+  const res = await q.query(
+    `SELECT u.enrolled_photo_hash, u.fingerprint_template
+       FROM enrollments e JOIN users u ON u.id = e.candidate_id
+      WHERE e.center_id = $1 AND e.exam_id = $2 AND e.roll_number = $3`,
+    [centerId, examId, roll],
+  );
+  if (!res.rowCount) return null;
+  const { enrolled_photo_hash, fingerprint_template } = res.rows[0];
+  // A candidate with no enrolled biometric cannot be verified. Empty strings
+  // make the daemon score 0 and the Edge deny, which is the right outcome: it
+  // sends the invigilator to the exception process instead of waving them past.
+  return {
+    faceEmbeddingHash: enrolled_photo_hash ? toHex(bytes(enrolled_photo_hash)) : "",
+    fingerprintTemplate: fingerprint_template ? toHex(bytes(fingerprint_template)) : "",
+  };
+}
+
 export async function findStaffByStation(q: Q, role: string, terminalId: string): Promise<IdentityRow | null> {
   const res = await q.query(
     `SELECT * FROM staff_identities
@@ -583,6 +665,32 @@ export async function roster(
   return res.rows.map((r) => ({ roll: r.roll, name: r.name, status: r.status }));
 }
 
+/**
+ * The exams this centre is actually running, soonest first.
+ *
+ * The invigilator console used to carry a hard-coded exam UUID, which meant it
+ * showed the right roster only at the one centre the constant was written for.
+ * A console must be told what it is invigilating by the data, not by a literal.
+ */
+export async function centreExams(
+  q: Q,
+  centerId: string,
+): Promise<Array<{ id: string; name: string; scheduledAt: string; durationMinutes: number }>> {
+  const res = await q.query(
+    `SELECT DISTINCT x.id, x.name, x.scheduled_at, x.duration_minutes
+       FROM exams x JOIN enrollments e ON e.exam_id = x.id
+      WHERE e.center_id = $1
+      ORDER BY x.scheduled_at`,
+    [centerId],
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    scheduledAt: new Date(r.scheduled_at).toISOString(),
+    durationMinutes: r.duration_minutes,
+  }));
+}
+
 export async function getCandidateByRoll(
   q: Q,
   examId: string,
@@ -640,6 +748,30 @@ export async function seatMap(q: Q, centerId: string): Promise<SeatMapRow[]> {
 export async function terminalCapability(q: Q, terminalId: string): Promise<string | null> {
   const res = await q.query(`SELECT capability FROM terminals WHERE id=$1`, [terminalId]);
   return res.rowCount ? (res.rows[0].capability as string) : null;
+}
+
+/**
+ * Which centre a machine belongs to, and what it is allowed to be.
+ *
+ * Registration used to take the centre id from the request body, so an
+ * applicant could file against any centre in the estate from any station. The
+ * machine's own registry row is the fact; the form is a claim.
+ */
+export async function terminalPlacement(
+  q: Q,
+  terminalId: string,
+): Promise<{ centerId: string; capability: string; commissionedVia: string } | null> {
+  const res = await q.query(
+    `SELECT center_id, capability, commissioned_via FROM terminals WHERE id=$1`,
+    [terminalId],
+  );
+  return res.rowCount
+    ? {
+        centerId: res.rows[0].center_id as string,
+        capability: res.rows[0].capability as string,
+        commissionedVia: (res.rows[0].commissioned_via as string) ?? "PROVISIONED",
+      }
+    : null;
 }
 
 export async function seatState(q: Q, terminalId: string): Promise<string | null> {
@@ -785,23 +917,126 @@ export async function openEgress(client: pg.PoolClient, examId: string, byId: st
 }
 
 /**
- * TPM attestation check (§7.1) — compare the submitted PCR quote to the golden
- * set stored for this terminal. Real quote verification is hardware (Phase 7);
- * here it is a deterministic comparison against `golden_pcr`. Fail-closed: an
- * unknown terminal or a mismatch returns false.
+ * What a terminal was commissioned with, for verifying its quote (§7.1).
+ *
+ * `null` means the machine is not in the registry at all — an unknown machine
+ * on the exam VLAN, which attests to nothing and boots into nothing.
  */
-export async function attestTerminal(q: Q, terminalId: string, providedPcr: unknown): Promise<boolean> {
-  const res = await q.query(`SELECT golden_pcr FROM terminals WHERE id=$1`, [terminalId]);
-  if (!res.rowCount) return false;
-  const golden = res.rows[0].golden_pcr;
-  const ok = golden != null && JSON.stringify(golden) === JSON.stringify(providedPcr);
-  // Record it. The verdict used to be returned and discarded, so the login gate
-  // had nothing to consult and took the client's word for `tpmValid` instead.
+export interface TerminalAttestKeys {
+  akPubkeyPem: string | null;
+  goldenPcr: Record<string, string> | null;
+}
+
+export async function terminalAttestKeys(q: Q, terminalId: string): Promise<TerminalAttestKeys | null> {
+  const res = await q.query(
+    `SELECT ak_pubkey_pem, golden_pcr FROM terminals WHERE id = $1`,
+    [terminalId],
+  );
+  if (!res.rowCount) return null;
+  return {
+    akPubkeyPem: res.rows[0].ak_pubkey_pem ?? null,
+    goldenPcr: (res.rows[0].golden_pcr as Record<string, string> | null) ?? null,
+  };
+}
+
+/** How many terminals this centre already has (bounds self-commissioning). */
+export async function countTerminals(q: Q, centerId: string): Promise<number> {
+  const res = await q.query(`SELECT COUNT(*)::int AS n FROM terminals WHERE center_id = $1`, [centerId]);
+  return res.rowCount ? (res.rows[0].n as number) : 0;
+}
+
+/**
+ * The address this terminal was commissioned at, for checking that a request
+ * about a machine is coming FROM that machine. Null when none was registered,
+ * which the caller must treat as "cannot be verified", never as "allow".
+ */
+export async function terminalBoundIp(q: Q, terminalId: string): Promise<string | null> {
+  const res = await q.query(`SELECT host(bound_ip) AS ip FROM terminals WHERE id = $1`, [terminalId]);
+  return res.rowCount ? ((res.rows[0].ip as string | null) ?? null) : null;
+}
+
+/**
+ * The daemon key that may speak for this terminal's camera and reader (§8.4).
+ * Null (or an unknown terminal) means no biometric score from it is acceptable.
+ */
+export async function terminalBioPubkey(q: Q, terminalId: string): Promise<string | null> {
+  const res = await q.query(`SELECT bio_pubkey_pem FROM terminals WHERE id = $1`, [terminalId]);
+  return res.rowCount ? (res.rows[0].bio_pubkey_pem ?? null) : null;
+}
+
+/**
+ * Register a machine into the terminal registry from the machine itself.
+ *
+ * Refuses if the id is already present — commissioning is a one-way door, so a
+ * machine cannot re-key or re-measure itself later, which is what would turn
+ * "this is the software that first ran here" into "this is whatever ran here
+ * last". `http.ts` gates the route on `allowFirstBootCommissioning`.
+ *
+ * The centre row is created if absent for the same reason the terminal is: on
+ * an all-in-one there is nobody else to have created it.
+ */
+export async function commissionSelf(
+  client: pg.PoolClient,
+  t: {
+    id: string; centerId: string; centreName: string; seatNo: string;
+    capability: string; wgPubkey: string; boundIp: string | null;
+    goldenPcr: Record<string, string> | null;
+    akPubkeyPem: string | null; bioPubkeyPem: string | null;
+  },
+): Promise<{ created: boolean; reason?: string }> {
+  const existing = await client.query(`SELECT commissioned_via FROM terminals WHERE id = $1`, [t.id]);
+  if (existing.rowCount) {
+    return { created: false, reason: "ALREADY_COMMISSIONED" };
+  }
+  // `(center_id, seat_no)` is UNIQUE, and a machine picks its own seat labels
+  // (ADM-1 / INV-1 / A-01) without knowing what the centre already holds. An
+  // Edge that was provisioned from a bundle — or one carrying rows from an
+  // earlier life — very plausibly has those seats already.
+  //
+  // Checked here rather than left to the constraint because an unhandled
+  // 23505 leaves Fastify to answer `{"statusCode":500,"error":"Internal Server
+  // Error"}`, with no `reason` for the commissioning script to read and nothing
+  // for the operator's screen but a number. On a machine with no shell that is
+  // the difference between a diagnosis and a dead end. (Observed: the first
+  // hardware boot hit exactly this behind a different fault.)
+  const seatTaken = await client.query(
+    `SELECT 1 FROM terminals WHERE center_id = $1 AND seat_no = $2`,
+    [t.centerId, t.seatNo],
+  );
+  if (seatTaken.rowCount) {
+    return { created: false, reason: "SEAT_ALREADY_REGISTERED" };
+  }
+  await client.query(
+    `INSERT INTO centers (id, name) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
+    [t.centerId, t.centreName],
+  );
+  await client.query(
+    `INSERT INTO terminals
+       (id, center_id, seat_no, capability, wg_pubkey, bound_ip, golden_pcr,
+        ak_pubkey_pem, bio_pubkey_pem, state, commissioned_via, commissioned_at)
+     VALUES ($1,$2,$3,$4::terminal_cap,$5,$6,$7,$8,$9,'AVAILABLE','FIRST_BOOT', now())`,
+    [
+      t.id, t.centerId, t.seatNo, t.capability, t.wgPubkey, t.boundIp,
+      t.goldenPcr ? JSON.stringify(t.goldenPcr) : null,
+      t.akPubkeyPem, t.bioPubkeyPem,
+    ],
+  );
+  return { created: true };
+}
+
+/**
+ * Record the outcome of an attestation attempt.
+ *
+ * Both outcomes are written. A stored `false` is what makes a failed boot
+ * visible to an auditor afterwards, and it also actively bars login on a
+ * machine that just failed to prove itself — where leaving the previous
+ * `true` in place would let a tampered image ride out the remaining TTL.
+ */
+export async function recordAttestation(q: Q, terminalId: string, ok: boolean): Promise<void> {
   await q.query(
     `UPDATE terminals SET last_attest_at = now(), last_attest_ok = $2 WHERE id = $1`,
     [terminalId, ok],
   );
-  return ok;
 }
 
 /**

@@ -48,21 +48,10 @@ export async function health(): Promise<boolean> {
 }
 
 // ── Auth (§8.2 match-all at tier-0) ──────────────────────────────────────
-export interface LoginProbe {
-  terminalId: string; observedIp: string;
-  faceScore: number; fpScore: number; tpmValid: boolean; elapsedMs: number;
-}
-export async function systemLogin(probe: LoginProbe): Promise<{ ok: boolean; token?: string; failures?: string[] }> {
-  // A denial (401) is a *result* here, not an exception — the page renders the
-  // failed factors so the operator can see why the match-all rule said no.
-  try {
-    return await call("/system/login", { method: "POST", body: JSON.stringify(probe), auth: false });
-  } catch (e) {
-    const body = (e as { body?: { ok?: boolean; failures?: string[] } }).body;
-    if (body && body.ok === false) return { ok: false, failures: body.failures ?? ["DENIED"] };
-    throw e;
-  }
-}
+// The login itself lives in lib/station.ts: it is a protocol (challenge →
+// enrolment → signed capture → verdict), not a request body. There is
+// deliberately no `LoginProbe` type here any more — a struct of factors that a
+// page could fill in is the shape of the defect this portal shipped with.
 
 // ── Nationwide oversight (§13.5 — counts only, no PII) ───────────────────
 export interface CentreOverviewRow {

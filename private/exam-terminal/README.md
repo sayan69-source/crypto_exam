@@ -106,14 +106,29 @@ npm install                                    # from repo root
 # 1) bring up the Edge (it serves /api/* the terminal proxies to):
 docker compose -f private/edge-server/docker-compose.yml up -d
 DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge npm run migrate -w edge-server
-DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge node --experimental-strip-types private/edge-server/src/seed-demo.ts
+# 2) commission a centre from a provisioning bundle (there is no built-in data):
+node --experimental-strip-types private/edge-server/src/provision.ts --schema
+DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge \
+  node --experimental-strip-types private/edge-server/src/provision.ts my-centre.json
 DATABASE_URL=postgres://zuup:zuup@127.0.0.1:5433/zuup_edge EDGE_PORT=4000 npm start -w edge-server &
-# 2) run the terminal (proxies /api → 127.0.0.1:4000):
-cd private/exam-terminal && npm run dev -- -p 3003
+# 3) run the terminal (proxies /api → 127.0.0.1:4000, /biometric → 127.0.0.1:7700):
+cd private/exam-terminal
+ZUUP_TERMINAL_ID_FILE=/path/to/terminal-id npm run dev -- -p 3003
 ```
 
-Open `/?terminal=<uuid>` with a provisioned terminal id (see `seed-demo.ts`:
-invigilator station `5555…`, candidate seat `7777…`).
+The terminal reads its identity from `/etc/zuup/terminal-id` (override the path
+with `ZUUP_TERMINAL_ID_FILE` off-hardware) and nowhere else. There is no
+`?terminal=<uuid>`, no localStorage fallback and no box to type an id into: a
+machine that can be told which seat it is can be told to be the seat whose paper
+it wants.
+
+Everything past the Gate needs hardware that a workstation does not have. The
+login factors are a TPM quote the Edge verifies against this terminal's
+registered attestation key, and face/fingerprint scores signed by
+`zuup-biometricd` with this terminal's registered daemon key. Without both, the
+Gate opens onto a denial — correctly. To exercise the flows end to end, run the
+integration suite against a real Postgres (`src/test/integration/cascade.test.ts`),
+which commissions a station with generated keys and drives the whole cascade.
 
 The terminal binds to a single keyboard/mouse and a single display. It does
 not present any window chrome or address bar of its own — when launched
