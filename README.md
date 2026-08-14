@@ -164,6 +164,7 @@ months.
 |---|---|
 | [WHAT-IS-DONE.md](WHAT-IS-DONE.md) | Everything that works, and how it was proven |
 | [WHAT-IS-LEFT.md](WHAT-IS-LEFT.md) | Everything that does not, ordered by consequence |
+| [PIPELINE-QUESTION-TO-RESULT.md](PIPELINE-QUESTION-TO-RESULT.md) | One question from authoring to result, stage by stage, marked done/left |
 | [QUESTION-PIPELINE-DESIGN.md](QUESTION-PIPELINE-DESIGN.md) | The authoring and delivery architecture |
 | [SECURITY-REVIEW.md](SECURITY-REVIEW.md) | 24 findings, all verified real, with remediation status |
 | [FIRST-BOOT.md](private/zuup-os/docs/FIRST-BOOT.md) | Booting the image on real hardware |
