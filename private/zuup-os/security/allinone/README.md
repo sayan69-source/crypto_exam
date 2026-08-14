@@ -74,9 +74,16 @@ one step. Neither the chooser nor this pinning exists in the production image �
 
 The root is read-only dm-verity. PostgreSQL's data dir lives in `/run` (tmpfs):
 `initdb` + restore of the baked `seed.sql` happen at **every boot**, and the DB
-evaporates at power-off. No seeding/Argon work runs on the device — the demo
-centre (487 candidates, 461 present, sealed NEET paper) is captured once at
-build time and only *restored* on the device.
+evaporates at power-off. No schema or Argon work runs on the device — the schema
+is captured once at build time and only *restored* here.
+
+`seed.sql` is the **schema**, plus whatever an operator's provisioning bundle put
+in it. With no bundle it is ~25 KB and contains no people, no terminals and no
+paper: the machine commissions its own stations at first boot instead. It was
+once ~329 KB, because the dump came from a Docker volume that had been alive
+since June and still held the deleted demo seed — 487 users, 43 terminals — which
+then shipped inside the image. `build-artifacts.sh` now starts from an empty
+database and fails if an unprovisioned centre turns out to contain rows.
 
 ## Build it (3 steps)
 
@@ -99,10 +106,13 @@ Then write it to a stick and boot the laptop, exactly as before:
 dd if=out/zuup-os.img of=/dev/sdX bs=4M oflag=direct
 ```
 
-The terminal boots into the role chooser at `http://edge.local/kiosk/`, with the
-seeded **INVIGILATOR_STATION** (`55555555-…-555555555555`) as its baked identity
-— so the invigilator console (487-candidate roster, one-by-one check-in, seat
-assignment) is one click away, and the other two roles are the clicks beside it.
+The terminal boots into the role chooser at `http://edge.local/kiosk/`. There is
+no baked identity: `zuup-commission.service` registers this machine's own three
+stations (`ADM-1`, `INV-1`, `A-01`) with its own Edge on first boot, and the
+chooser lists what the machine actually holds — read from `/local/identity`, never
+from the URL. Measured on the target laptop (2011 Samsung, no TPM 2.0): **53 s from
+power to the chooser.** See `../../docs/FIRST-BOOT.md` for what each stage prints
+and how to read a failure without reflashing.
 
 To make the image behave like a production terminal instead — one role, no
 chooser — drop `ZUUP_KIOSK_URL` from `kiosk-allinone.conf`; the launcher then

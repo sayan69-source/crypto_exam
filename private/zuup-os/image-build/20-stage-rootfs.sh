@@ -44,6 +44,9 @@ rm -rf "$ROOT"; mkdir -p "$ROOT"
 #   usbguard/apparmor  : runtime device + MAC allow-lists (§7.5)
 #   tpm2-tools         : boot attestation (§7.1)
 #   python3 + numpy/pil/yaml : the biometric daemon (§8) + attest PCR parse
+#   python3-cryptography : the daemon signs every score it emits (§8.4). Without
+#                      it the daemon refuses to start, because an unsigned score
+#                      is a number the browser could have typed.
 # Face verification backend: ZUUP_FACE=cv pulls the real OpenCV (YuNet+SFace)
 # engine — python3-opencv + the two ONNX models — so face check works on any
 # commodity webcam with no vendor SDK. It is opt-in because opencv + the 37 MB
@@ -52,12 +55,24 @@ FACE="${ZUUP_FACE:-cv}"
 [[ "${1:-}" == "--no-face" ]] && FACE=none
 
 #   libgl1-mesa-dri    : the DRI/llvmpipe drivers wlroots' EGL renderer binds to
+#   xkb-data           : the XKB keymap database cage compiles a keymap from.
+#                      Without it the Wayland seat advertises no keyboard and
+#                      every key on the machine is dead — while cage starts, the
+#                      screen paints and the pointer still works, so nothing in
+#                      the boot log or the journal looks wrong.
+#                      It arrives transitively today (verified in a shipped
+#                      image: xkb-data installed, 571 files under
+#                      /usr/share/X11). Named explicitly anyway, because that is
+#                      a dependency of a dependency and the failure it causes is
+#                      both total and silent — too expensive to leave to chance
+#                      on an image whose only feedback channel is a kiosk.
+#                      NOT the cause of any observed fault; do not read it as one.
 PKGS="systemd,systemd-sysv,udev,dbus,libpam-systemd,\
-cage,seatd,libgl1-mesa-dri,fonts-dejavu-core,${BROWSER_PKG},\
+cage,seatd,xkb-data,libgl1-mesa-dri,fonts-dejavu-core,${BROWSER_PKG},\
 wireguard-tools,nftables,iproute2,usbguard,\
 apparmor,apparmor-profiles,libpam-apparmor,\
 tpm2-tools,\
-python3,python3-yaml,python3-numpy,python3-pil,\
+python3,python3-yaml,python3-numpy,python3-pil,python3-cryptography,\
 curl,ca-certificates,kmod,util-linux"
 if [[ "$FACE" == "cv" ]]; then
   PKGS="$PKGS,python3-opencv"
@@ -89,6 +104,27 @@ mmdebstrap --variant=minbase \
   "$SUITE" "$ROOT" "$MIRROR"
 
 inst() { install -D -m "$1" "$2" "$ROOT/$3"; }   # mode src dest(relative)
+
+# ── the input path, asserted rather than assumed ───────────────────────────
+# A kiosk that renders but cannot be typed into is not a degraded exam terminal,
+# it is a useless one — and it looks completely healthy from the boot log, the
+# journal and the screen. The pieces are cheap to check and each has a distinct
+# failure mode that only shows up with a person sitting in front of it.
+#
+# All three were present in the last image built before this check existed, so
+# it is a guard against regression, not a fix for a known fault.
+for p in \
+  "usr/share/X11/xkb/rules/evdev:the XKB keymap — cage compiles no keymap, so the seat has NO keyboard" \
+  "usr/bin/cage:the compositor" \
+  "usr/sbin/seatd:the seat manager that hands cage the DRM display and input devices"
+do
+  path="${p%%:*}"; what="${p#*:}"
+  [[ -e "$ROOT/$path" ]] || {
+    echo "[zuup-os] FAIL: /$path missing — $what" >&2
+    exit 1
+  }
+done
+echo "[zuup-os] input path present (xkb keymap, cage, seatd)"
 
 # ── 2. terminal identity + ZUUP config tree ────────────────────────────────
 mkdir -p "$ROOT/etc/zuup"
@@ -130,14 +166,49 @@ mkdir -p "$ROOT/usr/share/zuup/models"
 if [[ "$FACE" == "cv" ]]; then
   echo "[zuup-os] fetching face models (YuNet + SFace) into the image…"
   ZOO="https://github.com/opencv/opencv_zoo/raw/main/models"
+  # Cached OUTSIDE $ROOT, which stage 20 deletes on every run. These two files
+  # are ~40 MB of immutable, SHA-pinned data fetched from the internet at the END
+  # of a ~50-minute debootstrap — so a network blip here costs the whole stage.
+  # It cost exactly that once: `curl: (56) unexpected eof`, after mmdebstrap had
+  # succeeded. The cache lives in the build volume; /dist lets the host seed it.
+  CACHE="${ZUUP_MODEL_CACHE:-$BUILD/cache/models}"
+  mkdir -p "$CACHE"
   fetch_model() { # url  dest  sha256(optional)
-    local url="$1" dest="$2" want="${3:-}"
-    curl -fL --retry 3 --proto '=https' -o "$dest" "$url"
-    local got; got="$(sha256sum "$dest" | awk '{print $1}')"
+    local url="$1" dest="$2" want="${3:-}" name; name="$(basename "$dest")"
+    local cached="$CACHE/$name"
+
+    # A pinned artefact is interchangeable with any copy that hashes the same,
+    # so any local copy that verifies is as good as a download.
+    for src in "$cached" "/dist/models/$name"; do
+      if [[ -f "$src" && -n "$want" && "$(sha256sum "$src" | awk '{print $1}')" == "$want" ]]; then
+        install -D -m 0644 "$src" "$dest"
+        echo "[zuup-os]   $name  (from $(dirname "$src"), sha256 pinned OK)"
+        return 0
+      fi
+    done
+
+    # --retry alone does NOT cover curl's transport errors — 56 is exactly the
+    # class it ignores, which is why `--retry 3` retried nothing. -C - resumes a
+    # partial file rather than starting the 37 MB again.
+    curl -fL --proto '=https' \
+         --retry 5 --retry-delay 3 --retry-all-errors \
+         --connect-timeout 20 --speed-time 60 --speed-limit 1024 \
+         -C - -o "$cached" "$url" || {
+      echo "[zuup-os] FAIL: could not fetch $name — $url" >&2
+      echo "[zuup-os]   the build host needs HTTPS to github.com, or seed the file" >&2
+      echo "[zuup-os]   yourself at out/models/$name and re-run this stage." >&2
+      rm -f "$cached"
+      exit 1
+    }
+    local got; got="$(sha256sum "$cached" | awk '{print $1}')"
     if [[ -n "$want" && "$got" != "$want" ]]; then
-      echo "[zuup-os] FAIL: $(basename "$dest") sha256 $got != pinned $want" >&2; exit 1
+      # Never leave a bad file in the cache — the next run would trust its size
+      # and resume onto it.
+      rm -f "$cached"
+      echo "[zuup-os] FAIL: $name sha256 $got != pinned $want" >&2; exit 1
     fi
-    echo "[zuup-os]   $(basename "$dest")  sha256=$got${want:+ (pinned OK)}"
+    install -D -m 0644 "$cached" "$dest"
+    echo "[zuup-os]   $name  sha256=$got${want:+ (pinned OK)}"
   }
   # Pins recorded from the verified 2026-06-11 fetch; override only with intent.
   fetch_model "$ZOO/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
@@ -152,7 +223,17 @@ fi
 inst 0644 "$ZOS/security/systemd/sysctl.d-99-zuup.conf"        etc/sysctl.d/99-zuup.conf
 inst 0644 "$ZOS/security/systemd/logind.conf.d-zuup.conf"      etc/systemd/logind.conf.d/zuup.conf
 inst 0644 "$ZOS/security/apparmor/usr.bin.firefox"             etc/apparmor.d/usr.bin.firefox
-inst 0644 "$ZOS/security/usbguard/rules.conf"                  etc/usbguard/rules.conf
+# USB device allow-list. The production rules pin every allowed device to the
+# port it was commissioned on; on a dev/all-in-one laptop those ports name
+# nothing, so the implicit block target takes EVERY USB device — including a
+# keyboard plugged in to diagnose a machine whose keys are not working. The dev
+# variant allows HID, capture and hubs on any port and still blocks storage and
+# network adapters. See rules-dev.conf for the full reasoning.
+if [[ $DEV == 1 ]]; then
+  inst 0644 "$ZOS/security/usbguard/rules-dev.conf"           etc/usbguard/rules.conf
+else
+  inst 0644 "$ZOS/security/usbguard/rules.conf"               etc/usbguard/rules.conf
+fi
 inst 0644 "$ZOS/security/usbguard/usbguard-daemon.conf"        etc/usbguard/usbguard-daemon.conf
 inst 0644 "$ZOS/rootfs/overlay.fstab"                          etc/fstab
 

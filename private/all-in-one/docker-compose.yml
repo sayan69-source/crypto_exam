@@ -9,13 +9,19 @@
 #       ├── /api/*   → edge          (Fastify §13 API)
 #       ├── /admin/* → centre-admin  (Next, basePath /admin)
 #       └── /*       → exam-terminal  (Next, the Login Gate + seats)
-#     postgres              ── the centre-scoped DB, seeded with students
+#     postgres              ── the centre-scoped DB, commissioned from a bundle
 #
 # Everything is published ONLY to 127.0.0.1 — this mirrors the air-gapped
 # centre LAN (§6): no service is exposed on any external interface.
 #
 #   docker compose -f private/all-in-one/docker-compose.yml up --build
-#   open http://localhost:8080/?terminal=55555555-5555-5555-5555-555555555555
+#   open http://localhost:8080/kiosk/
+#
+# NOTE: no one can LOG IN on this host, and that is correct. A container has no
+# TPM, no camera and no fingerprint reader, and the gate no longer accepts a
+# substitute for any of them (see README, "What this host CANNOT do"). It proves
+# the origin contract, the migrations, the provisioning path and the API's
+# denials; the full cascade is exercised by the integration suite.
 #
 # All build contexts are the REPO ROOT (../../ from this file); the root
 # .dockerignore keeps the committed kernel tree out of the context.
@@ -30,9 +36,14 @@ x-edge-env: &edge-env
   EDGE_TOKEN_SECRET: "11111111111111111111111111111111111111111111111111111111111111aa"
   EDGE_BIND_SECRET: "22222222222222222222222222222222222222222222222222222222222222bb"
   EDGE_NODE_SIGN_SEED: "33333333333333333333333333333333333333333333333333333333333333cc"
-  # Faster Argon for the 487-candidate demo seed (matches seed-demo FAST).
+  # Argon cost for DOB hashing at ingest. Raise for a real centre; these values
+  # keep a large provisioning bundle from taking hours on a laptop.
   ARGON_TIME_COST: "2"
   ARGON_MEMORY_KIB: "8192"
+  # The centre bundle this Edge is commissioned from (§12). No default and no
+  # built-in data: without a bundle the Edge comes up empty and denies every
+  # login, which is the correct state for an uncommissioned centre.
+  EDGE_PROVISIONING_BUNDLE: /run/provisioning/centre-bundle.json
   # §11.2 — the System Admin answer-sealing PUBLIC key. Unset, the Edge answers
   # SEALING_KEY_NOT_PROVISIONED and no candidate can submit anything. Passed as
   # a path because a PEM is multi-line; mounted read-only below. PUBLIC half
@@ -41,6 +52,9 @@ x-edge-env: &edge-env
 
 x-edge-keys: &edge-keys
   - ../hq-demo-key/hq-demo-public.pem:/run/secrets/hq-public.pem:ro
+  # The operator's own centre bundle. `./provisioning` is git-ignored: real
+  # rosters and real terminal keys do not belong in the repository.
+  - ./provisioning:/run/provisioning:ro
 
 services:
   postgres:
@@ -59,15 +73,20 @@ services:
       timeout: 3s
       retries: 30
 
-  # One-shot: apply migrations then seed the demo centre (1 admin, 14
-  # invigilators, 487 candidates, seats, a sealed NEET paper). Idempotent.
+  # One-shot: apply migrations, then commission this centre from the operator's
+  # provisioning bundle (staff, candidates, TERMINALS with their golden PCRs and
+  # attestation keys, and the sealed paper). Idempotent — every row upserts.
+  #
+  # Run `node src/provision.ts --schema` for the bundle shape. If no bundle is
+  # mounted the command exits non-zero and leaves an empty centre, on purpose:
+  # there is no fixture to fall back to.
   edge-init:
     build:
       context: ../..
       dockerfile: private/all-in-one/edge.Dockerfile
     environment: *edge-env
     volumes: *edge-keys
-    command: ["sh", "-c", "node src/migrate.ts && node src/seed-demo.ts"]
+    command: ["sh", "-c", "node src/migrate.ts && node src/provision.ts"]
     depends_on:
       postgres:
         condition: service_healthy

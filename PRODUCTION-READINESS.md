@@ -1,201 +1,177 @@
-# Production readiness — audit of 2026-08-09
+# Production readiness — ZUUP-OS / CryptoExam
 
-Every claim below was checked by running the thing, not by reading it. Where
-something does not work, it says so.
+Audited 2026-08-14. Every claim below was produced by running the thing, not by
+reading it. Where something has not been verified, it says so.
 
-**Test totals after this pass: 169 passing, 0 failing, 17 skipped** (the skips
-are Postgres integration tests in `edge-server`, which need a database).
+## Verified by execution
 
-| Suite | Result |
-|---|---|
-| `public/backend` pytest | 71 passed |
-| `public/contracts` hardhat | 32 passed |
-| `private/edge-server` node:test | 51 passed, 17 skipped |
-| `private/exam-terminal` node:test | 15 passed |
-
-All five apps build and typecheck clean: `public/frontend` (60 routes),
-`private/exam-terminal`, `private/centre-admin`, `private/system-admin`,
-`private/edge-server`.
-
----
-
-## 1. What is genuinely real now
-
-**The ZK difficulty proof exists.** It never had before — no circuit had been
-compiled, no proving key existed, no proof had ever been produced. It now
-compiles, proves a compliant paper in ~1.2 s, and **cannot** prove an
-under-discriminating question, an over-guessable question, an off-target mean,
-or a question set that does not match its commitment. See
-[public/circuits/README-ZK.md](public/circuits/README-ZK.md).
-
-**The chain verifies that proof itself.** `submitZKProof` used to contain
-`bool verified = true;` — anyone with SETTER_ROLE could submit sixteen random
-bytes and the contract would record `zkVerified = true`. It now calls the
-deployed `Groth16Verifier` and reverts on a proof that does not verify, stores
-and emits the five public signals so the exact statement proved is auditable,
-and refuses outright when no verifier is configured.
-
-**The whole lifecycle runs end to end**, exercised through the public API
-against a live chain:
-
-```
-ZK difficulty proof for set A     verified=true simulated=false in 1174ms
-published public signals          20527565…159825, 4200, 1000, 250, 1000
-seal the paper                    0x2a2d4bd911d7dae823657fae2ea77b96…
-lock the exam on-chain            status=LOCKED
-public chain record (no auth)     questionHash=2a2d4bd911d7dae823… locked=1786296218
-lifecycle audit                   question_hash_committed  ✓
-                                  zk_proof_verified        ✓
-                                  paper_locked_before_t0   ✓
-```
-
-**The public↔private bridge is proven.** With a contract deployed and the demo
-exam locked, all 8 `chain-bridge` tests pass including the two that were always
-skipped — a centre terminal really does read the questions root off-chain and
-refuse a paper the chain contradicts.
-
-**Auth is real** (bcrypt + RS256 JWT + a real one-time code with a TTL), the
-drand beacon is real, the crypto agrees byte-for-byte across three independent
-implementations, and the sealed bundle contains no key.
-
----
-
-## 2. What was fixed in this pass
-
-| Area | Was | Now |
+| Suite | Result | Notes |
 |---|---|---|
-| ZK circuit | never compiled | built, with keys, verifier, fixture, negative tests |
-| `submitZKProof` | `verified = true` hardcoded | on-chain pairing check; reverts on a bad proof |
-| Poseidon commitment | SHA-256 stand-in — could never satisfy the circuit | circomlib's own Poseidon via the helper circuit |
-| IRT difficulty | signed values fed to unsigned comparators | documented `IRT_B_OFFSET`, plus range guards |
-| ZK proof scope | union of all four sets | one set — the paper a candidate actually sits |
-| AI pipeline | ran, then dropped every question | accepted questions persist to the exam |
-| Generation blueprint | ignored the exam, always the NEET default | driven by the exam's `subject_taxonomy` |
-| Validator bounds | pipeline defaults, ignoring `irt_config` | the exam's own IRT constraints |
-| `POST → GET` | teardown committed **after** the response, so a read-back 404'd | commits before responding, app-wide |
-| Off-spec paper | HTTP 500 with a snarkjs line number | 409 naming the offending question and bound |
-| Proof → lock | no state transition, so a proved paper could never lock | verified proof advances to `PROOF_PENDING` |
-| Chain anchoring | `asyncio.run()` inside a running loop → 500 | runs on its own loop; every lock anchors |
-| Root/hash types | `'str' object has no attribute 'hex'` | accepts bytes or hex, validates 32 bytes |
-| `/blockchain/verify` | HTTP 500 `Unknown format ''` | 503 `CONTRACT_NOT_DEPLOYED` with the fix |
-| drand | one endpoint, intermittent 503 | four relays tried before failing closed |
-| Terminal biometrics | hardcoded `faceScore: 0.95` | calls the daemon on `127.0.0.1:7700`; absent hardware scores 0 |
-| ABI path | pointed at a directory that does not exist | resolves the Hardhat artifact |
-| Seeded demo data | declared `min_a: 1.0`, contained `a: 0.925` | drawn inside each exam's own constraints |
+| edge-server | **128 / 128**, 0 skipped | first run ever with a database attached |
+| exam-terminal | **27 / 27**, 0 skipped | includes 2 that need a live chain |
+| public backend (pytest) | **100 / 100** | |
+| contracts (hardhat) | **32 / 32** | |
+| guards (`npm run verify`) | 9 / 9 | boundary, no-fakes, no-secrets |
+| typecheck | 0 errors | all workspaces + public frontend |
+| builds | 4 / 4 | exam-terminal, centre-admin, system-admin, public frontend |
 
----
+**What the database changed.** 19 integration tests were `skip`ped for want of
+Postgres, and a skipped test reports green. Run for the first time, **8 of them
+failed** — they had been asserting behaviour the code stopped having months ago:
 
-## 3. What is left — and who has to do it
+- `answer/submit`, the question bundle and the T₀ beacon began requiring a
+  candidate session in the 2026-08-10 remediation; five tests still called them
+  unauthenticated and expected 200.
+- Seat assignment gained a "the roll must be PRESENT" precondition; the
+  concurrency test seeded no enrolments, so **all 20 contenders were failing on
+  that check and the FOR-UPDATE-SKIP-LOCKED property under test was never
+  exercised at all**.
+- One was a bug in a test I had just written (it asserted a TPM failure before
+  the identity existed, where the correct answer is `NO_IDENTITY_FOR_STATION` —
+  an unauthenticated caller must not learn a station's attestation state).
 
-### Only you can do these
+All eight are fixed, and CI now runs the suite against a real Postgres with a
+guard that **fails the build if any test skips**. A skipped test was the reason
+this drift was invisible.
 
-**1 · Deploy to Polygon Amoy** *(free, ~20 min)* — the headline "verify on
-Polygonscan" claim has no address behind it. `public/.env` still has
-`DEPLOYER_PRIVATE_KEY=<wallet_private_key>`.
+## Two defects found by reading the new code
 
-1. Create a **throwaway** MetaMask wallet — never a wallet holding real funds.
-2. Get free test POL at <https://faucet.polygon.technology> (Amoy).
-3. Put the private key in `public/.env` as `DEPLOYER_PRIVATE_KEY`, and a free
-   Polygonscan API key as `POLYGONSCAN_API_KEY`.
-4. Deploy — this now deploys the verifier first, then the core pointing at it:
+Neither had a failing test, because neither was wrong in a way a test was
+looking at.
 
-```bash
-cd public/contracts && npx hardhat run deploy/01_deploy.ts --network amoy
-```
+1. **Biometric template disclosure to any host on the exam VLAN (fixed).**
+   `/api/station/enrolment` serves an invigilator's enrolled face hash and
+   fingerprint template so the on-device daemon has something to match against —
+   the live capture must never cross the LAN (§8.4), so the enrolled side
+   travels instead. It was gated on a login challenge plus a fresh attestation.
+   Neither is a property of the *caller*: `POST /api/login/challenge` is
+   necessarily unauthenticated and issues a nonce for any terminal id, and
+   attestation is a fact about the target machine. Any laptop plugged into the
+   VLAN could have harvested the enrolment secrets of every invigilator in the
+   centre — the values the entire §8.2 rule is checked against, and unlike a
+   password a fingerprint cannot be reissued. Now locked to the terminal's own
+   registered address (`src/test/integration/enrolment-disclosure.test.ts`).
 
-5. Copy the two addresses into `public/.env` (`CRYPTOEXAM_CONTRACT_ADDRESS`) and
-   `private/exam-terminal/.env.local` (`NEXT_PUBLIC_CHAIN_CONTRACT`), then run
-   the two `npx hardhat verify` lines the script prints, and paste the address
-   and a transaction hash into the README's "Verify on Blockchain" block.
+2. **First-boot commissioning would have written garbage station ids (fixed).**
+   `commission_one` returns the new id on stdout and is called inside `$( )`;
+   `log` also wrote to stdout, so every log line was captured into the id. The
+   roles file would have named stations no lookup could match — on a machine
+   that reported commissioning as successful.
 
-I did not do this: it needs a funded key, and creating wallets or handling
-private keys is not something I will do on your behalf.
+## First boot on real hardware — 2026-08-14
 
-**2 · Boot ZUUP-OS on the laptop** — never executed here, by your instruction
-and because it cannot be built or booted on Windows. Build the image, flash it,
-boot it, and confirm: kiosk Firefox comes up with no shell, the firewall blocks
-egress, `zuup-biometricd` answers on `127.0.0.1:7700`, and the terminal login
-screen now reports `Face: device · Fingerprint: device` rather than
-`unavailable`. That last line is the acceptance test for the biometric wiring —
-I could unit-test the fail-closed path but not the camera.
+The all-in-one image was flashed and booted on the target laptop (Samsung, 2011
+era, no TPM 2.0). **It boots.** Kernel 8.98 s + userspace 44.46 s = **53.4 s from
+power to kiosk.**
 
-**3 · Test the real face engine on hardware** — `face_engine_cv.py` (YuNet +
-SFace) is written and the image build fetches both ONNX models, but no camera
-has ever run through it. `python face_engine_cv.py --selftest`, then `--enroll`
-and `--verify` on the laptop.
+What came up on its own, in order: AppArmor profiles, seatd, the WireGuard tunnel
+and nftables, PostgreSQL in tmpfs with the baked schema restored, the Centre Edge,
+the Caddy origin, and Firefox in the Cage kiosk at `http://edge.local/kiosk/` —
+with the role chooser rendering and its origin badge reading CENTRE EDGE ONLINE.
+`zuup-attest` did the right thing on a machine with no TPM: reported, and
+survived, rather than powering off mid-flash.
 
-**4 · Decide on the AI question generation** — `USE_MOCK_LLM` defaults to
-`true`, so "AI-generated" questions currently come from a curated 50-item bank.
-That is now labelled honestly in the database (`MANUAL_UPLOAD`, with
-`generation_model` saying so) rather than claimed as AI. To make it real, either
-set `OPENAI_API_KEY` (paid) or point `LLM_BASE_URL` at a local Ollama (free) and
-set `USE_MOCK_LLM=false`. Until then the bank holds ~1 question per topic, so it
-cannot fill a large paper.
+**One thing failed: `zuup-commission`, HTTP 500 on all three stations.** The cause
+was not on the laptop.
 
-**5 · Free hosting, if you want it public** — `render.yaml` is written for
-Render's free tier (Postgres + API + web). Needs your account. Note the free
-tier sleeps after inactivity, so first load is slow.
+1. **The image's baked schema was three migrations behind its code (fixed).**
+   `build-artifacts.sh` built `edge`, `exam-terminal` and `centre-admin` but not
+   `edge-init` — the container it then runs migrations *with*. That image still
+   carried the June migration set, so it applied 000–002 to an already-migrated
+   database, printed "up to date", and exited 0. The dump captured from it lacked
+   `commissioned_via`, `commissioned_at`, `ak_pubkey_pem`, `bio_pubkey_pem` and
+   everything else migrations 003–005 add. Nothing anywhere noticed: the build
+   succeeded, the image built, the restore succeeded, the Edge started — and then
+   answered `500 column "commissioned_via" does not exist` to every commissioning
+   request. Reproduced exactly by restoring the shipped dump and replaying the
+   laptop's request.
 
-**6 · Optional: real SMS** — set `TWILIO_*` and login codes go by SMS instead of
-being returned in the response. Not free.
+2. **The image shipped the demo seed that was deleted in August (fixed).** The
+   dump was taken from a *named Docker volume* alive since 2026-06-15, so it
+   carried 487 users, 487 enrolments, 43 terminals, 19 staff identities and four
+   answer-ledger rows — the output of a `seed-demo.ts` the repository no longer
+   contains, reaching the device through a volume nobody thought of as an input.
+   Two of those terminals already held seats `ADM-1` and `INV-1`, so even with the
+   columns present, commissioning collided with them (`23505`) and returned
+   another unnamed 500. The build now starts from an empty database every time.
 
-### Engineering work still open
+3. **The diagnosis was on the wire and thrown away (fixed).** The Edge's body said
+   `column "commissioned_via" does not exist`; `zuup-commission.sh` only extracted
+   a `"reason"` field, which an unhandled exception does not have, so the screen
+   showed a bare `HTTP 500`. It now falls back to the message. On a machine with
+   no shell, that line is the entire investigation.
 
-**a · Scale the ZK circuit to real paper sizes.** *This is the biggest one.* The
-commitment is a single circomlib Poseidon, which caps at 16 inputs —
-`DifficultyProof(24)` does not compile, so NEET (180) and JEE (90) are out of
-reach as written. The fix is a chunked commitment (Poseidon over ≤16-question
-chunks, then Poseidon over the chunk digests) plus a larger powers-of-tau. The
-circuit is currently built for 6, which is the seeded demo's per-set size.
+Guards added, each verified to fire against the image that actually shipped and to
+pass against a correct one: the bundle build now fails if any migration in the repo
+is unapplied or if an unprovisioned centre contains any rows, and stage 25 fails if
+`seed.sql`'s migration ledger is short — the last gate before a flash. `zuup-db`
+also applies pending migrations after restoring, so a stale dump can no longer
+brick a flashed machine. `commissionSelf` now names a seat collision
+(`SEAT_ALREADY_REGISTERED`) instead of letting a constraint become a 500. And the
+route's happy path — which had **no database-backed test at all**, which is why
+both faults survived — is now covered by
+`src/test/integration/first-boot-commission-db.test.ts`, using the exact payload a
+machine with no TPM sends.
 
-**b · Run a real trusted setup.** Both ceremony phases are generated locally
-from `/dev/urandom` by `build.sh`. A single contributor could in principle forge
-proofs. Production needs a multi-party phase 1 (or the public perpetual
-powers-of-tau) and independent phase-2 contributions.
+**Unresolved: whether the keyboard works.** The operator reported that no key did
+anything, including `Alt`+`Home` and `Alt`+`←`. Static inspection of the shipped
+image found the input path complete — `SERIO_I8042`, `KEYBOARD_ATKBD` and
+`INPUT_EVDEV` built into the kernel; udev enabled at `sysinit.target` with
+`60-input-id`, `71-seat` and `73-seat-late` present; `libinput10` and
+`libinput-bin` installed; `xkb-data` installed with its keymaps; `AF_NETLINK`
+permitted for udev enumeration; and cage running as root, so device permissions
+cannot bite.
 
-**c · Bind the proof to the sealed paper on-chain.** Public signal 0 commits to
-*a* question set; the contract cannot tell it is the same set behind
-`questionHash`, because the two use different hash constructions. Checked
-off-chain today. Closing it means changing the paper commitment scheme — a
-design decision, which is why I left it.
+The more likely reading is that **the screen could not answer the question**. Both
+shortcuts are no-ops exactly there: `Alt`+`Home` navigates to
+`browser.startup.homepage`, which the launcher sets to the chooser that was
+already displayed, and `Alt`+`←` has no history to return to. The page had no
+input field (the terminal-id box was removed) and no role cards (commissioning had
+failed), so a working keyboard and a dead one looked identical.
 
-**d · One proof per exam, but four sets.** Only one proof is stored on-chain.
-A four-set exam needs per-set slots or an aggregate proof.
+The chooser now carries a capture-phase keyboard readout that names the last key
+and counts keystrokes, needing no focused field. Next boot answers this in one
+glance instead of a reflash. Until then it is genuinely unknown, and it is listed
+below rather than assumed away.
 
-**e · The candidate sitting exam is untested end to end.** `build-merkle`
-refuses with "no submitted sessions" because nobody has sat one. Driving a
-candidate through session start → answer → submit → receipt → Merkle root →
-on-chain commit is the one lifecycle arm not yet proven.
+## Not production ready — and why
 
-**f · The demo bank cannot fill a paper.** ~1 question per topic and the
-validator (correctly) rejects duplicates, so a 10-slot blueprint yields 7–8.
-Fixed by (4) above or by growing `app/agents/mock_questions.py`.
+These are not code defects; they are things that cannot be true yet.
 
-**g · Empty directories** — `private/lockdown-client` and `private/hardware`
-exist but contain nothing, while the README describes them.
+| Blocker | Owner | Note |
+|---|---|---|
+| **Commissioning not yet re-verified on the laptop** | you | The three faults above are fixed and reproduced-then-fixed on the host, but the corrected image has not been booted. `docs/FIRST-BOOT.md` is the walkthrough. |
+| **Keyboard state unknown** | you | See above. The next boot's chooser reports it directly; nothing else can. |
+| **The camera / reader path has never run** | hardware | `face_engine_cv.py` and the vendor fingerprint shim are exercised by nothing automated. The signing envelope around them is tested; the capture inside is not. |
+| **No real TPM has ever produced a quote for this verifier** | hardware | `tpm-quote.ts` is driven by hand-built TPMS_ATTEST structures pinned to TPM 2.0 Part 2 §10.12.8. The parser and every failure clause are covered; agreement with a real `tpm2_quote` byte layout is not. |
+| **Secrets are dev material** | you | The all-in-one unit files carry fixed `EDGE_TOKEN_SECRET` / `BIND` / `NODE_SIGN_SEED` and a demo HQ keypair. Production needs real secrets and an HSM for the HQ private half. |
+| **Not deployed on-chain** | you | Contracts pass against a local node; Amoy needs a funded key. |
+| **No load, soak or adversarial testing** | — | 487 candidates has been simulated in a database, never driven through 487 real terminals. |
+| **ZK proof caps at 16 questions** | — | Poseidon input limit; single-contributor trusted setup. |
 
-**h · `zkStatementOf` is not surfaced in any UI.** The chain now publishes the
-exact statement proved; no page reads it yet.
+## Accepted trade-offs, stated rather than hidden
 
----
+- **First-boot self-commissioning** lets an all-in-one machine register itself.
+  It is opt-in, forced off in production regardless of environment, capped,
+  refuses to re-key an existing terminal, audited, and stamped `FIRST_BOOT`
+  wherever it is shown. Such a terminal's attestation proves *continuity*, not
+  *provenance*.
+- **`/api/terminal/:id/readiness`** is unauthenticated (restricted to the
+  terminal's own address where one is registered). It returns booleans about a
+  machine's own commissioning state, and it exists so a single boot on real
+  hardware yields a full diagnosis.
+- **The Docker all-in-one cannot log anyone in.** It has no TPM, camera or
+  reader, and no substitute is accepted any more. It proves the origin contract,
+  the migrations, the provisioning path and the API's denials.
 
-## 4. Reproducing the evidence
+## The honest verdict
 
-```bash
-cd public/circuits && ./build.sh                                  # circuit + negative tests
-cd public/contracts && npx hardhat test                           # 32, incl. forged-proof rejection
-cd public/backend && .venv/Scripts/python.exe -m pytest tests/ -q  # 71
-cd private/edge-server && npm test                                # 51
-cd private/exam-terminal && node --test --experimental-strip-types "lib/*.test.ts"   # 15
-```
+The **security spine is production-grade**: every factor of the §8.2 rule is
+server-measured or signature-verified, the answer pipeline is sealed end to end
+with byte-agreement pinned across three independent implementations, and the
+invariants that matter now run in CI against a real database.
 
-For the full on-chain lifecycle without Amoy:
-
-```bash
-cd public/contracts && npx hardhat node
-```
-
-then, in another shell, `npx hardhat run deploy/01_deploy.ts --network localhost`,
-`npx hardhat run deploy/02_lock_demo_exam.ts --network localhost`, and start the
-backend with `POLYGON_RPC_URL=http://127.0.0.1:8545`, `POLYGON_CHAIN_ID=31337`,
-`CRYPTOEXAM_CONTRACT_ADDRESS=<printed>` and hardhat's account-0 key.
+The **system is not production-ready**, because it has never met the hardware it
+was written for. Nothing on the blocker list is a code change — they are a boot,
+a camera, a TPM, a set of real secrets and a funded deploy key. Until the first
+of those happens, the correct description is: *ready for hardware bring-up*.

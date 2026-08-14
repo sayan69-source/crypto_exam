@@ -66,6 +66,43 @@ log() {
 PROFILE="${HOME:-/tmp/firefox}/profile"
 mkdir -p "$PROFILE"
 
+# ── input, reported before anything can paint over it ───────────────────────
+#
+# A kiosk that renders but accepts no keystroke is indistinguishable, from the
+# journal and from the screen, from one that works: every unit is green, the
+# page is up, the pointer moves. The first boot on hardware was exactly this —
+# no key did anything, including Alt+Home, which is the only navigation
+# affordance kiosk mode leaves.
+#
+# The single fact that splits the diagnosis in two is whether the KERNEL has a
+# keyboard at all. If it does, the fault is above the kernel (seat, libinput,
+# keymap, compositor); if it does not, it is a driver or a device-authorisation
+# problem and nothing in userspace will help. That is one grep, so it runs
+# unconditionally — and it runs HERE, before the origin wait, so it lands in the
+# middle of the boot log with tens of seconds to spare rather than in the last
+# instant before cage takes the display.
+report_input() {
+  if [ -r /proc/bus/input/devices ]; then
+    sed -n 's/^N: Name="\(.*\)"$/\1/p' /proc/bus/input/devices 2>/dev/null \
+      | while IFS= read -r n; do log "input device: $n"; done
+    if grep -q 'Handlers=.*kbd' /proc/bus/input/devices 2>/dev/null; then
+      log "input: the kernel HAS a keyboard — a dead keyboard is above the kernel"
+    else
+      log "input: NO keyboard device in the kernel (check i8042/atkbd, USB authorisation)"
+    fi
+  else
+    log "input: /proc/bus/input/devices unreadable"
+  fi
+  # cage reaches devices through libseat; with logind masked, seatd is the only
+  # backend that can hand it one. No socket means it silently falls back.
+  if [ -S /run/seatd.sock ]; then
+    log "input: seatd socket present"
+  else
+    log "input: NO seatd socket — cage falls back to its builtin backend"
+  fi
+}
+report_input
+
 # ── 1. wait for the origin to answer HTTP ───────────────────────────────────
 # ANY status code counts as ready — including 502. The all-in-one's Caddy is up
 # long before the Node portals are, and it serves a self-refreshing "starting"
@@ -174,20 +211,24 @@ else
   done
   rm -f "$PROFILE/.capability"
 
-  # The Gate learns WHICH terminal it is from ?terminal=<id> (lib/edge.ts
-  # persists it); the OS is the source of that id, so hand it over here. The
-  # Centre Admin portal carries its station id in its own login form instead.
+  # The Gate reads WHICH terminal it is from the machine itself
+  # (/local/identity → /etc/zuup/terminal-id), so there is nothing to hand it in
+  # the URL. `?role=` is passed only to disambiguate a machine commissioned as
+  # several stations (the all-in-one); it names a ROLE that is resolved against
+  # that same machine-held list, so it cannot name a station this hardware does
+  # not have. It used to be `?terminal=<uuid>` — an id in the address bar, which
+  # is a terminal being told which seat it is.
   case "$CAP" in
     ADMIN_STATION)       TARGET="$EDGE/admin/" ;;
-    INVIGILATOR_STATION) TARGET="$EDGE/?terminal=$TID" ;;
-    CANDIDATE_SEAT)      TARGET="$EDGE/?terminal=$TID" ;;
+    INVIGILATOR_STATION) TARGET="$EDGE/?role=INVIGILATOR_STATION" ;;
+    CANDIDATE_SEAT)      TARGET="$EDGE/?role=CANDIDATE_SEAT" ;;
     *)
       if [ "$STATUS" = "404" ]; then
         log "Edge denies terminal $TID (404) — fail-closed wall"
         TARGET="$EDGE/locked"
       else
         log "capability unresolved (status=${STATUS:-none}) — opening the fail-closed Gate"
-        TARGET="$EDGE/?terminal=$TID"
+        TARGET="$EDGE/"
       fi
       ;;
   esac

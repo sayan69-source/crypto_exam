@@ -11,7 +11,7 @@ processes the bundled image will run, behind one origin, so the kiosk's
               ├── /kiosk/* → static           role chooser + liveness beacon
               ├── /admin/* → centre-admin     Next, built with basePath /admin
               └── /*       → exam-terminal     Next: Login Gate, seats, /locked
-            postgres                  ← centre-scoped DB, seeded with students
+            postgres                  ← centre-scoped DB, commissioned from a bundle
 ```
 
 `/kiosk/*` is served straight from `../zuup-os/security/allinone/www` — the same
@@ -29,29 +29,52 @@ VLAN (§6): no service is reachable from any external interface.
 docker compose -f private/all-in-one/docker-compose.yml up --build
 ```
 
-First run applies the 3 migrations and seeds the demo centre (idempotent). Then
-open the kiosk's view by provisioning the browser as one of the seeded
-terminals (on real hardware the id is baked into the signed image; here it comes
-from `?terminal=`):
+First run applies the migrations and then commissions the centre from **your**
+provisioning bundle, mounted at `private/all-in-one/provisioning/centre-bundle.json`
+(git-ignored). There is no built-in data and no fallback: without a bundle,
+`edge-init` exits non-zero and the Edge comes up empty. An empty centre denies
+every login, which is the correct state for a machine nobody has commissioned.
 
-| Role                 | Terminal id (seed)                       | URL |
-|----------------------|------------------------------------------|-----|
-| **all three, pick one** | —                                     | http://localhost:8080/kiosk/ |
-| Invigilator station  | `55555555-5555-5555-5555-555555555555`   | http://localhost:8080/?terminal=55555555-5555-5555-5555-555555555555 |
-| Candidate seat       | `77777777-7777-7777-7777-777777777777`   | http://localhost:8080/?terminal=77777777-7777-7777-7777-777777777777 |
-| Centre Admin portal  | station `22222222-…-222222222222`        | http://localhost:8080/admin/ |
+```bash
+node private/edge-server/src/provision.ts --schema     # the bundle shape
+```
 
-`/kiosk/` is the role chooser the bundled image boots into — the same page, so
-whatever you verify here is what the USB does.
+| Surface | URL |
+|---|---|
+| Role chooser (what the USB boots into) | http://localhost:8080/kiosk/ |
+| Login Gate / candidate seat | http://localhost:8080/ |
+| Centre Admin portal | http://localhost:8080/admin/ |
 
-The seed creates the centre **DL-IITD** with 1 active Centre Admin, 14 active
-invigilators (2 pending), **487 candidates** (461 marked PRESENT), free/assigned
-seats, and a real sealed NEET paper. The invigilator console shows the roster
-for one-by-one check-in; the admin portal shows live counts, the approval queue,
-and the blind-courier ledger.
+Everything is published **only** to `127.0.0.1`, mirroring the air-gapped exam
+VLAN (§6): no service is reachable from any external interface.
 
-Demo login probes are pre-filled in each portal (the bound station id + LAN IP),
-standing in for the on-device biometric + TPM capture.
+### What this host CANNOT do, and why that is correct
+
+**No one can log in here.** A container has no TPM, no camera and no fingerprint
+reader, and the login gate no longer accepts a substitute for any of them:
+
+- the TPM factor needs a quote signed by the Attestation Key registered for that
+  terminal, over a nonce the Edge just issued;
+- the face and fingerprint factors need an envelope signed by that terminal's
+  `zuup-biometricd` key;
+- the terminal's identity comes from `/etc/zuup/terminal-id` inside the signed
+  image — there is no `?terminal=<uuid>`, no localStorage, and no field to type
+  one into.
+
+This image previously shipped `NEXT_PUBLIC_SIMULATE_BIOMETRICS=true` so a
+container could walk through a login with stand-in scores of 0.95/0.91. That
+switch is gone. A score this stack can invent is a score an attacker can invent,
+and a demo that logs in without hardware is a demo of something that is not the
+product.
+
+What the proving ground still proves, and what it was actually for: that the
+four processes come up behind one origin, that the Caddy contract the kiosk
+depends on holds, that the migrations and the provisioning path apply cleanly,
+and that the Edge answers §13 with the right denials. Drive the full cascade —
+attestation, signed capture, check-in, seating, sealed submission — with
+`src/test/integration/cascade.test.ts` against a real Postgres; it commissions a
+station with generated keys and exercises every step, including the ones no
+container can perform.
 
 ## How this maps to the bundled image
 

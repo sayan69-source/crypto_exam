@@ -2,7 +2,11 @@
 # surfaces, /locked). Next standalone server, loopback only. Demo app layer.
 [Unit]
 Description=ZUUP-OS all-in-one exam-terminal portal
-After=zuup-edge.service
+# Also after commissioning, so a machine that registers its own stations has
+# written /run/zuup-identity before the portal serves its first request.
+# Wants=, not Requires=: a portal that comes up and says what is missing is
+# triageable; one that never starts is a blank screen.
+After=zuup-edge.service zuup-commission.service
 Wants=zuup-edge.service
 
 [Service]

@@ -20,10 +20,14 @@ PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
 # Fresh, empty, postgres-owned tmpfs data dir.
 #
 # Give the cluster its OWN tmpfs rather than borrowing whatever /run happens to
-# be sized at. The image's fstab caps /run at 64 MB, which an initdb plus the
-# 487-candidate restore would overrun — and a database that runs out of space
+# be sized at. The image's fstab caps /run at 64 MB, which an initdb plus a
+# full-centre restore would overrun — and a database that runs out of space
 # mid-restore takes the Edge, both portals and therefore the entire examination
 # surface down with it. The mount is still RAM only, so INV-2 is untouched.
+#
+# NOTE this is /run/zuup, and the machine's own identity material lives on a
+# SEPARATE tmpfs at /run/zuup-identity — this mount is postgres-owned and 0750,
+# which would hide the roles file from the portal services that must read it.
 if mountpoint -q "$SOCKDIR" 2>/dev/null; then umount "$SOCKDIR" || true; fi
 rm -rf "$SOCKDIR"
 mkdir -p "$SOCKDIR"
@@ -64,4 +68,31 @@ SQL
 run "$PGBIN/createdb" -O zuup zuup_edge
 run "$PGBIN/psql" -U zuup -d zuup_edge -v ON_ERROR_STOP=1 -q -f "$SEED"
 
-echo "zuup-db: tmpfs PostgreSQL up, demo centre restored (487 candidates)"
+# Bring the restored schema up to the code that is about to query it.
+#
+# The dump is baked at bundle-build time and the image is built later, so the two
+# can drift — and when they do, nothing notices: the restore succeeds (the dump is
+# self-consistent), the Edge starts (it does not check), and the first request
+# touching a newer column returns 500. An image once shipped three migrations
+# behind and no station could be commissioned on it at all.
+#
+# `migrate.ts` is idempotent and tracked in `_migrations`, so this is a no-op on a
+# correctly-built image. It is here for the case where it is not, because the
+# alternative is a flashed laptop that cannot be fixed without reflashing.
+#
+# A failure here is NOT fatal: losing zuup-db takes the Edge, both portals and the
+# kiosk with it, leaving a black screen and no diagnosis. Better a machine that
+# boots far enough to say what is wrong (§ FIRST-BOOT.md).
+EDGE_APP=/opt/zuup/app/edge/private/edge-server
+NODE_BIN=/opt/zuup/node/bin/node
+if [ -x "$NODE_BIN" ] && [ -d "$EDGE_APP/migrations" ]; then
+  if DATABASE_URL="postgres://zuup:zuup@127.0.0.1:5432/zuup_edge" \
+     runuser -u zuup-app -- "$NODE_BIN" "$EDGE_APP/src/migrate.ts" >/dev/null 2>&1; then
+    echo "zuup-db: schema up to date with this image's migrations"
+  else
+    echo "zuup-db: WARNING: pending migrations could not be applied — the Edge may" >&2
+    echo "zuup-db:          deny requests that need a newer column (HTTP 500)." >&2
+  fi
+fi
+
+echo "zuup-db: tmpfs PostgreSQL up, baked schema + centre data restored"

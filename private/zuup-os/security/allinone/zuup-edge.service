@@ -22,6 +22,15 @@ Environment=EDGE_BIND_SECRET=222222222222222222222222222222222222222222222222222
 Environment=EDGE_NODE_SIGN_SEED=33333333333333333333333333333333333333333333333333333333333333cc
 Environment=ARGON_TIME_COST=2
 Environment=ARGON_MEMORY_KIB=8192
+# ALL-IN-ONE ONLY — let this machine register its own stations into its own
+# registry on first boot (zuup-commission.service). One laptop is the entire
+# centre here, so there is no separate authority that could have registered it
+# beforehand, and the alternative is baking fixture rows into the image.
+#
+# config.ts forces this OFF whenever ZUUP_ENV/NODE_ENV says production, so the
+# variable cannot follow a copied unit file into a real deployment. Rows created
+# this way are stamped FIRST_BOOT and the portals say so on screen.
+Environment=EDGE_ALLOW_FIRST_BOOT_COMMISSION=true
 # §11.2 — the System Admin answer-sealing PUBLIC key. Without it every terminal
 # gets SEALING_KEY_NOT_PROVISIONED and no candidate can submit an answer at all.
 # Passed as a FILE path, not a value: a PEM is multi-line and systemd's

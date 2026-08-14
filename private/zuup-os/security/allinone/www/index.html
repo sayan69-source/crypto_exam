@@ -102,27 +102,12 @@
   <p class="lede">
     This single machine is standing in for a whole examination centre. Pick the
     operator surface to open. Each one still authenticates on its own — the
-    choice here only decides which terminal identity this seat presents.
+    choice here only decides which of THIS machine&rsquo;s commissioned stations
+    the screen presents.
   </p>
 
-  <div class="roles">
-    <button class="role" onclick="open_('55555555-5555-5555-5555-555555555555', 'gate')">
-      <span class="seat">INV-1 · INVIGILATOR_STATION</span>
-      <span class="name">Centre Invigilator</span>
-      <span class="what">Roster of 487 candidates, biometric check-in, random seat assignment, live seat map and incidents.</span>
-    </button>
-
-    <button class="role" onclick="open_('22222222-2222-2222-2222-222222222222', 'admin')">
-      <span class="seat">ADM-1 · ADMIN_STATION</span>
-      <span class="name">Centre Admin</span>
-      <span class="what">Approvals queue, centre counts, blind-courier ledger, egress gate and identity revocation.</span>
-    </button>
-
-    <button class="role" onclick="open_('77777777-7777-7777-7777-777777777777', 'gate')">
-      <span class="seat">A-77 · CANDIDATE_SEAT</span>
-      <span class="name">Candidate seat</span>
-      <span class="what">Waits for the invigilator to assign it, then opens roll + date-of-birth login and the sealed paper.</span>
-    </button>
+  <div class="roles" id="roles">
+    <p class="muted" id="roles-loading">Reading this machine&rsquo;s commissioned stations&hellip;</p>
   </div>
 
   <h2>Seats assigned right now</h2>
@@ -132,35 +117,157 @@
     assigned appears here, ready to open as that candidate.
   </p>
 
-  <h2>Open a specific terminal</h2>
-  <form class="manual" onsubmit="manual(event)">
-    <input id="tid" placeholder="terminal uuid" spellcheck="false" autocomplete="off">
-    <button type="submit">Open</button>
-  </form>
+  <h2>Keyboard</h2>
+  <p class="muted" id="kbd-state">
+    Press any key. If nothing appears here, no keystroke is reaching the browser
+    — the fault is in the machine's input path, not in this page.
+  </p>
 
   <footer>
-    Press <kbd>Alt</kbd>+<kbd>Home</kbd> from any surface to come back to this
-    chooser, or <kbd>Alt</kbd>+<kbd>←</kbd> to go back one step. This page exists
-    only in the all-in-one demo image; a production terminal boots into exactly
-    one role and has no chooser.
+    <kbd>Alt</kbd>+<kbd>Home</kbd> returns to this chooser and <kbd>Alt</kbd>+<kbd>←</kbd>
+    goes back one step — <em>when the browser honours them</em>. Firefox's kiosk
+    mode suppresses much of its own keyboard UI, so treat the readout above as
+    the truth about whether the keyboard works, and these two as a convenience
+    that may not be there. This page exists only in the all-in-one demo image; a
+    production terminal boots into exactly one role and has no chooser.
   </footer>
 </main>
 
 <script>
-  var TERMINAL_KEY = "zuup_terminal_id";      // read by exam-terminal/lib/edge.ts
   var TOKEN_KEY = "zuup_terminal_session";    // set by the invigilator login
 
-  // Selecting a role = presenting a terminal identity. The Edge still decides
-  // what that identity may do, so this cannot escalate anything.
-  function open_(id, dest) {
-    try { localStorage.setItem(TERMINAL_KEY, id); } catch (e) {}
-    location.href = dest === "admin" ? "/admin/" : "/?terminal=" + encodeURIComponent(id);
+  // What this machine was commissioned as. The list comes from the MACHINE
+  // (/local/identity reads its own commissioning file), never from this page —
+  // so the worst a chooser can do is open a station this hardware already holds,
+  // whose login then has to pass on its own merits. There is deliberately no
+  // "type a terminal id" box any more: that was a machine claiming to be
+  // whichever seat someone typed, and the Edge would have handed it that seat's
+  // capability, assignment and paper.
+  var IDENTITY = null;
+
+  // ── is the keyboard reaching the browser at all? ──────────────────────────
+  //
+  // The first boot on hardware reported that no key did anything, including
+  // Alt+Home. Two very different faults produce that report and the machine has
+  // no shell to tell them apart: either no keystroke reaches the browser (the
+  // compositor has no keyboard device), or keystrokes arrive fine and Firefox's
+  // kiosk mode simply declines to act on those particular shortcuts — in which
+  // case there was nothing else on this page to type into, so it looked
+  // identical. This listener settles it in one keypress, on the screen the
+  // operator is already looking at.
+  //
+  // `keydown` on the document, capturing, so it fires regardless of focus.
+  (function () {
+    var out = document.getElementById("kbd-state");
+    if (!out) return;
+    var seen = 0;
+    document.addEventListener("keydown", function (e) {
+      seen++;
+      var mods = [
+        e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null,
+        e.shiftKey ? "Shift" : null, e.metaKey ? "Meta" : null,
+      ].filter(Boolean).join("+");
+      out.textContent =
+        "Keyboard works — last key: " + (mods ? mods + "+" : "") + e.key +
+        "  (" + seen + " keystroke" + (seen === 1 ? "" : "s") + " received)";
+    }, true);
+  })();
+
+  function escapeHtml(t) {
+    return String(t).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
   }
 
-  function manual(e) {
-    e.preventDefault();
-    var v = document.getElementById("tid").value.trim();
-    if (v) open_(v, "gate");
+  var ROLE_COPY = {
+    INVIGILATOR_STATION: {
+      name: "Centre Invigilator",
+      what: "Today's roster, biometric check-in, random seat assignment, live seat map and incidents.",
+      dest: "gate"
+    },
+    ADMIN_STATION: {
+      name: "Centre Admin",
+      what: "Approvals queue, centre counts, blind-courier ledger, egress gate and identity revocation.",
+      dest: "admin"
+    },
+    CANDIDATE_SEAT: {
+      name: "Candidate seat",
+      what: "Waits for the invigilator to assign it, then opens roll + date-of-birth login and the sealed paper.",
+      dest: "gate"
+    }
+  };
+
+  // A role, never an id: the Gate resolves it against the same machine list.
+  function open_(role, dest) {
+    location.href = dest === "admin" ? "/admin/" : "/?role=" + encodeURIComponent(role);
+  }
+
+  function renderRoles() {
+    var box = document.getElementById("roles");
+    box.innerHTML = "";
+
+    if (!IDENTITY || !IDENTITY.ok) {
+      // This machine has no shell to read a journal on, so the commissioning
+      // step reports its own outcome and it is rendered here. "Check the
+      // journal" was advice nobody standing at the machine could take.
+      var c = IDENTITY && IDENTITY.commissioning;
+      var msg;
+      if (c && c.state === "FAILED") {
+        msg = '<p class="muted"><strong>First-boot commissioning failed.</strong><br>' +
+              escapeHtml(c.detail || "no detail reported") + '</p>';
+      } else if (c && c.state === "RUNNING") {
+        msg = '<p class="muted">Commissioning this machine’s stations… ' +
+              escapeHtml(c.detail || "") + '</p>';
+      } else if (c && c.state === "PARTIAL") {
+        msg = '<p class="muted"><strong>Only some stations registered.</strong><br>' +
+              escapeHtml(c.detail || "") + '</p>';
+      } else {
+        msg = '<p class="muted">This machine has no commissioned identity yet. ' +
+              'First-boot commissioning runs once the centre edge is up.</p>';
+      }
+      if (c && c.state && c.state !== "RUNNING") {
+        msg += '<p class="muted">camera/reader key: ' + (c.hasBiometricKey ? "present" : "MISSING") +
+               ' · TPM key: ' + (c.hasTpmKey ? "present" : "none (no TPM on this machine)") + '</p>';
+      }
+      box.innerHTML = msg;
+      return;
+    }
+
+    var roles = IDENTITY.roles && IDENTITY.roles.length
+      ? IDENTITY.roles
+      : [{ role: "INVIGILATOR_STATION", terminalId: IDENTITY.terminalId, seatNo: "" }];
+
+    roles.forEach(function (r) {
+      var copy = ROLE_COPY[r.role];
+      if (!copy) return;
+      var b = document.createElement("button");
+      b.className = "role";
+      b.onclick = function () { open_(r.role, copy.dest); };
+      b.innerHTML =
+        '<span class="seat">' + (r.seatNo ? r.seatNo + " \u00b7 " : "") + r.role + "</span>" +
+        '<span class="name">' + copy.name + "</span>" +
+        '<span class="what">' + copy.what + "</span>";
+      box.appendChild(b);
+    });
+
+    if (IDENTITY.commissionedVia === "FIRST_BOOT") {
+      var note = document.createElement("p");
+      note.className = "muted";
+      note.style.gridColumn = "1 / -1";
+      note.innerHTML = "These stations were commissioned by this machine itself at first boot " +
+        "(all-in-one image). Their golden measurements are what this laptop measured of itself, " +
+        "so attestation here proves continuity \u2014 that the software has not changed since \u2014 " +
+        "not that an authority approved it. A production terminal is registered before it is ever " +
+        "powered on.";
+      box.appendChild(note);
+    }
+  }
+
+  function identity() {
+    fetch("/local/identity", { cache: "no-store" })
+      .then(function (r) { return r.json().then(function (j) { j.ok = r.ok && j.ok; return j; }); })
+      .then(function (j) { IDENTITY = j; renderRoles(); })
+      .catch(function () { IDENTITY = null; renderRoles(); });
   }
 
   // ── live centre status ───────────────────────────────────────────────────
@@ -202,15 +309,24 @@
         assigned.forEach(function (s) {
           var b = document.createElement("button");
           b.textContent = s.seatNo;
-          b.onclick = function () { open_(s.terminalId, "gate"); };
+          b.onclick = function () { open_("CANDIDATE_SEAT", "gate"); };
           box.appendChild(b);
         });
       })
       .catch(function () {});
   }
 
+  identity();
   health();
   setInterval(health, 4000);
+  // Commissioning completes a few seconds after Caddy starts serving this page,
+  // so keep asking until this machine has an identity. Without this the chooser
+  // would sit on "no commissioned identity" for the whole session on a machine
+  // that commissioned itself perfectly well, moments later.
+  var idPoll = setInterval(function () {
+    if (IDENTITY && IDENTITY.ok) { clearInterval(idPoll); return; }
+    identity();
+  }, 3000);
 </script>
 </body>
 </html>

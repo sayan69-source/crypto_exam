@@ -126,14 +126,46 @@ done
 # kiosk drop-in: point Firefox at the local proxy + wait for the stack
 inst 0644 "$AIO/kiosk-allinone.conf" etc/systemd/system/zuup-kiosk.service.d/allinone.conf
 
+# First-boot commissioning: this laptop registers its own stations, daemon key
+# and measurements with the on-board Edge (see zuup-commission.sh for why an
+# all-in-one is the one image allowed to do that).
+inst 0755 "$ZOS/boot/attest/zuup-commission.sh"      usr/lib/zuup/zuup-commission.sh
+inst 0644 "$ZOS/boot/attest/zuup-commission.service" etc/systemd/system/zuup-commission.service
+
+# Stage 20's DEV drop-in stubs attestation out with /bin/true, which is right
+# for the QEMU smoke image (no TPM, no Edge). The all-in-one HAS an Edge and may
+# have a TPM, so it runs the real check — after commissioning, so there is a
+# registry row to check against.
+#
+# FailureAction is cleared deliberately. The script now separates a FAILED
+# attestation (halts on every variant — the boot chain is not the one we signed)
+# from an ABSENT one (no TPM, or not yet commissioned), which on this variant is
+# reported and survived. A machine that powers itself off during a first flash
+# tells whoever flashed it nothing, and on real hardware that flash may be the
+# only one you get.
+mkdir -p "$ROOT/etc/systemd/system/zuup-attest.service.d"
+cat > "$ROOT/etc/systemd/system/zuup-attest.service.d/allinone.conf" <<'EOF'
+[Unit]
+After=zuup-commission.service
+Wants=zuup-commission.service
+
+[Service]
+ExecStart=
+ExecStart=/usr/lib/zuup/zuup-attest.sh
+Environment=ZUUP_EDGE_URL=http://edge.local
+FailureAction=none
+EOF
+
 # ── 5. edge.local → loopback, and the invigilator terminal identity ────────
 # Append the host alias without clobbering whatever stage 20 wrote.
 grep -q 'edge.local' "$ROOT/etc/hosts" 2>/dev/null || \
   printf '127.0.0.1\tedge.local\n' >> "$ROOT/etc/hosts"
-# This demo terminal boots as the INVIGILATOR_STATION seeded by seed-demo.ts →
-# the Gate opens the invigilator console (the 487-candidate roster, one-by-one
-# check-in + seat assignment). Re-image with a different id to demo another role.
-printf '55555555-5555-5555-5555-555555555555\n' > "$ROOT/etc/zuup/terminal-id"
+# No identity is baked in. zuup-commission.service generates this machine's
+# stations on first boot and writes the real ids here and into
+# /run/zuup/terminal-roles.json — so the identity belongs to the hardware that
+# holds the keys, rather than being a constant shared by every image ever built
+# from this tree.
+printf 'REPLACE-AT-FIRST-BOOT\n' > "$ROOT/etc/zuup/terminal-id"
 # Runtime marker (stage 20 wrote `dev`): this image DOES carry a centre, so a
 # terminal that reaches none has a stack failure, not a missing appliance.
 printf 'allinone\n' > "$ROOT/etc/zuup/image-variant"
@@ -144,7 +176,87 @@ chroot "$ROOT" useradd --system --no-create-home --shell /usr/sbin/nologin zuup-
 # ── 7. enable the app layer in the session target ──────────────────────────
 systemctl --root="$ROOT" enable \
   zuup-db.service zuup-edge.service \
-  zuup-portal-terminal.service zuup-portal-admin.service zuup-proxy.service >/dev/null 2>&1 || true
+  zuup-portal-terminal.service zuup-portal-admin.service zuup-proxy.service \
+  zuup-commission.service >/dev/null 2>&1 || true
+
+# ── 8. refuse to ship an image that cannot boot ────────────────────────────
+#
+# Everything below is a file the first-boot path reads. A missing one does not
+# fail the build, it fails the LAPTOP — after a flash, with no console, and the
+# only diagnosis being a kiosk that never appears. Flashing is the expensive
+# step, so the cheap check goes here.
+echo "[zuup-os] stage 25: verifying the first-boot path…"
+missing=0
+require() { # path  what-it-does
+  if [[ ! -e "$ROOT/$1" ]]; then
+    echo "[zuup-os]   MISSING $1 — $2" >&2
+    missing=1
+  fi
+}
+require usr/lib/zuup/zuup-commission.sh          "first-boot commissioning: no stations, no login, kiosk lands on /locked"
+require usr/lib/zuup/zuup-attest.sh              "boot attestation"
+require usr/lib/zuup/zuup-kiosk-launch.sh        "the kiosk launcher: no Firefox at all"
+require etc/systemd/system/zuup-commission.service     "commissioning never runs"
+require etc/systemd/system/zuup-kiosk.service.d/allinone.conf "kiosk would not open the role chooser"
+require etc/systemd/system/zuup-attest.service.d/allinone.conf "attestation would stay stubbed out"
+require opt/zuup/www/index.html                  "the operator role chooser"
+require opt/zuup/www/starting.html               "the page the proxy shows while services boot"
+require opt/zuup/app/edge                        "the Centre Edge"
+require opt/zuup/app/terminal                    "the exam-terminal portal"
+require opt/zuup/app/admin                       "the Centre Admin portal"
+require opt/zuup/app/seed.sql                    "the baked schema the tmpfs database restores"
+require opt/zuup/hq-public.pem                   "the §11 sealing key: candidates could not submit"
+
+# The commissioning script talks to the Edge and reads the TPM through these.
+for tool in curl openssl python3; do
+  chroot "$ROOT" sh -c "command -v $tool" >/dev/null 2>&1 || {
+    echo "[zuup-os]   MISSING $tool — first-boot commissioning cannot run" >&2
+    missing=1
+  }
+done
+
+# The baked schema must not be older than the code that will query it.
+#
+# seed.sql is the device's entire database — restored into tmpfs at boot and
+# never migrated. A dump captured from a database that missed a migration
+# produces an image that boots perfectly and then answers HTTP 500 to anything
+# touching the new columns. That is exactly what shipped once: build-artifacts.sh
+# ran migrations from a stale `edge-init` image, the dump stopped at 002, and the
+# laptop could not commission a single station. The bundle is built separately
+# from the image, possibly days apart, so the check belongs on both sides of that
+# gap — this is the last one before a flash.
+SEED="$ROOT/opt/zuup/app/seed.sql"
+MIGRATIONS="$ZOS/../edge-server/migrations"
+if [[ -f "$SEED" && -d "$MIGRATIONS" ]]; then
+  ledger="$(awk '/^COPY public\._migrations /{f=1;next} f&&/^\\\.$/{f=0} f{print $1}' "$SEED")"
+  for m in "$MIGRATIONS"/*.sql; do
+    [[ -f "$m" ]] || continue     # never fail the build on an unmatched glob
+    base="$(basename "$m")"
+    grep -qxF "$base" <<<"$ledger" || {
+      echo "[zuup-os]   STALE SCHEMA: seed.sql was dumped without $base" >&2
+      echo "[zuup-os]   → rebuild the bundle: bash private/all-in-one/build-artifacts.sh" >&2
+      missing=1
+    }
+  done
+elif [[ ! -d "$MIGRATIONS" ]]; then
+  # Not fatal: the check needs the repo, and a bundle-only rebuild may not have
+  # it. Say so rather than passing silently, which is the habit that produced
+  # the stale image in the first place.
+  echo "[zuup-os]   NOTE: $MIGRATIONS not readable — baked schema NOT verified" >&2
+fi
+
+# The all-in-one must NOT carry a baked identity: it commissions its own, and a
+# leftover constant would make every image built from this tree the same machine.
+if grep -qE '^[0-9a-f]{8}-' "$ROOT/etc/zuup/terminal-id" 2>/dev/null; then
+  echo "[zuup-os]   /etc/zuup/terminal-id holds a baked UUID — the all-in-one must commission itself" >&2
+  missing=1
+fi
+
+[[ "$missing" -eq 0 ]] || {
+  echo "[zuup-os] stage 25 FAILED: the image would boot without a working first-boot path." >&2
+  exit 1
+}
+echo "[zuup-os] stage 25:   first-boot path complete"
 
 BYTES=$(du -sb "$ROOT/opt/zuup" | awk '{print $1}')
 echo "[zuup-os] stage 25: all-in-one app layer staged (/opt/zuup = $(numfmt --to=iec "$BYTES"))"

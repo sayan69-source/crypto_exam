@@ -14,13 +14,15 @@ RUN npm config set fetch-retries 6  && npm config set fetch-retry-mintimeout 200
 RUN npm ci --no-audit --no-fund
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# The proving ground is a container with no camera and no fingerprint reader, so
-# the biometric daemon isn't there and every factor would score 0 — a correct
-# denial, but it makes the walkthrough impossible to demo. Stand the scores in
-# HERE, at the container image level, where it is visible: the login screen
-# labels them "simulated", and a real ZUUP-OS terminal never sets this flag.
-# Baked at build time because NEXT_PUBLIC_* is inlined by `next build`.
-ENV NEXT_PUBLIC_SIMULATE_BIOMETRICS=true
+# This image once baked NEXT_PUBLIC_SIMULATE_BIOMETRICS=true so a container with
+# no camera could still walk through a login. That switch no longer exists in
+# any form: the biometric factors are now signed by the on-device daemon, and a
+# score this process could invent is a score an attacker could invent.
+#
+# A container therefore CANNOT log a human in, and that is the honest outcome —
+# it has no camera, no fingerprint reader and no TPM. What it can do is run the
+# Edge, the portals and the whole answer pipeline against real hardware
+# terminals on the same network, and refuse everything else.
 RUN npm run build
 
 FROM node:24-bookworm-slim AS run
