@@ -30,6 +30,14 @@ interface IssuedCode {
 
 export default function Approvals() {
   const router = useRouter();
+  /**
+   * Whether the session has been checked YET — not whether it is valid. The
+   * token check runs in an effect, i.e. AFTER the first paint, so returning the
+   * real UI unconditionally paints privileged content to someone with no
+   * session. Observed on the terminal: Alt+← from the login screen showed the
+   * Centre Admin dashboard for a frame. A frame is photographable.
+   */
+  const [checked, setChecked] = useState(false);
   const [pending, setPending] = useState<PendingApproval[] | null>(null);
   const [issued, setIssued] = useState<Record<string, IssuedCode>>({});
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +68,7 @@ export default function Approvals() {
 
   useEffect(() => {
     if (!getToken()) return void router.push("/login");
+    setChecked(true);
     void refresh();
   }, [refresh, router]);
 
@@ -99,6 +108,17 @@ export default function Approvals() {
     const ss = String(left % 60).padStart(2, "0");
     return left === 0 ? "expired" : `expires in ${mm}:${ss}`;
   };
+
+
+  // Says nothing about the centre or the machine — it is what an
+  // unauthenticated visitor may see while the redirect happens.
+  if (!checked) {
+    return (
+      <main style={{ padding: "32px 28px", maxWidth: 1080, margin: "0 auto" }}>
+        <p style={{ color: "#8b97a7", fontSize: 13 }}>Checking this session…</p>
+      </main>
+    );
+  }
 
   return (
     <main style={{ padding: "32px 28px", maxWidth: 880, margin: "0 auto" }}>

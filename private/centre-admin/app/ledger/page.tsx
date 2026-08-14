@@ -19,6 +19,14 @@ const shortHex = (h: string) => (h.length <= 18 ? h : `${h.slice(0, 10)}…${h.s
 
 export default function Ledger() {
   const router = useRouter();
+  /**
+   * Whether the session has been checked YET — not whether it is valid. The
+   * token check runs in an effect, i.e. AFTER the first paint, so returning the
+   * real UI unconditionally paints privileged content to someone with no
+   * session. Observed on the terminal: Alt+← from the login screen showed the
+   * Centre Admin dashboard for a frame. A frame is photographable.
+   */
+  const [checked, setChecked] = useState(false);
   const [bundles, setBundles] = useState<LedgerBundle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,10 +43,22 @@ export default function Ledger() {
 
   useEffect(() => {
     if (!getToken()) return void router.push("/login");
+    setChecked(true);
     void refresh();
     const t = setInterval(refresh, POLL_MS);
     return () => clearInterval(t);
   }, [refresh, router]);
+
+
+  // Says nothing about the centre or the machine — it is what an
+  // unauthenticated visitor may see while the redirect happens.
+  if (!checked) {
+    return (
+      <main style={{ padding: "32px 28px", maxWidth: 1080, margin: "0 auto" }}>
+        <p style={{ color: "#8b97a7", fontSize: 13 }}>Checking this session…</p>
+      </main>
+    );
+  }
 
   return (
     <main style={{ padding: "32px 28px", maxWidth: 1080, margin: "0 auto" }}>

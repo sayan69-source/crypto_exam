@@ -18,6 +18,22 @@ export default function CentreAdminDashboard() {
   const router = useRouter();
   const [counts, setCounts] = useState<CentreCounts | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Whether the session has been checked YET — not whether it is valid.
+   *
+   * The token check lives in an effect, and an effect runs after the first
+   * paint. This component returned its full UI unconditionally, so an
+   * unauthenticated visitor got a frame of the real Centre Admin dashboard —
+   * masthead, tabs, "Counts for this centre only", the sealed badge — before the
+   * redirect to /login took effect. On the terminal it was visible for a split
+   * second by pressing Alt+← (Back) from the login screen, which re-mounts this
+   * route with no session.
+   *
+   * A frame is enough: it is photographable, and it tells anyone standing at an
+   * unattended station what this machine is and what it holds. Nothing
+   * privileged may paint before the session is known.
+   */
+  const [checked, setChecked] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -32,10 +48,22 @@ export default function CentreAdminDashboard() {
 
   useEffect(() => {
     if (!getToken()) return void router.push("/login");
+    setChecked(true);
     void refresh();
     const t = setInterval(refresh, POLL_MS);
     return () => clearInterval(t);
   }, [refresh, router]);
+
+  // Deliberately says nothing about the centre, the machine or its counts: it
+  // is what an unauthenticated visitor is allowed to see while the redirect
+  // happens, so it must be as empty as the /locked wall.
+  if (!checked) {
+    return (
+      <main style={{ padding: "32px 28px", maxWidth: 1080, margin: "0 auto" }}>
+        <p style={{ color: "#8b97a7", fontSize: 13 }}>Checking this session…</p>
+      </main>
+    );
+  }
 
   return (
     <main style={{ padding: "32px 28px", maxWidth: 1080, margin: "0 auto" }}>
