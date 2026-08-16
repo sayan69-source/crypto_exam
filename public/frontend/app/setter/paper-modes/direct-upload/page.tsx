@@ -215,7 +215,7 @@ export default function DirectUploadPage() {
           </div>
 
           {parseError && (
-            <div className={styles.infoBanner} style={{ borderColor: '#ef4444' }}>
+            <div className={styles.infoBanner} style={{ borderColor: '#b3341c' }}>
               <span className={styles.infoBannerIcon}></span>
               <span className={styles.infoBannerText}>Parsing failed: {parseError}</span>
             </div>
@@ -298,7 +298,7 @@ export default function DirectUploadPage() {
               <span className={styles.reviewLabel}>Institution</span>
               <span className={styles.reviewValue}>{selectedInstitution?.name || 'IIT Bombay'}</span>
               <span className={styles.reviewLabel}>Institution Record</span>
-              <span className={styles.reviewValue} style={{ color: '#4ade80' }}>0 leak incidents — Clean ✓</span>
+              <span className={styles.reviewValue} style={{ color: '#6fa678' }}>0 leak incidents — Clean ✓</span>
             </div>
           </div>
 

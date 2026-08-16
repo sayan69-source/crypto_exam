@@ -1,29 +1,29 @@
 /* §10.7 Sealed Question Pipeline — live demo */
 
 .hero {
-  background: var(--bg-darkest); color: #fff;
+  background: var(--bg-darkest); color: #fffefb;
   padding-block: clamp(64px, 9vw, 104px) clamp(40px, 6vw, 72px);
   position: relative; overflow: hidden;
 }
 .hero::before {
   content: ""; position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    linear-gradient(rgba(255, 254, 251,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 254, 251,0.03) 1px, transparent 1px);
   background-size: 48px 48px;
-  mask-image: radial-gradient(700px 400px at 30% 0%, #000, transparent 80%);
+  mask-image: radial-gradient(700px 400px at 30% 0%, #201515, transparent 80%);
 }
 .hero > * { position: relative; }
 .h1 {
-  font-size: var(--fs-h1); max-width: 880px; color: #fff;
-  margin-top: var(--space-md); line-height: var(--lh-tight); letter-spacing: var(--tracking-tight);
+  font-size: var(--fs-h1); max-width: 880px; color: #fffefb;
+  margin-top: var(--space-md); line-height: var(--lh-tight); letter-spacing: 0;
 }
-.h1 em { font-family: var(--font-display); font-style: italic; color: var(--color-saffron-400); font-weight: var(--fw-regular); }
+.h1 em { font-family: var(--font-display); font-style: normal; color: var(--color-saffron-400); font-weight: 500; }
 .lead {
   margin-top: var(--space-lg); font-size: var(--fs-lead);
   color: var(--color-navy-200); max-width: 680px; line-height: var(--lh-relaxed);
 }
-.lead strong { color: #fff; font-weight: var(--fw-semibold); }
+.lead strong { color: #fffefb; font-weight: var(--fw-semibold); }
 
 /* pipeline rail */
 .railSection { background: var(--bg-sunken); border-bottom: 1px solid var(--border-soft); padding-block: var(--space-xl); }
@@ -32,12 +32,12 @@
 .stageDot {
   width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
   display: grid; place-items: center;
-  background: #fff; border: 1.5px solid var(--border-strong); color: var(--text-muted);
+  background: #fffefb; border: 1.5px solid var(--border-strong); color: var(--text-muted);
   transition: all var(--dur-base) ease;
 }
 .stageLabel { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
 .stageBar { width: clamp(24px, 5vw, 72px); height: 2px; background: var(--border-strong); margin: 0 12px; }
-.stageOn .stageDot { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.stageOn .stageDot { background: var(--accent-strong); border-color: var(--accent-strong); color: #fffefb; }
 .stageOn .stageLabel { color: var(--text-strong); font-weight: var(--fw-medium); }
 
 .commit {
@@ -50,8 +50,8 @@
 .cta { margin-left: auto; white-space: nowrap; }
 .liveBadge {
   margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
-  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--color-emerald-600, #047857);
-  background: var(--color-emerald-50, #ecfdf5); border: 1px solid var(--color-emerald-200, #a7f3d0);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--color-emerald-600, #2f5438);
+  background: var(--color-emerald-50, #eef3ea); border: 1px solid var(--color-emerald-200, #c3d9bf);
   padding: 8px 14px; border-radius: var(--radius-full, 999px);
 }
 
@@ -79,18 +79,18 @@
   padding: 11px 14px; transition: border-color var(--dur-base) ease, background var(--dur-base) ease;
 }
 .qrow:hover { border-color: var(--border-strong); }
-.qrowActive { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(224,112,32,0.12); }
-.qrowOpen { background: var(--color-emerald-50, #ecfdf5); border-color: var(--color-emerald-200, #a7f3d0); }
-.qrowErr { background: #fef2f2; border-color: #fecaca; }
+.qrowActive { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 79, 0,0.12); }
+.qrowOpen { background: var(--color-emerald-50, #eef3ea); border-color: var(--color-emerald-200, #c3d9bf); }
+.qrowErr { background: #fbeeea; border-color: #eecfc8; }
 .qnum {
   width: 22px; height: 22px; flex-shrink: 0; border-radius: 6px; display: grid; place-items: center;
-  background: var(--color-navy-800); color: #fff; font-size: 12px; font-weight: var(--fw-semibold);
+  background: var(--color-navy-800); color: #fffefb; font-size: 12px; font-weight: var(--fw-semibold);
 }
 .qstate { color: var(--text-muted); display: inline-flex; }
-.qrowOpen .qstate { color: var(--color-emerald-600, #047857); }
-.qrowErr .qstate { color: #dc2626; }
+.qrowOpen .qstate { color: var(--color-emerald-600, #2f5438); }
+.qrowErr .qstate { color: #9b2226; }
 .qcipher { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); overflow: hidden; }
-.qcipher em { font-style: italic; color: var(--color-emerald-600, #047857); }
+.qcipher em { font-style: italic; color: var(--color-emerald-600, #2f5438); }
 
 .tamper {
   flex-shrink: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
@@ -98,8 +98,8 @@
   border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 5px 8px;
   transition: all var(--dur-base) ease;
 }
-.tamper:hover { border-color: #fca5a5; color: #dc2626; }
-.tamperOn { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+.tamper:hover { border-color: #d99a8e; color: #9b2226; }
+.tamperOn { background: #fbeeea; border-color: #d99a8e; color: #9b2226; }
 
 /* viewer */
 .viewerEmpty, .viewerLocked, .viewerError {
@@ -111,23 +111,23 @@
 .viewerEmpty p, .viewerLocked p { max-width: 360px; font-size: var(--fs-sm); line-height: var(--lh-normal); }
 .viewerLocked { color: var(--text-muted); }
 .viewerLocked svg { color: var(--color-navy-400); }
-.lockedHex, .errHint { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint, #94a3b8); word-break: break-all; max-width: 100%; }
-.viewerError { color: #b91c1c; }
+.lockedHex, .errHint { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint, #939084); word-break: break-all; max-width: 100%; }
+.viewerError { color: #8f2418; }
 .viewerError svg {
-  color: #dc2626; background: #fef2f2; border-radius: 50%; padding: 8px;
+  color: #9b2226; background: #fbeeea; border-radius: 50%; padding: 8px;
   width: 44px; height: 44px;
 }
-.viewerError h3 { font-size: var(--fs-h4); color: #b91c1c; }
+.viewerError h3 { font-size: var(--fs-h4); color: #8f2418; }
 .viewerError p { font-size: var(--fs-sm); max-width: 420px; line-height: var(--lh-normal); }
-.errHint { color: #ef4444; margin-top: 4px; }
+.errHint { color: #b3341c; margin-top: 4px; }
 
 .viewerQ { padding: var(--space-sm) var(--space-xs); }
 .qmeta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: var(--space-md); flex-wrap: wrap; }
 .qsubject {
   font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; font-weight: var(--fw-semibold);
-  color: var(--accent-strong); background: var(--color-saffron-50, #fff7ed); padding: 4px 10px; border-radius: var(--radius-full, 999px);
+  color: var(--accent-strong); background: var(--color-saffron-50, #fff0e8); padding: 4px 10px; border-radius: var(--radius-full, 999px);
 }
-.verified { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--color-emerald-600, #047857); font-weight: var(--fw-medium); }
+.verified { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--color-emerald-600, #2f5438); font-weight: var(--fw-medium); }
 .qtext { font-size: var(--fs-h4); line-height: var(--lh-snug); color: var(--text-strong); letter-spacing: -0.01em; }
 .opts { list-style: none; margin: var(--space-lg) 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .opts li {
@@ -146,3 +146,13 @@
   .termGrid { grid-template-columns: 1fr; }
   .cta, .liveBadge { margin-left: 0; }
 }
+
+/* Wrapper used by the /pipeline page around the shared demo component.
+   The demo's own sections lost their outer <section> when it was extracted,
+   so spacing lives here rather than inside the component. */
+.railSectionOuter { padding-block: var(--space-2xl) var(--space-4xl); }
+
+/* When the demo is embedded on another page it must not re-declare a page
+   background — it sits on whatever band the host section provides. */
+.railSection { padding-block: 0 var(--space-2xl); background: none; }
+.termGrid { margin-top: 0; }

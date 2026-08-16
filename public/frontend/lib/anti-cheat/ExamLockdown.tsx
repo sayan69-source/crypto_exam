@@ -142,7 +142,7 @@ export function ExamLockdown({ children, onViolation, isSubmitted }: ExamLockdow
           <h2 style={{ fontSize: 24, marginBottom: 16, color: 'var(--color-danger)' }}>Exam Paused</h2>
           <p>You have exited fullscreen mode. Your activity has been logged.</p>
           <p style={{ marginTop: 8, marginBottom: 24 }}>You must return to fullscreen to continue the exam.</p>
-          <button onClick={requestFullscreen} style={{ padding: '12px 24px', fontSize: 16, background: 'var(--color-navy-600)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+          <button onClick={requestFullscreen} style={{ padding: '12px 24px', fontSize: 16, background: 'var(--color-navy-600)', color: '#fffefb', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
             Return to Fullscreen
           </button>
         </div>
@@ -164,7 +164,7 @@ export function ExamLockdown({ children, onViolation, isSubmitted }: ExamLockdow
             <li>Right-click is disabled.</li>
             <li>You cannot exit until the exam is submitted.</li>
           </ul>
-          <button onClick={requestFullscreen} style={{ padding: '14px 24px', fontSize: 16, fontWeight: 'bold', width: '100%', background: 'var(--color-navy-600)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+          <button onClick={requestFullscreen} style={{ padding: '14px 24px', fontSize: 16, fontWeight: 'bold', width: '100%', background: 'var(--color-navy-600)', color: '#fffefb', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
             Start Exam & Enter Fullscreen
           </button>
         </div>

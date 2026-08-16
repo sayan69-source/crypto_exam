@@ -2,79 +2,119 @@
  * CryptoExam Core — Global Stylesheet
  * 
  * Design System CSS Custom Properties + Base Styles
- * § 4 — Shared Design System. All three interfaces use these exact tokens.
+ * § 4 — Shared Design System. All interfaces use these exact tokens.
  *
- * Interface A (Candidate): Calm Institutionalism — White/light, navy anchors
- * Interface B (Setter):    Bloomberg Terminal — Dense, dark, data-forward
- * Interface C (Admin):     Mission Control — Darkest, real-time everything
+ * PALETTE: warm-cream canvas (#fffefb) · deep coffee ink (#201515) · a single
+ * saturated orange CTA (#ff4f00). Every neutral carries warmth; there is no
+ * cool grey and no second chromatic accent. Type is a two-face system —
+ * the display face at hero scale, Inter for everything else.
+ *
+ * Interface A (Candidate): cream canvas, ink type, orange CTA
+ * Interface B (Setter):    ink-dark polarity — dense, data-forward
+ * Interface C (Admin):     deepest ink polarity — real-time everything
+ *
+ * The two polarities are the same palette inverted, not two themes.
  */
 
-/* ── Google Fonts Import ── */
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&display=swap');
+/* ── Google Fonts Import ──
+   Zapier-inspired two-face system: Inter carries BOTH the display role
+   (Degular Display is proprietary; Inter 500 at hero scale is the documented
+   substitute) and the body/sub-display/button/eyebrow role.
+   JetBrains Mono is retained for hashes, CIDs and crypto payloads — those are
+   data, not brand type. Noto Indic is retained for the 11-language feature.
+
+   Inter is loaded WITH its italic axis (ital,wght). Without it the browser
+   synthesises an oblique by shearing the upright face — which is what made
+   emphasis look wrong wherever <em> appears. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&display=swap');
 
 /* ══════════════════════════════════════════════
    CSS Custom Properties — Design Tokens
    ══════════════════════════════════════════════ */
 :root {
-  /* ── Navy Palette ── */
-  --color-navy-950: #080E1E;
-  --color-navy-900: #0D1526;
-  --color-navy-800: #132040;
-  --color-navy-700: #1A2D5A;
-  --color-navy-600: #213573;
-  --color-navy-500: #2942A6;
-  --color-navy-400: #3D5CBE;
-  --color-navy-300: #6B84D4;
-  --color-navy-200: #A8B9EA;
-  --color-navy-100: #D8DEF4;
-  --color-navy-50:  #EFF1FA;
+  /* ══ BRAND TOKENS (design system source of truth) ══
+     Warm-cream canvas · deep coffee ink · single saturated orange CTA.
+     Every neutral carries warmth — none are cool grey. */
+  --brand-primary:     #ff4f00;  /* the ONLY chromatic accent */
+  --brand-on-primary:  #fffefb;
+  --brand-ink:         #201515;
+  --brand-ink-soft:    #2f2a26;
+  --brand-ink-mid:     #36342e;
+  --brand-body:        #605d52;
+  --brand-body-mid:    #939084;
+  --brand-mute:        #c5c0b1;
+  --brand-canvas:      #fffefb;
+  --brand-canvas-soft: #f8f4f0;
 
-  /* ── Saffron Palette ── */
-  --color-saffron-700: #7B3000;
-  --color-saffron-600: #C45C00;
-  --color-saffron-500: #E07020;
-  --color-saffron-400: #F09040;
-  --color-saffron-300: #F8B870;
-  --color-saffron-200: #FDDCB0;
-  --color-saffron-100: #FEF0E0;
+  /* ── Coffee-ink ladder (legacy "navy" names, remapped) ──
+     Ordering is luminance-preserving: 950 darkest → 50 lightest, so every
+     contrast pairing that held with the old palette still holds. */
+  --color-navy-950: #150e0e;
+  --color-navy-900: #201515;  /* = ink */
+  --color-navy-800: #2f2a26;  /* = ink-soft */
+  --color-navy-700: #36342e;  /* = ink-mid */
+  --color-navy-600: #4a463d;
+  --color-navy-500: #605d52;  /* = body */
+  --color-navy-400: #939084;  /* = body-mid */
+  --color-navy-300: #c5c0b1;  /* = mute */
+  --color-navy-200: #ddd8cc;
+  --color-navy-100: #ebe6dc;
+  --color-navy-50:  #f8f4f0;  /* = canvas-soft */
+
+  /* ── Orange ladder (legacy "saffron" names, remapped) ── */
+  --color-saffron-700: #7a2600;
+  --color-saffron-600: #cc3f00;  /* AA-safe orange for text on cream */
+  --color-saffron-500: #ff4f00;  /* = primary */
+  --color-saffron-400: #ff7433;
+  --color-saffron-300: #ffa375;
+  --color-saffron-200: #ffd4bf;
+  --color-saffron-100: #fff0e8;
 
   /* ── India Identity ── */
   --color-india-saffron:      #FF9933;
-  --color-india-white:        #FFFFFF;
+  --color-india-white:        #fffefb;
   --color-india-green:        #138808;
-  --color-india-ashoka:       #000080;
-  --color-india-gold:         #C9A84C;
-  --color-india-deep-saffron: #F4833A;
+  --color-india-ashoka:       #201515;
+  --color-india-gold:         #b07d1a;
+  --color-india-deep-saffron: #ff7433;
 
-  /* ── Status Colors ── */
-  --color-success:       #1A7A4C;
-  --color-success-light: #D1FAE5;
-  --color-success-text:  #065F46;
-  --color-warning:       #C47A1E;
-  --color-warning-light: #FEF3C7;
-  --color-warning-text:  #92400E;
-  --color-danger:        #C82020;
-  --color-danger-light:  #FEE2E2;
-  --color-danger-text:   #991B1B;
-  --color-info:          #1E6FA0;
-  --color-info-light:    #DBEAFE;
-  --color-info-text:     #1E40AF;
+  /* ── Status Colors ──
+     The design language has no separate semantic palette, but this is an
+     exam-integrity console where success/warning/danger carry operational
+     meaning (node offline, exam locked, emergency halt). They are re-tuned
+     into the warm family rather than dropped — and kept clearly distinct
+     from --brand-primary so an alert never reads as a CTA. */
+  --color-success:       #3f6f4a;
+  --color-success-light: #e8efe6;
+  --color-success-text:  #2f5438;
+  --color-warning:       #b07d1a;
+  --color-warning-light: #fdf6e8;
+  --color-warning-text:  #7d5610;
+  --color-danger:        #9b2226;
+  --color-danger-light:  #fbeeea;
+  --color-danger-text:   #7a1a1d;
+  --color-info:          #6b5d4f;
+  --color-info-light:    #f2ede5;
+  --color-info-text:     #4a3f34;
 
   /* ── Blockchain Status ── */
-  --color-blockchain-confirmed:   #1A7A4C;
-  --color-blockchain-pending:     #C47A1E;
-  --color-blockchain-unconfirmed: #9A9A9A;
-  --color-blockchain-failed:      #C82020;
+  --color-blockchain-confirmed:   #3f6f4a;
+  --color-blockchain-pending:     #b07d1a;
+  --color-blockchain-unconfirmed: #939084;
+  --color-blockchain-failed:      #9b2226;
 
-  /* ── Interface Backgrounds ── */
-  --bg-exam:   #F8F9FC;
-  --bg-setter: #0F1319;
-  --bg-admin:  #090D14;
+  /* ── Interface Backgrounds ──
+     Candidate/marketing sit on the cream canvas. Setter + Admin keep their
+     dense dark shells but in the brand's coffee-ink polarity (the design
+     language's hero-band-dark / card-feature-dark surface), not cool navy. */
+  --bg-exam:   #fffefb;
+  --bg-setter: #201515;
+  --bg-admin:  #1a1010;
 
   /* ── Font Stacks ── */
-  --font-sans:        'Sora', 'Noto Sans Devanagari', 'Noto Sans', sans-serif;
+  --font-sans:        'Inter', system-ui, -apple-system, 'Noto Sans Devanagari', sans-serif;
   --font-mono:        'JetBrains Mono', 'Fira Code', monospace;
-  --font-display:     'Instrument Serif', 'Sora', sans-serif;
+  --font-display:     'Degular Display', 'Inter', system-ui, -apple-system, sans-serif;
   --font-devanagari:  'Noto Sans Devanagari', 'Mangal', sans-serif;
   --font-bengali:     'Noto Sans Bengali', sans-serif;
   --font-tamil:       'Noto Sans Tamil', sans-serif;
@@ -84,31 +124,41 @@
   --font-gujarati:    'Noto Sans Gujarati', sans-serif;
   --font-odia:        'Noto Sans Oriya', sans-serif;
 
-  /* ── Spacing ── */
+  /* ── Spacing (4px base, mapped onto the design scale) ──
+     Section bands land on 64px and card interiors on 24px, exactly as the
+     design language specifies. */
+  --space-xxs: 2px;
   --space-xs:  4px;
   --space-sm:  8px;
-  --space-md:  16px;
-  --space-lg:  24px;
-  --space-xl:  32px;
-  --space-2xl: 48px;
-  --space-3xl: 64px;
-  --space-4xl: 96px;
+  --space-md:  12px;
+  --space-lg:  16px;
+  --space-xl:  24px;   /* card interior */
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+  --space-4xl: 64px;   /* section band */
 
-  /* ── Border Radii ── */
-  --radius-sm:   4px;
-  --radius-md:   8px;
+  /* ── Border Radii ──
+     12px is the brand's canonical button + card radius — the deliberate
+     middle position between friendly-rounded and technical-square. The old
+     lg/xl/2xl steps all collapse onto it so nothing renders over-rounded. */
+  --radius-sm:   6px;   /* inputs, inline pills */
+  --radius-md:   12px;  /* canonical */
   --radius-lg:   12px;
-  --radius-xl:   16px;
-  --radius-2xl:  24px;
+  --radius-xl:   12px;
+  --radius-2xl:  12px;
   --radius-full: 9999px;
+  --radius-pill: 9999px;
 
   /* ── Shadows ── */
-  --shadow-sm:     0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md:     0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow-lg:     0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --shadow-xl:     0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  --shadow-glow:   0 0 20px rgba(41, 66, 166, 0.15);
-  --shadow-crypto: 0 0 30px rgba(196, 168, 76, 0.2);
+  /* Elevation is carried mainly by surface contrast (cream card on cream
+     page), so shadows stay restrained — and warm, tinted with the ink hue
+     rather than a neutral black. */
+  --shadow-sm:     0 1px 2px 0 rgba(32, 21, 21, 0.05);
+  --shadow-md:     0 4px 6px -1px rgba(32, 21, 21, 0.08), 0 2px 4px -2px rgba(32, 21, 21, 0.06);
+  --shadow-lg:     0 10px 15px -3px rgba(32, 21, 21, 0.09), 0 4px 6px -4px rgba(32, 21, 21, 0.06);
+  --shadow-xl:     0 20px 25px -5px rgba(32, 21, 21, 0.10), 0 8px 10px -6px rgba(32, 21, 21, 0.06);
+  --shadow-glow:   0 0 20px rgba(255, 79, 0, 0.15);
+  --shadow-crypto: 0 0 30px rgba(255, 79, 0, 0.16);
 
   /* ── Z-Index ── */
   --z-dropdown:  1000;
@@ -135,17 +185,21 @@
   --dur-base: 260ms;
   --dur-slow: 600ms;
 
-  /* ── Typography Scale (fluid) ── */
-  --fs-display: clamp(40px, 7vw, 80px);
-  --fs-h1:      clamp(32px, 4.4vw, 52px);
-  --fs-h2:      clamp(26px, 3vw, 36px);
-  --fs-h3:      22px;
-  --fs-h4:      18px;
-  --fs-lead:    clamp(18px, 2vw, 21px);
+  /* ── Typography Scale (fluid, capped at the design system's sizes) ──
+     display-xl 56 · display-lg 48 · display-md 32 · sub-sm 24 · xs 20
+     body-lg 20 · body-md 18 · body-sm 16 · caption 14 */
+  --fs-display: clamp(38px, 5.5vw, 56px);
+  --fs-h1:      clamp(32px, 4.4vw, 48px);
+  --fs-h2:      clamp(26px, 3vw, 32px);
+  --fs-h3:      24px;
+  --fs-h4:      18px;   /* 20px collided with h3 wherever cards map h3 -> h4 */
+  --fs-lead:    clamp(18px, 2vw, 20px);
+  --fs-body-md: 18px;
   --fs-body:    16px;
   --fs-sm:      14px;
   --fs-xs:      13px;
   --fs-label:   12px;
+  --fs-eyebrow: 14px;
 
   /* ── Font Weights ── */
   --fw-light:   300;
@@ -160,9 +214,10 @@
   --lh-normal:  1.6;
   --lh-relaxed: 1.75;
 
-  /* ── Letter Spacing ── */
+  /* ── Letter Spacing ──
+     The eyebrow's signature is POSITIVE tracking: 1px at 14px ≈ 0.07em. */
   --tracking-tight: -0.02em;
-  --tracking-label: 0.16em;
+  --tracking-label: 0.07em;
 
   /* ── Layout ── */
   --maxw:        1180px;
@@ -171,32 +226,42 @@
   --space-5xl:   140px;
 
   /* ── Semantic Backgrounds ── */
-  --bg-page:    #F8F9FC;
-  --bg-surface: #FFFFFF;
-  --bg-sunken:  #EFF1FA;
-  --bg-dark:    #0D1526;
-  --bg-darkest: #080E1E;
+  --bg-page:    #fffefb;  /* warm cream, never pure #fffefb */
+  --bg-surface: #fffefb;
+  --bg-sunken:  #f8f4f0;  /* canvas-soft — carries card elevation by contrast */
+  --bg-dark:    #201515;
+  --bg-darkest: #150e0e;
 
-  /* ── Text Colors ── */
-  --text-strong:        var(--color-navy-900);
-  --text-body:          #132040;
-  --text-muted:         #334155;
-  --text-faint:         #475569;
-  --text-on-dark:       #FFFFFF;
-  --text-on-dark-muted: var(--color-navy-200);
+  /* ── Text Colors ──
+     This ladder is contrast-critical: the old --text-muted/--text-faint were
+     #334155 / #475569, both comfortably AA on a light ground. They map onto
+     ink-mid and body (6.0:1+ on canvas-soft) — NOT onto body-mid or mute,
+     which are light enough to fail AA at small sizes. Use --brand-body-mid
+     and --brand-mute only for large text or non-essential decoration. */
+  --text-strong:        var(--brand-ink);
+  --text-body:          var(--brand-ink-soft);
+  --text-muted:         var(--brand-ink-mid);
+  --text-faint:         var(--brand-body);
+  --text-on-dark:       var(--brand-on-primary);
+  --text-on-dark-muted: var(--brand-mute);
 
-  /* ── Accent ── */
-  --accent:        var(--color-saffron-500);
+  /* ── Accent ──
+     Two jobs, two values. --accent is the FILL: white sits on it, so it stays
+     the exact brand orange. --accent-text is orange used AS TEXT on a light
+     ground, where #ff4f00 only reaches 3.27:1 — this rung clears AA on both
+     canvas (5.15:1) and canvas-soft (4.75:1) while reading as the same hue. */
+  --accent:        var(--brand-primary);
+  --accent-text:   #c53d00;
   --accent-strong: var(--color-saffron-600);
 
   /* ── Borders ── */
-  --border-hair: var(--color-navy-100);
-  --border-soft: #E3E7F2;
+  --border-hair: #ebe6dc;
+  --border-soft: #e8e2d8;
+  --border-ink:  var(--brand-ink);  /* 1px hairline chrome (Level 1) */
 
   /* ── Shadows (extended) ── */
-  --shadow-dark: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --shadow-dark: 0 24px 60px rgba(32, 21, 21, 0.35);
 }
-
 
 /* ══════════════════════════════════════════════
    CSS Reset & Base Styles
@@ -219,45 +284,60 @@ html {
 body {
   font-family: var(--font-sans);
   line-height: 1.6;
-  color: var(--color-navy-900);
-  background: var(--bg-exam);
+  color: var(--brand-ink);
+  background: var(--bg-page);
   min-height: 100vh;
 }
 
-/* ── Focus Styles (WCAG 2.1 AA) ── */
+/* ── Focus Styles (WCAG 2.1 AA) ──
+   The orange accent doubles as the focus ring — it is the one chromatic
+   signal in the system, so it reads unambiguously on cream and on ink. */
 :focus-visible {
-  outline: 2px solid var(--color-navy-500);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
 
 /* ── Selection ── */
 ::selection {
-  background: var(--color-navy-200);
-  color: var(--color-navy-900);
+  background: var(--color-saffron-200);
+  color: var(--brand-ink);
 }
 
-/* ── Headings ── */
+/* ── Headings ──
+   Display sizes take the display face at weight 500, sentence-case.
+   Card-level headings drop to Inter semibold with tight tracking. */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans);
   font-weight: 600;
   line-height: 1.3;
-  color: var(--color-navy-900);
+  color: var(--brand-ink);
 }
 
-h1 { font-size: 36px; font-weight: 700; line-height: 1.2; }
-h2 { font-size: 28px; }
-h3 { font-size: 22px; }
-h4 { font-size: 18px; }
+h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: 1.12;
+}
+h3 { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -0.025em; line-height: 1.25; }
+h4 { font-size: var(--fs-h4); font-weight: 700; letter-spacing: -0.025em; line-height: 1.25; }
 
 /* ── Links ── */
 a {
-  color: var(--color-navy-500);
+  color: var(--brand-ink);
   text-decoration: none;
   transition: color 150ms ease;
 }
 
 a:hover {
-  color: var(--color-navy-700);
+  color: var(--accent-text);
 }
 
 /* ── Code / Mono ── */
@@ -297,7 +377,6 @@ table {
   background: var(--color-navy-600);
 }
 
-
 /* ══════════════════════════════════════════════
    Animation Keyframes
    ══════════════════════════════════════════════ */
@@ -330,7 +409,7 @@ table {
 @keyframes lockDown {
   0%   { transform: scale(1); }
   50%  { transform: scale(0.98); }
-  100% { transform: scale(1); box-shadow: 0 0 40px rgba(200, 32, 32, 0.3); }
+  100% { transform: scale(1); box-shadow: 0 0 40px rgba(155, 34, 38, 0.3); }
 }
 
 @keyframes timerPulse {
@@ -364,15 +443,14 @@ table {
 .animate-block-confirm { animation: blockConfirm 400ms var(--ease-block-confirm) forwards; }
 .animate-india-reveal  { animation: indiaReveal 900ms var(--ease-india-reveal) forwards; }
 
-
 /* ══════════════════════════════════════════════
    Print Styles (Candidate Receipt — A4)
    ══════════════════════════════════════════════ */
 
 @media print {
   body {
-    background: white;
-    color: black;
+    background: #fffefb;
+    color: #201515;
     font-size: 12pt;
   }
 
@@ -387,7 +465,7 @@ table {
   a[href]::after {
     content: " (" attr(href) ")";
     font-size: 10pt;
-    color: #666;
+    color: #605d52;
   }
 
   @page {
@@ -395,7 +473,6 @@ table {
     size: A4;
   }
 }
-
 
 /* ══════════════════════════════════════════════
    Reduced Motion (WCAG 2.1)
@@ -409,7 +486,6 @@ table {
     scroll-behavior: auto !important;
   }
 }
-
 
 /* ══════════════════════════════════════════════
    Marketing / Site-wide Utility Classes
@@ -425,73 +501,88 @@ table {
 .section-sm { padding-block: var(--space-2xl) var(--space-3xl); }
 
 /* ── Tricolour Bar ── */
-.tricolour { display: flex; height: 4px; }
-.tricolour span:nth-child(1) { flex: 1; background: var(--color-india-saffron); }
-.tricolour span:nth-child(2) { flex: 1; background: var(--color-india-white); }
-.tricolour span:nth-child(3) { flex: 1; background: var(--color-india-green); }
 
-/* ── Eyebrow ── */
+/* ── Eyebrow ──
+   The signature label: display face, 14px/500, UPPERCASE with POSITIVE 1px
+   tracking, set in ink (not the accent) so orange stays reserved for CTAs. */
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-size: var(--fs-label);
+  font-family: var(--font-display); font-size: var(--fs-eyebrow);
   letter-spacing: var(--tracking-label); text-transform: uppercase;
-  color: var(--accent-strong); font-weight: var(--fw-medium);
+  color: var(--brand-ink); font-weight: var(--fw-medium);
+  line-height: 1;
 }
-.eyebrow.on-dark { color: var(--color-saffron-400); }
+.eyebrow.on-dark { color: var(--brand-canvas-soft); }
 
 /* ── Buttons ── */
+/* Every button shares the canonical 12px radius — never a pill, never square.
+   .btn-accent is the orange conversion CTA; .btn-primary is the ink CTA;
+   .btn-ghost is the 1px-ink outline; .btn-link is the text-only control. */
 .btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-sans); font-size: var(--fs-sm); font-weight: var(--fw-semi);
-  padding: 10px 20px; border-radius: var(--radius-md); border: 1px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-sans); font-size: var(--fs-body); font-weight: var(--fw-semi);
+  line-height: 1.5;
+  padding: var(--space-md) var(--space-xl); border-radius: var(--radius-md);
+  border: 1px solid transparent;
   cursor: pointer; text-decoration: none; white-space: nowrap;
-  transition: all var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .btn svg { width: 16px; height: 16px; }
-.btn-lg { padding: 14px 28px; font-size: var(--fs-body); border-radius: var(--radius-lg); }
-.btn-primary { background: var(--color-navy-800); color: #fff; border-color: var(--color-navy-800); }
-.btn-primary:hover { background: var(--color-navy-700); border-color: var(--color-navy-700); color: #fff; }
-.btn-accent { background: var(--color-saffron-500); color: #fff; border-color: var(--color-saffron-500); }
-.btn-accent:hover { background: var(--color-saffron-600); border-color: var(--color-saffron-600); color: #fff; }
-.btn-ghost { background: transparent; color: var(--text-strong); border-color: var(--border-soft); }
-.btn-ghost:hover { border-color: var(--color-navy-400); color: var(--color-navy-700); }
-.btn-quiet-dark { background: rgba(255,255,255,0.08); color: #fff; border-color: rgba(255,255,255,0.15); }
-.btn-quiet-dark:hover { background: rgba(255,255,255,0.14); color: #fff; }
-.btn-on-dark { background: #fff; color: var(--color-navy-900); }
-.btn-on-dark:hover { background: var(--color-saffron-100); color: var(--color-navy-900); }
+.btn-lg { padding: 14px 28px; font-size: var(--fs-body-md); border-radius: var(--radius-md); }
+.btn-sm { padding: var(--space-sm) var(--space-lg); font-size: 14.4px; font-weight: var(--fw-bold); letter-spacing: 0.144px; }
+
+.btn-accent { background: var(--brand-primary); color: var(--brand-on-primary); border-color: var(--brand-primary); }
+.btn-accent:hover { background: #e64700; border-color: #e64700; color: var(--brand-on-primary); }
+
+.btn-primary { background: var(--brand-ink); color: var(--brand-on-primary); border-color: var(--brand-ink); }
+.btn-primary:hover { background: var(--brand-ink-soft); border-color: var(--brand-ink-soft); color: var(--brand-on-primary); }
+
+.btn-ghost { background: var(--brand-canvas); color: var(--brand-ink); border-color: var(--brand-ink); }
+.btn-ghost:hover { background: var(--brand-canvas-soft); border-color: var(--brand-ink); color: var(--brand-ink); }
+
+.btn-quiet-dark { background: rgba(255,254,251,0.10); color: var(--brand-on-primary); border-color: rgba(255,254,251,0.22); }
+.btn-quiet-dark:hover { background: rgba(255,254,251,0.18); color: var(--brand-on-primary); }
+
+.btn-on-dark { background: var(--brand-canvas); color: var(--brand-ink); border-color: var(--brand-canvas); }
+.btn-on-dark:hover { background: var(--color-saffron-100); color: var(--brand-ink); border-color: var(--color-saffron-100); }
+
 .btn-link {
   display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0;
-  font-family: var(--font-sans); font-size: var(--fs-sm); font-weight: var(--fw-semi);
-  color: var(--color-navy-600); cursor: pointer; text-decoration: none;
+  font-family: var(--font-sans); font-size: 14.4px; font-weight: var(--fw-bold);
+  letter-spacing: 0.144px;
+  color: var(--brand-ink); cursor: pointer; text-decoration: none;
   transition: color var(--dur-fast) ease;
 }
-.btn-link:hover { color: var(--color-navy-800); }
+.btn-link:hover { color: var(--accent-text); }
 .btn-link svg { width: 15px; height: 15px; }
 
-/* ── Cards ── */
+/* ── Cards ──
+   Level 2 elevation: a cream canvas-soft fill against the cream page. The
+   surface contrast carries the elevation, so no shadow at rest. */
 .card {
-  background: var(--bg-surface); border: 1px solid var(--border-soft);
-  border-radius: var(--radius-xl); padding: var(--space-xl);
+  background: var(--bg-sunken); border: 1px solid transparent;
+  border-radius: var(--radius-md); padding: var(--space-xl);
 }
 .card-hover { transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) ease, transform var(--dur-base) ease; }
-.card-hover:hover { border-color: var(--color-navy-200); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.card-hover:hover { border-color: var(--brand-mute); box-shadow: var(--shadow-md); transform: translateY(-2px); }
 
 /* ── Icon Chip ── */
 .icon-chip {
   width: 40px; height: 40px; border-radius: var(--radius-md);
   display: grid; place-items: center; flex-shrink: 0;
-  background: var(--bg-sunken); border: 1px solid var(--border-soft); color: var(--color-navy-600);
+  background: var(--brand-canvas); border: 1px solid var(--border-soft); color: var(--brand-ink);
 }
 .icon-chip svg { width: 18px; height: 18px; stroke-width: 1.7; }
 .icon-chip.accent { background: var(--color-saffron-100); border-color: var(--color-saffron-200); color: var(--accent-strong); }
-.icon-chip.on-dark { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: var(--color-saffron-300); }
+.icon-chip.on-dark { background: rgba(255,254,251,0.08); border-color: rgba(255,254,251,0.16); color: var(--color-saffron-300); }
 
 /* ── Pill ── */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 11px; font-weight: var(--fw-medium);
-  padding: 4px 10px; border-radius: var(--radius-full);
-  border: 1px solid var(--border-soft); color: var(--text-muted);
+  font-family: var(--font-sans); font-size: var(--fs-sm); font-weight: var(--fw-regular);
+  padding: var(--space-xs) var(--space-md); border-radius: var(--radius-pill);
+  background: var(--bg-sunken);
+  border: 1px solid transparent; color: var(--brand-ink);
 }
 .dot { width: 7px; height: 7px; border-radius: 50%; }
 
@@ -502,11 +593,233 @@ table {
 .heading-block.center p { margin-inline: auto; }
 
 /* ── Scroll Reveal ── */
+/* ══════════════════════════════════════════════
+   Scroll reveal
+   Content is VISIBLE by default and only hidden once JS has confirmed it can
+   run the observer (html.reveal-ready). Without that gate a failed observer —
+   no JS, a hidden/backgrounded document, an early error — would leave the
+   whole page permanently at opacity 0.
+   ══════════════════════════════════════════════ */
 .reveal {
-  opacity: 0; transform: translateY(24px);
-  transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+  transition:
+    opacity var(--dur-slow) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out),
+    filter var(--dur-slow) var(--ease-out);
 }
-.reveal.in { opacity: 1; transform: translateY(0); }
+
+:root.reveal-ready .reveal { opacity: 0; transform: translateY(28px); }
+:root.reveal-ready .reveal.in { opacity: 1; transform: none; filter: none; }
+
+/* Directional variants — sections enter from different edges so a long page
+   does not read as one repeated motion. */
+:root.reveal-ready .reveal-left   { transform: translateX(-34px); }
+:root.reveal-ready .reveal-right  { transform: translateX(34px); }
+:root.reveal-ready .reveal-scale  { transform: scale(0.94); }
+:root.reveal-ready .reveal-blur   { filter: blur(9px); transform: translateY(16px); }
+:root.reveal-ready .reveal-rise   { transform: translateY(56px); }
+
+/* Per-item stagger driven by an inline --i index, for grids and lists. */
+:root.reveal-ready .reveal { transition-delay: calc(var(--i, 0) * 80ms); }
+
+/* Cards, rows and grid cells travel a shorter distance and move faster than a
+   whole section — a 28px lift on every table row would read as noise. */
+:root.reveal-ready .reveal-item {
+  transform: translateY(14px);
+  transition-duration: var(--dur-base);
+  transition-delay: calc(var(--i, 0) * 55ms);
+}
+:root.reveal-ready .reveal-item.in { transform: none; }
+
+/* Auto-tagged items never cascade their own children — the item IS the unit. */
+:root.reveal-ready .reveal-item.in > * { animation: none; }
+
+/* Children of a revealed block cascade in, rather than snapping together. */
+:root.reveal-ready .reveal.in > * { animation: revealChild var(--dur-slow) var(--ease-out) both; }
+:root.reveal-ready .reveal.in > *:nth-child(2) { animation-delay: 70ms; }
+:root.reveal-ready .reveal.in > *:nth-child(3) { animation-delay: 140ms; }
+:root.reveal-ready .reveal.in > *:nth-child(4) { animation-delay: 210ms; }
+:root.reveal-ready .reveal.in > *:nth-child(5) { animation-delay: 280ms; }
+:root.reveal-ready .reveal.in > *:nth-child(6) { animation-delay: 350ms; }
+@keyframes revealChild {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Native scroll-driven animation ──
+   Where the browser supports scroll timelines, the section fade runs on the
+   compositor off the main thread and tracks the scroll position exactly,
+   instead of being toggled once by an observer. The JS path above remains
+   the fallback for everything else. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root.reveal-ready .reveal-scroll {
+      opacity: 1; transform: none;
+      animation: scrollFade linear both;
+      animation-timeline: view();
+      animation-range: entry 8% cover 26%;
+    }
+    @keyframes scrollFade {
+      from { opacity: 0; transform: translateY(34px); }
+      to   { opacity: 1; transform: none; }
+    }
+    /* A slow drift on decorative bands — parallax without a scroll handler. */
+    .parallax-slow {
+      animation: parallaxDrift linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+    @keyframes parallaxDrift {
+      from { transform: translateY(-4%); }
+      to   { transform: translateY(4%); }
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root.reveal-ready .reveal,
+  :root.reveal-ready .reveal.in {
+    opacity: 1; transform: none; filter: none; transition-delay: 0ms;
+  }
+  :root.reveal-ready .reveal.in > * { animation: none; }
+}
+
+/* ══════════════════════════════════════════════
+   Scroll chrome — progress, condensing nav, back-to-top
+   ══════════════════════════════════════════════ */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--brand-primary), var(--color-saffron-400));
+  transform-origin: 0 50%;
+  z-index: calc(var(--z-sticky) + 5);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* The nav tightens and gains a hairline once you leave the top
+
+body.is-scrolled .site-nav {
+  box-shadow: 0 1px 0 var(--border-soft), var(--shadow-sm);
+  background: rgba(255, 254, 251, 0.96);
+}
+body.is-scrolled .nav-inner { height: 56px; }
+
+.to-top {
+  position: fixed; right: clamp(16px, 3vw, 28px); bottom: clamp(16px, 3vw, 28px);
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  background: var(--brand-ink); color: var(--brand-on-primary);
+  border: 0; border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  z-index: var(--z-sticky);
+  opacity: 0; transform: translateY(14px) scale(0.9);
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out), background-color var(--dur-fast) ease;
+}
+.to-top.is-on { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { background: var(--brand-primary); }
+
+/* ── Cursor spotlight ──
+   A warm glow that tracks the pointer across a card. --mx/--my are written by
+   ScrollFX; --spot gates the opacity so the glow only exists while hovered.
+   Drawn on a pseudo-element so it never affects the card's own layout. */
+.card, [data-spotlight] { position: relative; isolation: isolate; }
+.card::before, [data-spotlight]::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 79, 0, 0.10),
+    transparent 68%
+  );
+  opacity: var(--spot, 0);
+  transition: opacity var(--dur-base) ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .card::before, [data-spotlight]::before { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .to-top { transition: opacity var(--dur-fast) linear; transform: none; }
+  .to-top.is-on { transform: none; }
+  
+}
+
+/* ══════════════════════════════════════════════
+   Micro-interactions
+   Motion is applied to the things a user actually touches — buttons, cards,
+   links, icons — and kept short (≤260ms). Everything here is transform/opacity
+   only, so it stays on the compositor and never triggers layout.
+   ══════════════════════════════════════════════ */
+
+/* Buttons: a subtle lift, and a light sweep across the filled variants. */
+.btn { position: relative; overflow: hidden; will-change: transform; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0) scale(0.985); }
+
+.btn-accent::after,
+.btn-primary::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,254,251,0.22) 50%, transparent 65%);
+  transform: translateX(-120%);
+  transition: transform 620ms var(--ease-out);
+  pointer-events: none;
+}
+.btn-accent:hover::after,
+.btn-primary:hover::after { transform: translateX(120%); }
+
+/* The arrow inside a CTA nudges forward on hover. */
+.btn svg, .btn-link svg { transition: transform var(--dur-fast) var(--ease-out); }
+.btn:hover svg:last-child, .btn-link:hover svg:last-child { transform: translateX(3px); }
+
+/* Text links draw an underline out from the left. */
+.btn-link { position: relative; }
+.btn-link::after {
+  content: ""; position: absolute; left: 0; bottom: -2px;
+  width: 100%; height: 1.5px; background: currentColor;
+  transform: scaleX(0); transform-origin: left;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.btn-link:hover::after { transform: scaleX(1); }
+
+/* Cards lift and warm their edge. */
+.card-hover { will-change: transform; }
+.card-hover:hover { border-color: var(--brand-ink); }
+
+/* Icon chips spring slightly when their card is hovered. */
+.card-hover .icon-chip { transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-base) ease, color var(--dur-base) ease; }
+.card-hover:hover .icon-chip {
+  transform: scale(1.08) rotate(-3deg);
+  background: var(--brand-primary); color: var(--brand-on-primary);
+  border-color: var(--brand-primary);
+}
+
+/* Nav links get the same underline treatment
+
+/* A quiet pulse for live status dots. */
+.dot { position: relative; }
+.pill .dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: inherit; animation: dotPulse 2.4s var(--ease-out) infinite;
+}
+@keyframes dotPulse {
+  0%   { transform: scale(1); opacity: 0.6; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:hover, .btn:active { transform: none; }
+  .btn-accent::after, .btn-primary::after { display: none; }
+  .btn:hover svg:last-child, .btn-link:hover svg:last-child { transform: none; }
+  .btn-link::after, .nav-links > li > a::after { transition: none; }
+  .card-hover:hover .icon-chip { transform: none; }
+  .pill .dot::after { animation: none; display: none; }
+}
 
 /* ── Mono helper ── */
 .mono { font-family: var(--font-mono); }
@@ -514,73 +827,301 @@ table {
 /* ══════════════════════════════════════════════
    Navigation (Marketing)
    ══════════════════════════════════════════════ */
-.site-nav {
-  position: sticky; top: 0; z-index: var(--z-sticky);
-  background: rgba(255,255,255,0.92); backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-soft);
-}
-.nav-inner {
-  display: flex; align-items: center; justify-content: space-between;
-  height: 64px;
-}
-.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text-strong); }
-.brand-mark {
-  width: 34px; height: 34px; border-radius: var(--radius-md);
-  display: grid; place-items: center;
-  background: var(--color-navy-900); color: #fff;
-}
-.brand-mark svg { width: 18px; height: 18px; stroke-width: 1.8; }
-.brand-name { font-size: 17px; font-weight: var(--fw-medium); letter-spacing: -0.02em; }
-.brand-name b { font-weight: var(--fw-bold); }
 
-.nav-links {
-  list-style: none; display: flex; gap: var(--space-lg);
-  margin: 0; padding: 0;
-}
-.nav-links a {
-  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--text-muted);
-  text-decoration: none; transition: color var(--dur-fast) ease;
-}
-.nav-links a:hover, .nav-links a[aria-current="page"] { color: var(--text-strong); }
+/* ══════════════════════════════════════════════
+   Tab bar — primary navigation, on every page
+   ══════════════════════════════════════════════ */
 
-.nav-actions { display: flex; align-items: center; gap: var(--space-md); }
-.nav-toggle { display: none; background: none; border: 0; cursor: pointer; color: var(--text-strong); padding: 4px; }
-.nav-toggle svg { width: 24px; height: 24px; }
+/* "You are signed in here" — distinct from "you are browsing here"
 
+/* The old marketing nav sits directly beneath the tab bar
+
+@media (max-width: 860px) {
+  
+  
+  
+  
+  
+  
+}
+
+/* ── Mega-menu triggers ── */
+/* The panel anchors to the nav container, not to its trigger: a 980px panel
+   centred on a left-hand trigger would hang off the viewport edge
+
+/* ── Mega-menu panel ── */
+
+/* Bridges the gap between trigger and panel so the pointer never falls through
+
+/* ── Nav search affordance ── */
+
+/* ── Mobile drawer ── */
+
+@media (max-width: 1024px) {
+  
+}
+@media (max-width: 900px) {
+  
+}
 @media (max-width: 768px) {
-  .nav-links { display: none; }
-  .nav-actions .btn-link { display: none; }
-  .nav-toggle { display: block; }
+  
+  .nav-actions .btn-link, .nav-cta { display: none; }
+  
+}
+@media (min-width: 769px) {
+  
+}
+
+/* ══════════════════════════════════════════════
+   Command Palette (⌘K)
+   ══════════════════════════════════════════════ */
+.cmdk-overlay {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  background: rgba(32, 21, 21, 0.44);
+  backdrop-filter: blur(3px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: clamp(48px, 12vh, 140px) var(--space-lg) var(--space-lg);
+  animation: cmdkFade 140ms var(--ease-out) both;
+}
+@keyframes cmdkFade { from { opacity: 0; } to { opacity: 1; } }
+
+.cmdk-panel {
+  width: min(680px, 100%);
+  max-height: min(68vh, 620px);
+  display: flex; flex-direction: column;
+  background: var(--brand-canvas);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  animation: cmdkPop 180ms var(--ease-out) both;
+}
+@keyframes cmdkPop { from { opacity: 0; transform: translateY(-10px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+.cmdk-inputRow {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+.cmdk-inputRow > svg { color: var(--brand-body-mid); flex-shrink: 0; }
+.cmdk-input {
+  flex: 1; border: 0; outline: none; background: transparent;
+  font-family: var(--font-sans); font-size: var(--fs-body-md); color: var(--brand-ink);
+  min-width: 0;
+}
+.cmdk-input::placeholder { color: var(--brand-body-mid); }
+.cmdk-esc {
+  font-family: var(--font-sans); font-size: 11px; font-weight: var(--fw-semi);
+  color: var(--brand-body); background: var(--brand-canvas-soft);
+  border: 1px solid var(--border-soft); border-radius: 4px; padding: 3px 6px;
+  flex-shrink: 0;
+}
+
+.cmdk-list { list-style: none; margin: 0; padding: var(--space-sm); overflow-y: auto; flex: 1; }
+.cmdk-item {
+  display: flex; align-items: center; gap: var(--space-md); width: 100%;
+  padding: 10px var(--space-md); border: 0; background: none; cursor: pointer;
+  border-radius: var(--radius-sm); text-align: left;
+  font-family: var(--font-sans);
+  transition: background-color 90ms ease;
+}
+.cmdk-item.is-active { background: var(--brand-canvas-soft); }
+.cmdk-item.is-active .cmdk-itemIcon { background: var(--brand-primary); color: var(--brand-on-primary); border-color: var(--brand-primary); }
+.cmdk-itemIcon {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--brand-canvas-soft); color: var(--brand-ink);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  transition: background-color 90ms ease, color 90ms ease;
+}
+.cmdk-itemText { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cmdk-itemTitle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--fs-body); font-weight: var(--fw-semi); color: var(--brand-ink);
+}
+.cmdk-lock { display: inline-flex; color: var(--brand-body-mid); }
+.cmdk-itemDesc {
+  font-size: var(--fs-sm); color: var(--brand-body);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cmdk-itemGroup {
+  flex-shrink: 0; font-size: 12px; color: var(--brand-body);
+  background: var(--brand-canvas-soft); border-radius: var(--radius-pill);
+  padding: 3px 10px;
+}
+.cmdk-item.is-active .cmdk-itemGroup { background: var(--brand-canvas); }
+
+.cmdk-empty { padding: var(--space-2xl) var(--space-xl); text-align: center; color: var(--brand-body); font-size: var(--fs-body); }
+
+.cmdk-footer {
+  display: flex; align-items: center; gap: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+  border-top: 1px solid var(--border-soft);
+  background: var(--brand-canvas-soft);
+  font-size: 12px; color: var(--brand-body);
+  flex-shrink: 0;
+}
+.cmdk-footer kbd {
+  font-family: var(--font-sans); font-weight: var(--fw-semi);
+  background: var(--brand-canvas); border: 1px solid var(--border-soft);
+  border-radius: 4px; padding: 1px 5px; margin-right: 3px;
+}
+.cmdk-count { margin-left: auto; }
+
+@media (max-width: 600px) {
+  .cmdk-itemGroup, .cmdk-footer span:not(.cmdk-count) { display: none; }
 }
 
 /* ══════════════════════════════════════════════
    Footer (Marketing)
    ══════════════════════════════════════════════ */
+/* The dark coffee footer: ink ground, canvas-soft type. */
 .site-footer {
-  background: var(--bg-darkest); color: var(--color-navy-300);
+  background: var(--brand-ink); color: var(--brand-canvas-soft);
   padding-block: var(--space-3xl) var(--space-xl);
 }
 .footer-main {
-  display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: var(--space-2xl);
+  display: grid; grid-template-columns: 1.5fr repeat(5, 1fr); gap: var(--space-2xl);
 }
-.footer-blurb { margin-top: var(--space-md); font-size: var(--fs-sm); color: var(--color-navy-400); max-width: 300px; line-height: var(--lh-normal); }
-.site-footer .brand { color: #fff; }
-.footer-col h5 { font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--color-navy-400); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-md); }
+.footer-actions {
+  margin-top: var(--space-lg);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-md);
+}
+.footer-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--brand-primary); color: var(--brand-on-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body); font-weight: var(--fw-semi); text-decoration: none;
+  transition: background-color var(--dur-fast) ease;
+}
+.footer-cta:hover { background: #e64700; color: var(--brand-on-primary); }
+.footer-explore {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--fs-body); font-weight: var(--fw-semi);
+  color: var(--brand-canvas); text-decoration: none;
+}
+.footer-explore:hover { color: var(--brand-primary); }
+.footer-blurb { margin-top: var(--space-md); font-size: var(--fs-body); color: var(--brand-mute); max-width: 300px; line-height: var(--lh-normal); }
+.site-footer .brand { color: var(--brand-canvas); }
+.footer-col h5 { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--brand-body-mid); text-transform: uppercase; letter-spacing: var(--tracking-label); margin-bottom: var(--space-md); }
 .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.footer-col a { font-size: var(--fs-sm); color: var(--color-navy-300); text-decoration: none; transition: color var(--dur-fast) ease; }
-.footer-col a:hover { color: #fff; }
+.footer-col a { font-size: var(--fs-body); color: var(--brand-canvas-soft); text-decoration: none; transition: color var(--dur-fast) ease; }
+.footer-col a:hover { color: var(--brand-primary); }
 
 .footer-bottom {
   margin-top: var(--space-2xl); padding-top: var(--space-lg);
-  border-top: 1px solid rgba(255,255,255,0.08);
+  border-top: 1px solid rgba(255,254,251,0.10);
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md);
-  font-size: var(--fs-xs); color: var(--color-navy-500);
+  font-size: var(--fs-sm); color: var(--brand-body-mid);
 }
 .footer-legal { display: flex; align-items: center; gap: var(--space-lg); }
-.footer-legal a { color: var(--color-navy-400); text-decoration: none; font-size: var(--fs-xs); }
-.footer-legal a:hover { color: #fff; }
+.footer-legal a { color: var(--brand-mute); text-decoration: none; font-size: var(--fs-sm); }
+.footer-legal a:hover { color: var(--brand-primary); }
 
+@media (max-width: 1100px) {
+  .footer-main { grid-template-columns: repeat(3, 1fr); gap: var(--space-2xl); }
+}
 @media (max-width: 768px) {
   .footer-main { grid-template-columns: 1fr 1fr; gap: var(--space-xl); }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
+}
+
+/* Footer role-column headings link to their hub. */
+.footer-hubLink { color: inherit; text-decoration: none; }
+.footer-hubLink:hover { color: var(--brand-primary); }
+
+/* ══════════════════════════════════════════════
+   Site header
+   brand → Home · Login ············ search · Add exam
+   ══════════════════════════════════════════════ */
+.hdr {
+  position: sticky; top: 0; z-index: calc(var(--z-sticky) + 2);
+  background: var(--brand-ink);
+  border-bottom: 1px solid rgba(255, 254, 251, 0.08);
+}
+.hdr-inner {
+  display: flex; align-items: center; gap: var(--space-2xl);
+  min-height: 60px;
+  padding-inline: clamp(16px, 2.5vw, 28px);
+}
+
+/* ── Brand ── */
+.hdr-brand {
+  display: inline-flex; align-items: center; gap: 10px;
+  color: var(--brand-canvas); text-decoration: none; flex-shrink: 0;
+}
+.hdr-mark {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  display: grid; place-items: center;
+  background: var(--brand-primary); color: var(--brand-on-primary);
+  flex-shrink: 0;
+}
+.hdr-name { font-size: 16px; font-weight: 500; letter-spacing: -0.01em; }
+.hdr-name b { font-weight: 700; }
+.hdr-brand:hover { color: var(--brand-canvas); }
+
+/* ── Links ── */
+.hdr-nav {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: var(--space-lg);
+}
+.hdr-link {
+  position: relative;
+  padding: 6px 2px;
+  font-size: var(--fs-body); font-weight: 500;
+  color: var(--brand-mute); text-decoration: none; white-space: nowrap;
+  transition: color var(--dur-fast) ease;
+}
+.hdr-link:hover { color: var(--brand-canvas); }
+.hdr-link::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -2px;
+  height: 2px; background: var(--brand-primary);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.hdr-link:hover::after { transform: scaleX(1); }
+.hdr-link.is-active { color: var(--brand-canvas); font-weight: 600; }
+.hdr-link.is-active::after { transform: scaleX(1); }
+
+.hdr-session {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--fs-sm); color: var(--brand-mute);
+  text-transform: capitalize; white-space: nowrap;
+}
+.hdr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success); }
+
+/* ── Right cluster ── */
+.hdr-right {
+  display: flex; align-items: center; gap: var(--space-md);
+  flex-shrink: 0; margin-left: auto;
+}
+.hdr-search {
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  background: none; border: 0; border-radius: var(--radius-sm);
+  color: var(--brand-mute); cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.hdr-search:hover { background: rgba(255, 254, 251, 0.10); color: var(--brand-canvas); }
+.hdr-search:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+
+/* The one primary action, hard right. */
+.hdr-cta {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px;
+  background: var(--brand-primary); color: var(--brand-on-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-body); font-weight: 600; text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) ease;
+}
+.hdr-cta:hover { background: #e64700; color: var(--brand-on-primary); }
+.hdr-cta:focus-visible { outline: 2px solid var(--brand-canvas); outline-offset: 2px; }
+
+@media (max-width: 700px) {
+  .hdr-inner { gap: var(--space-lg); min-height: 56px; }
+  .hdr-name, .hdr-session { display: none; }
+  .hdr-cta span, .hdr-cta { padding-inline: 12px; }
 }

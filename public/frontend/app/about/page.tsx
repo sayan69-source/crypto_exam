@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import TransparencyLive from "./TransparencyLive";
@@ -15,8 +14,6 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <main>
-      <Navbar />
-
       {/* ===== EDITORIAL HERO ===== */}
       <section className={s.aboutHero}>
         <div className="wrap" style={{ position: "relative" }}>
@@ -34,7 +31,7 @@ export default function AboutPage() {
       </section>
 
       {/* ===== MISSION ===== */}
-      <section className={s.mission} id="mission">
+      <section className={`${s.mission} reveal reveal-rise`} id="mission">
         <div className={`wrap ${s.missionWrap}`}>
           <span className="eyebrow on-dark">Our mission</span>
           <h2>
@@ -63,7 +60,7 @@ export default function AboutPage() {
       </section>
 
       {/* ===== VALUES ===== */}
-      <section className={s.values}>
+      <section className={`${s.values} reveal reveal-left`}>
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">What we believe</span>
@@ -86,7 +83,7 @@ export default function AboutPage() {
       </section>
 
       {/* ===== STORY ===== */}
-      <section className={s.story}>
+      <section className={`${s.story} reveal reveal-scale`}>
         <div className={`wrap ${s.storyGrid}`}>
           <div>
             <span className="eyebrow">Our story</span>
@@ -118,7 +115,7 @@ export default function AboutPage() {
       </section>
 
       {/* ===== PRINCIPLES ===== */}
-      <section className={s.principles}>
+      <section className={`${s.principles} reveal reveal-right`}>
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">Operating principles</span>
@@ -149,7 +146,7 @@ export default function AboutPage() {
       <TransparencyLive />
 
       {/* ===== FINAL CTA ===== */}
-      <section className={s.finalCta}>
+      <section className={`${s.finalCta} reveal reveal-rise`}>
         <div className="wrap">
           <span className="eyebrow" style={{ justifyContent: "center" }}>Talk to us</span>
           <h2 style={{ marginTop: "var(--space-md)" }}>

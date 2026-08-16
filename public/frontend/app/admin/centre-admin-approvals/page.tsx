@@ -69,7 +69,7 @@ export default function CentreAdminApprovalsPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)', marginBottom: 16 }}>
+        <div style={{ padding: 16, border: '1px solid rgba(155, 34, 38,0.35)', background: 'rgba(155, 34, 38,0.06)', borderRadius: 12, color: 'var(--color-danger)', marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -77,7 +77,7 @@ export default function CentreAdminApprovalsPage() {
       {loading ? (
         <p style={{ color: 'var(--color-navy-500)' }}>Loading pending requests…</p>
       ) : pending.length === 0 ? (
-        <div style={{ padding: 24, border: '1px solid var(--border-soft)', borderRadius: 16, background: '#fff', color: 'var(--color-navy-500)' }}>
+        <div style={{ padding: 24, border: '1px solid var(--border-soft)', borderRadius: 16, background: '#fffefb', color: 'var(--color-navy-500)' }}>
           No pending Centre-Admin requests. New registrations from{' '}
           <a href="/staff-registration" style={{ color: 'var(--color-info-text)' }}>the public site</a>{' '}
           appear here for approval.
@@ -88,7 +88,7 @@ export default function CentreAdminApprovalsPage() {
             <div
               key={r.requestId}
               style={{
-                background: '#fff', border: '1px solid var(--border-soft)',
+                background: '#fffefb', border: '1px solid var(--border-soft)',
                 borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 12,
               }}
             >
@@ -101,17 +101,17 @@ export default function CentreAdminApprovalsPage() {
                 <span style={{ fontSize: 12, color: r.fingerprintAuthorised ? 'var(--color-success)' : 'var(--color-warning)' }}>
                   {r.fingerprintAuthorised ? '✓ fingerprint authorised' : 'fingerprint not yet authorised'}
                 </span>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 9999, background: r.status === 'APPROVED' ? 'rgba(26,122,76,0.12)' : 'rgba(196,122,30,0.12)', color: r.status === 'APPROVED' ? 'var(--color-success)' : 'var(--color-warning)' }}>{r.status}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 9999, background: r.status === 'APPROVED' ? 'rgba(63, 111, 74,0.12)' : 'rgba(176, 125, 26,0.12)', color: r.status === 'APPROVED' ? 'var(--color-success)' : 'var(--color-warning)' }}>{r.status}</span>
               </div>
 
               {codes[r.requestId] && (
                 <div
                   style={{
                     display: 'inline-flex', flexDirection: 'column', gap: 4, alignSelf: 'flex-start',
-                    padding: '10px 16px', borderRadius: 10, border: '1px dashed #6366f1', background: 'rgba(99,102,241,0.08)',
+                    padding: '10px 16px', borderRadius: 10, border: '1px dashed #605d52', background: 'rgba(96, 93, 82,0.08)',
                   }}
                 >
-                  <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 22, fontWeight: 700, letterSpacing: '0.12em', color: '#4f46e5' }}>
+                  <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 22, fontWeight: 700, letterSpacing: '0.12em', color: '#4a3f34' }}>
                     {codes[r.requestId].code}
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--color-navy-500)' }}>
@@ -143,7 +143,7 @@ export default function CentreAdminApprovalsPage() {
 
 const btnPrimary = (disabled: boolean): React.CSSProperties => ({
   padding: '10px 16px', borderRadius: 10, border: 'none',
-  background: disabled ? '#a5b4fc' : '#4f46e5', color: 'white', fontWeight: 600, fontSize: 13,
+  background: disabled ? '#c5c0b1' : '#4a3f34', color: '#fffefb', fontWeight: 600, fontSize: 13,
   cursor: disabled ? 'not-allowed' : 'pointer',
 });
 const btnGhost = (disabled: boolean): React.CSSProperties => ({

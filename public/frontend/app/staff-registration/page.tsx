@@ -103,19 +103,19 @@ export default function StaffRegistration() {
               onClick={() => setRole(r)}
               style={{
                 flex: 1, padding: "12px 10px", borderRadius: 10, cursor: "pointer",
-                border: role === r ? "2px solid #1e40af" : "1px solid #cbd5e1",
-                background: role === r ? "#eff6ff" : "#fff", textAlign: "left",
+                border: role === r ? "2px solid #4a3f34" : "1px solid #c5c0b1",
+                background: role === r ? "#f2ede5" : "#fffefb", textAlign: "left",
               }}
             >
               <strong style={{ fontSize: 14 }}>{title}</strong>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{sub}</div>
+              <div style={{ fontSize: 11, color: "#605d52", marginTop: 2 }}>{sub}</div>
             </button>
           ))}
         </div>
 
         <label style={label}>Examination centre</label>
         {relayDown ? (
-          <p style={{ color: "#b91c1c", fontSize: 13 }}>
+          <p style={{ color: "#8f2418", fontSize: 13 }}>
             The HQ↔centre relay is unavailable right now — try again later. (Registrations are never
             taken without a live link to your centre.)
           </p>
@@ -137,7 +137,7 @@ export default function StaffRegistration() {
         <FaceCapture onHash={setFaceHash} />
 
         {error && (
-          <p role="alert" style={{ color: "#b91c1c", fontSize: 13, marginTop: 12 }}>
+          <p role="alert" style={{ color: "#8f2418", fontSize: 13, marginTop: 12 }}>
             Registration failed · {error}
           </p>
         )}
@@ -147,8 +147,8 @@ export default function StaffRegistration() {
           onClick={submit}
           style={{
             width: "100%", marginTop: 18, padding: 14, borderRadius: 10, border: "none",
-            background: busy || !centerId || !fullName.trim() || !faceHash ? "#94a3b8" : "#1e40af",
-            color: "#fff", fontWeight: 600, fontSize: 15, cursor: "pointer",
+            background: busy || !centerId || !fullName.trim() || !faceHash ? "#939084" : "#4a3f34",
+            color: "#fffefb", fontWeight: 600, fontSize: 15, cursor: "pointer",
           }}
         >
           {busy ? "Submitting…" : "Submit registration (PENDING approval)"}
@@ -212,12 +212,12 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
   }
 
   return (
-    <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 12, background: "#f8fafc" }}>
+    <div style={{ border: "1px solid #c5c0b1", borderRadius: 10, padding: 12, background: "#fffefb" }}>
       {state === "idle" && (
         <button onClick={start} style={ghostBtn}>Enable camera for face capture</button>
       )}
       {state === "denied" && (
-        <p style={{ fontSize: 13, color: "#b91c1c", margin: 0 }}>
+        <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
           Camera unavailable or denied — face capture is required to register.
           <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
         </p>
@@ -229,12 +229,12 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
         style={{ width: "100%", borderRadius: 8, display: state === "live" ? "block" : "none" }}
       />
       {state === "live" && (
-        <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#1e40af", color: "#fff", border: "none" }}>
+        <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#4a3f34", color: "#fffefb", border: "none" }}>
           Capture face
         </button>
       )}
       {state === "captured" && hash && (
-        <p style={{ ...mono, fontSize: 12, margin: 0, color: "#15803d" }}>
+        <p style={{ ...mono, fontSize: 12, margin: 0, color: "#2f5438" }}>
           ✓ face captured · digest {hash.slice(0, 16)}… (image stayed on this device)
         </p>
       )}
@@ -244,20 +244,20 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
 
 const page: React.CSSProperties = {
   minHeight: "100vh", display: "flex", alignItems: "flex-start", justifyContent: "center",
-  padding: "48px 16px", background: "#f1f5f9",
+  padding: "48px 16px", background: "#f8f4f0",
 };
 const card: React.CSSProperties = {
-  width: "min(640px, 96vw)", background: "#fff", border: "1px solid #e2e8f0",
+  width: "min(640px, 96vw)", background: "#fffefb", border: "1px solid #e8e2d8",
   borderRadius: 16, padding: "30px 32px",
 };
 const h1: React.CSSProperties = { margin: 0, fontSize: 24 };
-const muted: React.CSSProperties = { color: "#64748b", fontSize: 14 };
-const label: React.CSSProperties = { display: "block", fontSize: 12, color: "#64748b", margin: "18px 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
+const muted: React.CSSProperties = { color: "#605d52", fontSize: 14 };
+const label: React.CSSProperties = { display: "block", fontSize: 12, color: "#605d52", margin: "18px 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
 const field: React.CSSProperties = {
-  width: "100%", padding: "11px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, background: "#fff",
+  width: "100%", padding: "11px 12px", borderRadius: 8, border: "1px solid #c5c0b1", fontSize: 14, background: "#fffefb",
 };
 const mono: React.CSSProperties = { fontFamily: "ui-monospace, monospace", wordBreak: "break-all" };
 const ghostBtn: React.CSSProperties = {
   display: "block", width: "100%", padding: "10px 12px", borderRadius: 8,
-  border: "1px solid #cbd5e1", background: "#fff", color: "#334155", fontSize: 13, cursor: "pointer",
+  border: "1px solid #c5c0b1", background: "#fffefb", color: "#36342e", fontSize: 13, cursor: "pointer",
 };

@@ -22,7 +22,7 @@ const ACTIONS: { value: EmergencyActionType; label: string; severity: 'amber' | 
   { value: 'ALERT_BROADCAST', label: 'Broadcast Alert', severity: 'blue' },
 ];
 
-const SEVERITY_COLOR = { amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444' };
+const SEVERITY_COLOR = { amber: '#b07d1a', blue: '#6b5d4f', red: '#b3341c' };
 
 const SEED_ADMINS = [
   { id: 'admin-A', name: 'Vikram S. Rathore' },
@@ -84,19 +84,19 @@ export default function DualControlPanel() {
 
   return (
     <section style={{
-      background: 'linear-gradient(180deg, #0F1626 0%, #0B1120 100%)',
-      border: '1px solid #1A2D5A', borderRadius: 16, padding: 24, marginBottom: 28,
+      background: 'linear-gradient(180deg, #1a1010 0%, #150e0e 100%)',
+      border: '1px solid #2b211c', borderRadius: 16, padding: 24, marginBottom: 28,
       fontFamily: 'var(--font-sans)',
     }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
         <span style={{ fontSize: 26 }}></span>
         <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, color: '#fff', fontSize: 20 }}>V3 §10 — Emergency Dual-Control</h2>
-          <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: 13 }}>
+          <h2 style={{ margin: 0, color: '#fffefb', fontSize: 20 }}>V3 §10 — Emergency Dual-Control</h2>
+          <p style={{ margin: '4px 0 0', color: '#939084', fontSize: 13 }}>
             Two-person integrity: initiator cannot confirm their own request. Auto-expires after 5 minutes. Mirrored on Polygon.
           </p>
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#939084', fontSize: 12 }}>
           You are signed in as
           <select value={currentAdmin} onChange={(e) => setCurrentAdmin(e.target.value)} style={selectMini}>
             {SEED_ADMINS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -135,21 +135,21 @@ export default function DualControlPanel() {
                   const isOwn = currentAdmin === r.initiator_id;
                   const expSec = Math.max(0, Math.floor((Date.parse(r.expires_at) - Date.now()) / 1000));
                   return (
-                    <div key={r.request_id} style={{ border: '1px solid #1A2D5A', borderRadius: 10, padding: 12, background: '#0B1120' }}>
+                    <div key={r.request_id} style={{ border: '1px solid #2b211c', borderRadius: 10, padding: 12, background: '#150e0e' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                        <span style={{ color: '#94a3b8' }}>{r.action.replace('_', ' ')} · {r.exam_id}</span>
-                        <span style={{ color: expSec < 60 ? '#fca5a5' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{expSec}s</span>
+                        <span style={{ color: '#939084' }}>{r.action.replace('_', ' ')} · {r.exam_id}</span>
+                        <span style={{ color: expSec < 60 ? '#d99a8e' : '#939084', fontFamily: 'var(--font-mono)' }}>{expSec}s</span>
                       </div>
-                      <p style={{ margin: '6px 0', color: '#e2e8f0', fontSize: 13 }}>{r.reason}</p>
-                      <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: 11 }}>Initiated by {initiatorName}{isOwn ? ' (you)' : ''}</p>
+                      <p style={{ margin: '6px 0', color: '#e8e2d8', fontSize: 13 }}>{r.reason}</p>
+                      <p style={{ margin: '0 0 8px', color: '#605d52', fontSize: 11 }}>Initiated by {initiatorName}{isOwn ? ' (you)' : ''}</p>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => confirm(r.request_id)} disabled={isOwn || busy}
                           title={isOwn ? 'Initiator cannot confirm their own request' : 'Confirm (requires different admin)'}
-                          style={{ ...btn, padding: '8px 14px', fontSize: 12, background: isOwn ? '#374151' : '#16a34a', cursor: isOwn ? 'not-allowed' : 'pointer', opacity: isOwn ? 0.6 : 1 }}>
+                          style={{ ...btn, padding: '8px 14px', fontSize: 12, background: isOwn ? '#36342e' : '#3f6f4a', cursor: isOwn ? 'not-allowed' : 'pointer', opacity: isOwn ? 0.6 : 1 }}>
                           ✓ Confirm
                         </button>
                         <button onClick={() => reject(r.request_id)} disabled={busy}
-                          style={{ ...btn, padding: '8px 14px', fontSize: 12, background: '#7f1d1d' }}>
+                          style={{ ...btn, padding: '8px 14px', fontSize: 12, background: '#631518' }}>
                           ✗ Reject
                         </button>
                       </div>
@@ -163,8 +163,8 @@ export default function DualControlPanel() {
       {feedback && (
         <div style={{
           marginTop: 12, padding: '10px 14px', borderRadius: 8, fontSize: 13,
-          background: feedback.kind === 'ok' ? 'rgba(22,163,74,0.18)' : 'rgba(220,38,38,0.18)',
-          color: feedback.kind === 'ok' ? '#86efac' : '#fca5a5',
+          background: feedback.kind === 'ok' ? 'rgba(63, 111, 74,0.18)' : 'rgba(155, 34, 38,0.18)',
+          color: feedback.kind === 'ok' ? '#a8c9a5' : '#d99a8e',
         }}>{feedback.text}</div>
       )}
 
@@ -173,18 +173,18 @@ export default function DualControlPanel() {
         <h3 style={cardTitle}>Recent emergency actions</h3>
         {history.length === 0 ? <div style={empty}>No recorded actions.</div> :
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead><tr style={{ color: '#94a3b8' }}>
+            <thead><tr style={{ color: '#939084' }}>
               <th style={th}>Action</th><th style={th}>Exam</th><th style={th}>Initiator</th>
               <th style={th}>Confirmer</th><th style={th}>Status</th><th style={th}>Result</th>
             </tr></thead>
             <tbody>
               {history.map((r) => (
-                <tr key={r.request_id} style={{ borderTop: '1px solid #1A2D5A' }}>
+                <tr key={r.request_id} style={{ borderTop: '1px solid #2b211c' }}>
                   <td style={td}>{r.action.replace('_', ' ')}</td>
                   <td style={td}>{r.exam_id}</td>
                   <td style={td}>{SEED_ADMINS.find((a) => a.id === r.initiator_id)?.name ?? r.initiator_id}</td>
                   <td style={td}>{r.confirmer_id ? (SEED_ADMINS.find((a) => a.id === r.confirmer_id)?.name ?? r.confirmer_id) : '—'}</td>
-                  <td style={{ ...td, color: r.status === 'CONFIRMED' ? '#86efac' : r.status === 'REJECTED' ? '#fca5a5' : '#fcd34d' }}>{r.status}</td>
+                  <td style={{ ...td, color: r.status === 'CONFIRMED' ? '#a8c9a5' : r.status === 'REJECTED' ? '#d99a8e' : '#e0b75e' }}>{r.status}</td>
                   <td style={td}>{(r.execution_result as { status?: string })?.status ?? '—'}</td>
                 </tr>
               ))}
@@ -195,13 +195,13 @@ export default function DualControlPanel() {
   );
 }
 
-const card: React.CSSProperties = { background: '#0B1120', border: '1px solid #1A2D5A', borderRadius: 12, padding: 16 };
-const cardTitle: React.CSSProperties = { margin: '0 0 12px', color: '#cbd5e1', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em' };
+const card: React.CSSProperties = { background: '#150e0e', border: '1px solid #2b211c', borderRadius: 12, padding: 16 };
+const cardTitle: React.CSSProperties = { margin: '0 0 12px', color: '#c5c0b1', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em' };
 const fieldRow: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 };
-const lbl: React.CSSProperties = { fontSize: 12, color: '#94a3b8' };
-const input: React.CSSProperties = { padding: 10, background: '#08101F', border: '1px solid #1A2D5A', borderRadius: 8, color: '#e2e8f0', fontFamily: 'var(--font-sans)', fontSize: 13, outline: 'none' };
-const btn: React.CSSProperties = { width: '100%', padding: '10px 14px', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' };
-const empty: React.CSSProperties = { color: '#64748b', fontSize: 13, padding: '12px 0' };
-const selectMini: React.CSSProperties = { padding: '6px 10px', background: '#08101F', border: '1px solid #1A2D5A', color: '#e2e8f0', borderRadius: 6, fontFamily: 'inherit' };
+const lbl: React.CSSProperties = { fontSize: 12, color: '#939084' };
+const input: React.CSSProperties = { padding: 10, background: '#150e0e', border: '1px solid #2b211c', borderRadius: 8, color: '#e8e2d8', fontFamily: 'var(--font-sans)', fontSize: 13, outline: 'none' };
+const btn: React.CSSProperties = { width: '100%', padding: '10px 14px', border: 'none', borderRadius: 8, color: '#fffefb', fontWeight: 700, fontSize: 13, cursor: 'pointer' };
+const empty: React.CSSProperties = { color: '#605d52', fontSize: 13, padding: '12px 0' };
+const selectMini: React.CSSProperties = { padding: '6px 10px', background: '#150e0e', border: '1px solid #2b211c', color: '#e8e2d8', borderRadius: 6, fontFamily: 'inherit' };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 6px', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 10 };
-const td: React.CSSProperties = { padding: '10px 6px', color: '#cbd5e1' };
+const td: React.CSSProperties = { padding: '10px 6px', color: '#c5c0b1' };

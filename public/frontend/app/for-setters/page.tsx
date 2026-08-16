@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
@@ -14,8 +13,6 @@ export const metadata: Metadata = {
 export default function SetterLanding() {
   return (
     <main>
-      <Navbar />
-
       <section className={s.hero}>
         <div className="wrap">
           <span className="eyebrow">For setters</span>
@@ -38,7 +35,7 @@ export default function SetterLanding() {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section reveal reveal-rise">
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">What you do here</span>
@@ -61,7 +58,7 @@ export default function SetterLanding() {
         </div>
       </section>
 
-      <section className={s.bandDark}>
+      <section className={`${s.bandDark} reveal reveal-left`}>
         <div className="wrap">
           <span className="eyebrow on-dark">Lifecycle</span>
           <h2 className={s.bandH2}>From a blank page to a sealed paper.</h2>
@@ -74,7 +71,7 @@ export default function SetterLanding() {
         </div>
       </section>
 
-      <section className={`section-sm ${s.finalCta}`}>
+      <section className={`section-sm ${s.finalCta} reveal reveal-scale`}>
         <div className="wrap">
           <h2>Bring your next paper into the open.</h2>
           <p>Sign in to the workbench with your setter credentials, or talk to us about onboarding your board.</p>

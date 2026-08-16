@@ -24,7 +24,7 @@ export default function AnswerVaultPage() {
         Anchors carry roots/counts/hashes only; never a roll, name, or DOB (§11.5 / DPDP).
       </p>
 
-      <div style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 16, padding: 28, textAlign: 'center' }}>
+      <div style={{ background: '#fffefb', border: '1px solid var(--border-soft)', borderRadius: 16, padding: 28, textAlign: 'center' }}>
         <p style={{ fontSize: 15, color: 'var(--color-navy-800)', fontWeight: 600, marginBottom: 8 }}>
           No centre answer bundles awaiting processing
         </p>
