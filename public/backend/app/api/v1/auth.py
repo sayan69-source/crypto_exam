@@ -10,6 +10,7 @@ POST /api/v1/auth/refresh     — Refresh JWT token
 
 import hashlib
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -38,6 +39,18 @@ class VerifyOtpRequest(BaseModel):
     code: str
 
 logger = logging.getLogger(__name__)
+
+
+def _dev_auth_bypass_allowed() -> bool:
+    """
+    Whether the developer conveniences that WEAKEN AUTHENTICATION may run.
+
+    Deliberately separate from DEBUG. DEBUG is the switch people turn on for
+    logging and error detail; it must not also decide whether the server gives
+    away one-time passwords or accepts any TOTP. Both of those were reachable in
+    production because the two were the same flag.
+    """
+    return os.getenv("ALLOW_DEV_AUTH_BYPASS", "").lower() == "true"
 
 router = APIRouter()
 
@@ -221,7 +234,12 @@ async def login(
     # void — and the developer who just set up email correctly is locked out of
     # their own admin console by that success. With DEBUG off this key is never
     # present, so production is unaffected.
-    if settings.DEBUG:
+    # DEBUG alone is not enough to hand out a live credential. This returns the
+    # OTP for ANY account to whoever asked for it — including a System Admin —
+    # so a single stray DEBUG=true is a complete authentication bypass. It was
+    # exactly that on the deployment. A second, dedicated opt-in means the flag
+    # people flip for verbose logs can no longer do this by itself.
+    if settings.DEBUG and _dev_auth_bypass_allowed():
         resp["dev_code"] = code
         if delivered != "dev":
             logger.warning(

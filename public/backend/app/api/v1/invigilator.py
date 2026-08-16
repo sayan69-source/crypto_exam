@@ -18,6 +18,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.api.v1.auth import _dev_auth_bypass_allowed
 from app.database import get_db
 from app.models import (
     User, UserRole, Center, Enrollment, BiometricEnrollment,
@@ -149,7 +150,10 @@ async def verify_totp(req: TOTPVerifyRequest, db: AsyncSession = Depends(get_db)
     valid = False
     if user.totp_secret:
         valid = pyotp.TOTP(user.totp_secret).verify(req.code, valid_window=1)
-    if not valid and settings.DEBUG and req.code.isdigit() and len(req.code) == 6:
+    # Accepting ANY six-digit code is an authentication bypass, so it needs a
+    # dedicated opt-in rather than riding on the logging flag.
+    if (not valid and settings.DEBUG and _dev_auth_bypass_allowed()
+            and req.code.isdigit() and len(req.code) == 6):
         valid = True  # dev convenience
 
     if not valid:

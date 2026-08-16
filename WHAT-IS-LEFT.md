@@ -70,12 +70,20 @@ an exam day by turning away a genuine candidate — is unknown.
 - `POST /api/v1/seed`, an unauthenticated write endpoint, now needs a dedicated
   `ALLOW_HTTP_SEED` opt-in that no production environment sets.
 
-**Still outstanding: `DEBUG=true` itself.** It remains set in the deployment and
-should not be. `DEBUG` is a developer-convenience switch and was never a security
-boundary — treating it as one is what put both of those endpoints on the
-internet, and the next thing gated that way will be exposed the same day it is
-written. Anything else it loosens (verbose errors, permissive CORS, stack traces
-in responses) has not been surveyed.
+**Fixed 2026-08-16.** `DEBUG` was surveyed properly and turned off. It was
+gating two further things, both worse than the endpoints above:
+
+- the login OTP was **returned in the API response** (`resp["dev_code"]`) for
+  any account, so anyone who could request a code for a System Admin received
+  it — a complete authentication bypass;
+- **any six-digit code** was accepted as an invigilator's TOTP.
+
+Both now require a dedicated `ALLOW_DEV_AUTH_BYPASS` opt-in as well as DEBUG,
+so the flag people turn on for logging can no longer give away credentials by
+itself, and `DEBUG` is `false` on the deployment.
+
+Still unsurveyed: what DEBUG loosens in CORS and error verbosity
+(`main.py` returns `str(exc)` to the client under DEBUG).
 
 ### 6. Secrets are development material — private
 
