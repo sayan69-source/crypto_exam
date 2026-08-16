@@ -61,10 +61,21 @@ an exam day by turning away a genuine candidate — is unknown.
 
 ### 5. `DEBUG=true` in production — public
 
-The deployed environment sets `DEBUG=true`, which re-opens `POST
-/auth/seed-admin`. That endpoint is gated *only* by `if not settings.DEBUG` and
-creates an administrator with a hardcoded password. Anyone who finds it can mint
-one. Setting `DEBUG=false` closes it.
+**Partly fixed 2026-08-16.** Two unauthenticated endpoints were gated on
+`if not DEBUG`, and the deployment runs with `DEBUG=true`, so both were live:
+
+- `POST /auth/seed-admin` minted an administrator with a password written in the
+  source and returned a signed JWT for it. **Deleted** — the seeder already
+  creates one from operator-supplied values, so it was a second, weaker way in.
+- `POST /api/v1/seed`, an unauthenticated write endpoint, now needs a dedicated
+  `ALLOW_HTTP_SEED` opt-in that no production environment sets.
+
+**Still outstanding: `DEBUG=true` itself.** It remains set in the deployment and
+should not be. `DEBUG` is a developer-convenience switch and was never a security
+boundary — treating it as one is what put both of those endpoints on the
+internet, and the next thing gated that way will be exposed the same day it is
+written. Anything else it loosens (verbose errors, permissive CORS, stack traces
+in responses) has not been surveyed.
 
 ### 6. Secrets are development material — private
 
