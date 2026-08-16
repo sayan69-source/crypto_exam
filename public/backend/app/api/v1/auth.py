@@ -407,88 +407,15 @@ async def get_profile(
     return UserProfile.model_validate(user)
 
 
-@router.post(
-    "/seed-admin",
-    response_model=TokenResponse,
-    summary="Seed Admin (Dev Only)",
-    description="Create a seed admin account for development. Disabled in production.",
-    include_in_schema=True,
-)
-async def seed_admin(
-    req: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Create a seed admin account for development/demo.
-    Returns a JWT token for immediate use.
-
-    Email: admin@cryptoexam.dev
-    Password: CryptoExam2025!
-    """
-    settings_obj = get_settings()
-    if not settings_obj.DEBUG:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seed admin disabled in production",
-        )
-
-    # Check if seed admin exists
-    existing = await db.execute(
-        select(User).where(User.email == "admin@cryptoexam.dev")
-    )
-    user = existing.scalar_one_or_none()
-
-    if not user:
-        user = User(
-            email="admin@cryptoexam.dev",
-            full_name="CryptoExam Admin",
-            role=UserRole.ADMIN,
-            password_hash=hash_password("CryptoExam2025!"),
-            dpdp_consent=True,
-            dpdp_consent_at=datetime.now(timezone.utc),
-            dpdp_consent_ip=req.client.host,
-            dpdp_consent_version="1.0",
-            state="Delhi (NCT)",
-        )
-        db.add(user)
-        await db.flush()
-        logger.info("Seed admin created: admin@cryptoexam.dev")
-
-    # Also create a seed setter
-    existing_setter = await db.execute(
-        select(User).where(User.email == "setter@cryptoexam.dev")
-    )
-    if not existing_setter.scalar_one_or_none():
-        setter = User(
-            email="setter@cryptoexam.dev",
-            full_name="Dr. Priya Sharma",
-            name_hi="डॉ. प्रिया शर्मा",
-            role=UserRole.SETTER,
-            password_hash=hash_password("CryptoExam2025!"),
-            dpdp_consent=True,
-            dpdp_consent_at=datetime.now(timezone.utc),
-            dpdp_consent_ip=req.client.host,
-            dpdp_consent_version="1.0",
-            institution="Indian Institute of Technology Delhi",
-            state="Delhi (NCT)",
-        )
-        db.add(setter)
-        logger.info("Seed setter created: setter@cryptoexam.dev")
-
-    token, expires = create_access_token(
-        user_id=user.id,
-        role=user.role,
-        email=user.email,
-    )
-
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_at=expires,
-        role=user.role,
-        user_id=user.id,
-    )
-
-
-# Import settings for seed endpoint
+# NOTE: `POST /auth/seed-admin` used to live here. It created
+# admin@cryptoexam.dev / CryptoExam2025! — a hardcoded-password ADMIN, plus a
+# SETTER — and returned a signed JWT for it immediately, gated only by
+# `if not DEBUG`. The deployed environment runs with DEBUG=true, so it was
+# reachable in production: anyone who found the path could mint an
+# administrator and be handed a token for it.
+#
+# It is deleted rather than re-gated. The seeder already creates an
+# administrator from operator-supplied SEED_ADMIN_* values, so this was a
+# second and weaker way in to the same place, and a credential factory whose
+# password is written in the source is not something to keep behind a flag.
 from app.config import get_settings

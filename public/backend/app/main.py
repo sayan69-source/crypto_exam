@@ -195,7 +195,12 @@ async def seed_data():
     Trigger database seeding with demo data.
     Only available in DEBUG mode.
     """
-    if not settings.DEBUG:
+    # DEBUG alone is not a production guard: the deployed environment runs with
+    # DEBUG=true, so this unauthenticated write endpoint was reachable there. It
+    # is also redundant in a real deployment — SEED_ON_START already seeds at
+    # startup from operator-supplied values — so it now needs a second, dedicated
+    # opt-in that no production environment sets.
+    if not (settings.DEBUG and os.getenv("ALLOW_HTTP_SEED", "").lower() == "true"):
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=403, content={"error": "Seeding disabled in production"})
 
