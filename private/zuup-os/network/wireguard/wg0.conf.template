@@ -12,8 +12,21 @@
 # Per-terminal static private key (unique per seat, useless off the centre LAN).
 PrivateKey = {{TERMINAL_PRIVATE_KEY}}
 Address    = {{TERMINAL_TUNNEL_IP}}/32
-# No DNS pointed at the internet; the Edge resolver answers only *.local (§6.2 layer 3).
-DNS        = {{EDGE_TUNNEL_IP}}
+#
+# There is deliberately NO `DNS =` line.
+#
+# wg-quick implements `DNS =` by shelling out to `resolvconf` (or `resolvectl`),
+# and this image ships neither — §7.3 strips the userland to a closed process
+# set. wg-quick treats that as fatal, so the unit would exit non-zero straight
+# into `FailureAction=poweroff-force`: a terminal that powers itself off at boot
+# because of a line describing a resolver it does not need.
+#
+# It does not need one. The only name this machine ever resolves is `edge.local`,
+# and provisioning pins that in /etc/hosts to the Edge's TUNNEL address — so the
+# lookup cannot be answered by anything on the LAN, which is a stronger position
+# than pointing a resolver at the Edge and trusting the reply. `Endpoint` below
+# is a literal address for the same reason: the tunnel must be establishable
+# before any name resolution exists.
 
 [Peer]
 # The Centre Edge Server — the ONLY peer this terminal will ever speak to.

@@ -10,12 +10,31 @@ Description=ZUUP-OS WireGuard tunnel to the Centre Edge (wg0)
 After=zuup-firewall.service network-pre.target
 Requires=zuup-firewall.service
 Before=zuup-network.target
+# The tunnel's handshake goes out over the LAN link, so that link needs an
+# address first. Wants=, never Requires=: wait-online is bounded to 30 s by a
+# drop-in, and a terminal whose link is slow to come up should still attempt the
+# tunnel — WireGuard retries handshakes by itself, and `FailureAction=poweroff`
+# below means treating a slow DHCP lease as a hard failure would power the
+# machine off for something that resolves on its own a second later.
+Wants=systemd-networkd-wait-online.service
+After=systemd-networkd-wait-online.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/wg-quick up /etc/zuup/wg0.conf
-ExecStop=/usr/bin/wg-quick down /etc/zuup/wg0.conf
+# /run/zuup-identity/wg0.conf, not /etc/zuup/wg0.conf.
+#
+# The /etc copy is the TEMPLATE, still full of {{TERMINAL_PRIVATE_KEY}}
+# placeholders — it ships inside the fleet-identical squashfs and there is
+# nowhere per-terminal to write in a read-only root. wg-quick was pointed at it,
+# so on a production terminal it would have tried to raise a tunnel from a file
+# of literal placeholder text. The real config is written to /run by
+# zuup-identity.service, which loads it from the ESP.
+#
+# wg-quick takes the interface name from the file's basename, so this is still
+# wg0 — every other unit and the firewall rules are unaffected.
+ExecStart=/usr/bin/wg-quick up /run/zuup-identity/wg0.conf
+ExecStop=-/usr/bin/wg-quick down /run/zuup-identity/wg0.conf
 # Fail-closed: a terminal whose ONLY route (the Edge tunnel) will not come up
 # must power off, not idle at a failed target where zuup-network.target hangs
 # unreached. This closes the "degraded but alive" gap — the terminal is either

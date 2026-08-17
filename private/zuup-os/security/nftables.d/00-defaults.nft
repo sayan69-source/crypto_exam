@@ -1,0 +1,25 @@
+# ZUUP-OS firewall drop-in directory (spec §6.3) — the IMAGE-baked half.
+#
+# Two directories feed the base ruleset, and the difference between them is the
+# difference between what a signing key controls and what a booted machine does:
+#
+#   /etc/zuup/nftables.d/          this one. Inside the dm-verity squashfs, so
+#                                  its contents are covered by the Secure Boot
+#                                  signature and are identical across the fleet.
+#
+#   /run/zuup-identity/nftables.d/ written at boot by zuup-identity.service from
+#                                  the per-terminal parameters on the SIGNED
+#                                  kernel cmdline. Different per machine;
+#                                  authenticated by the UKI signature rather
+#                                  than by being read-only.
+#
+# nft tolerates a glob that matches nothing (verified: both an empty directory
+# and a missing one load cleanly), so neither include needs a placeholder to
+# keep the firewall loading. This file therefore adds no rule and exists only to
+# put the above where someone looking for it will find it.
+#
+# What lands in the /run directory, from the signed cmdline:
+#
+#   10-edge-peer.nft   add element inet zuup edge_lan { <zuup.edge> }
+#   20-hq-egress.nft   add element inet zuup hq_dest  { <zuup.hq …> }
+#                      — written ONLY when zuup.capability=ADMIN_STATION

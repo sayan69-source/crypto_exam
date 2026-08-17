@@ -9,3 +9,11 @@
 Description=ZUUP-OS network up (firewall loaded, WireGuard tunnel established)
 Requires=zuup-firewall.service zuup-wireguard.service
 After=zuup-firewall.service zuup-wireguard.service
+# systemd-networkd ships [Install] WantedBy=multi-user.target, and this image
+# masks that target — so `systemctl enable` alone puts a symlink somewhere
+# nothing pulls, and the LAN link never comes up. It has to be wanted from the
+# target that IS reached. Ordering is already correct without stating it: the
+# firewall is Before=network-pre.target and networkd is After= it, so the
+# default-drop ruleset is loaded before any interface carries a packet (§6.2).
+Wants=systemd-networkd.service
+After=systemd-networkd.service

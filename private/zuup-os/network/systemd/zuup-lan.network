@@ -1,0 +1,52 @@
+# ZUUP-OS wired LAN link (spec §6.2, §6.4) — the terminal's only physical link.
+#
+# Nothing configured the network at all before this file existed. The image
+# shipped a WireGuard unit whose peer is reached over the LAN, a firewall that
+# filters LAN traffic, and an attestation script that calls the Edge — and no
+# `.network` unit, so on a production terminal the interface simply never came
+# up. It went unnoticed because the all-in-one image runs the whole centre on
+# loopback and never needs a link at all.
+#
+# The lease comes from the Edge, which is the only DHCP server on the exam VLAN
+# (network/pxe/dnsmasq.conf). Everything the lease could offer BEYOND an address
+# is refused here, because §6.2's isolation is supposed to hold even if the DHCP
+# server is the thing that is lying:
+#
+#   * no gateway and no DHCP-supplied routes  → there is no default route at all,
+#     so there is nowhere for a packet to go except the on-link Edge (layer 3);
+#   * no DNS and no search domain             → the terminal resolves nothing
+#     from the network. `edge.local` is pinned in /etc/hosts at provisioning, so
+#     the one name this machine uses cannot be answered by anyone else;
+#   * no NTP                                  → the clock is not steerable by a
+#     host on the VLAN.
+#
+# Matching `en* eth*` rather than `Type=ether` alone keeps this off wg0 without
+# depending on how networkd reports a WireGuard link's type.
+
+[Match]
+Name=en* eth*
+Type=ether
+
+[Link]
+RequiredForOnline=carrier
+
+[Network]
+DHCP=ipv4
+IPv6AcceptRA=no
+LinkLocalAddressing=no
+LLMNR=no
+MulticastDNS=no
+# Nothing on this machine should be answering or asking anything on the LAN
+# beyond DHCP and the WireGuard handshake; the firewall enforces that too.
+IPv4ProxyARP=no
+
+[DHCPv4]
+UseDNS=no
+UseNTP=no
+UseDomains=no
+UseGateway=no
+UseRoutes=no
+UseHostname=no
+# A stable client identifier from the MAC, so the Edge's lease reservations and
+# the `bound_ip` recorded at commissioning refer to the same machine each boot.
+ClientIdentifier=mac

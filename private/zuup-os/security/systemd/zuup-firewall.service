@@ -7,6 +7,14 @@ Description=ZUUP-OS nftables default-drop ruleset
 DefaultDependencies=no
 Before=network-pre.target zuup-wireguard.service
 Wants=network-pre.target
+# The ruleset includes /run/zuup-identity/nftables.d/*.nft — the Edge peer, and
+# on an ADMIN_STATION the HQ destinations — which zuup-identity.service derives
+# from the signed cmdline. Loading before those files exist yields a terminal
+# that cannot reach its centre, and an admin station with no uplink on the one
+# day it needs one. Requires=, not Wants=: if identity cannot be published there
+# is nothing safe to load.
+After=zuup-identity.service
+Requires=zuup-identity.service
 
 [Service]
 Type=oneshot
