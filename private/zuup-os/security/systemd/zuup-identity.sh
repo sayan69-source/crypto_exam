@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# ZUUP-OS per-terminal identity (spec §7.1) — turn the SIGNED kernel cmdline
+# into this machine's identity, before anything that depends on it starts.
+#
+# ── Why identity travels on the cmdline ─────────────────────────────────────
+#
+# A production terminal has to know four things nobody can let it guess: which
+# terminal it is, what it is allowed to be, which Edge is its centre, and (for
+# the one admin station) which HQ endpoints exist. Those differ per machine,
+# and the obvious place — a file in /etc — is inside the dm-verity squashfs,
+# which means a per-terminal rootfs, a per-terminal verity tree and a
+# per-terminal 700 MB image. For a hall of 500 seats that is a non-starter, and
+# it is why `/etc/zuup/terminal-id` shipped reading REPLACE-AT-PROVISIONING and
+# no tool ever replaced it.
+#
+# The Unified Kernel Image already binds kernel + initrd + cmdline under one
+# sbsign signature. So the cmdline is authenticated storage that costs ~15 MB to
+# re-sign per terminal while the rootfs stays byte-identical across the entire
+# fleet. Provisioning re-signs one UKI per machine (tools/provision-terminal.sh)
+# and the squashfs is built once.
+#
+# What that buys, precisely: changing a terminal's capability — turning a
+# candidate seat into an admin station with an HQ uplink — requires the exam
+# authority's Secure Boot signing key. An attacker holding the USB stick can
+# rewrite anything on the ESP they like; the firmware then refuses to boot it.
+#
+# The WireGuard private key is deliberately NOT here: /proc/cmdline is readable
+# by every process on the machine. It stays a file on the ESP. See the residual
+# note in tools/provision-terminal.sh about what that key alone does and does
+# not get an attacker.
+set -euo pipefail
+
+IDENTITY_DIR="${ZUUP_IDENTITY_DIR:-/run/zuup-identity}"
+NFT_DIR="$IDENTITY_DIR/nftables.d"
+CMDLINE_FILE="${ZUUP_CMDLINE_FILE:-/proc/cmdline}"
+VARIANT_FILE=/etc/zuup/image-variant
+
+log() {
+  echo "zuup-identity: $*" | systemd-cat -t zuup-identity -p "${2:-info}" || true
+  echo "zuup-identity: $*" > /dev/kmsg 2>/dev/null || true
+}
+
+# ── host guard ──────────────────────────────────────────────────────────────
+if [[ "$(uname -s)" != "Linux" ]]; then
+  cat <<'EOF'
+[zuup-os] Terminal-image artifact (needs Linux); not running here.
+          On a terminal it would read zuup.* from the signed kernel cmdline and
+          write this machine's identity + firewall drop-ins to /run.
+          Nothing was changed here.
+EOF
+  exit 0
+fi
+
+VARIANT=unknown
+[[ -r "$VARIANT_FILE" ]] && VARIANT="$(tr -d ' \n' < "$VARIANT_FILE")"
+
+# The all-in-one commissions ITSELF into the same directory (zuup-commission.sh)
+# and must not be overwritten by a cmdline that carries no zuup.* parameters.
+# Exiting here rather than writing empty files is what keeps the two paths from
+# fighting over one tmpfs.
+if [[ "$VARIANT" == "allinone" ]]; then
+  log "variant=allinone — identity comes from first-boot commissioning, not the cmdline."
+  exit 0
+fi
+
+# ── parse the signed cmdline ────────────────────────────────────────────────
+TERMINAL_ID=""; CAPABILITY=""; SEAT=""; EDGE_IP=""; HQ_LIST=""; CENTRE=""
+for arg in $(cat "$CMDLINE_FILE"); do
+  case "$arg" in
+    zuup.terminal_id=*) TERMINAL_ID="${arg#zuup.terminal_id=}" ;;
+    zuup.capability=*)  CAPABILITY="${arg#zuup.capability=}" ;;
+    zuup.seat=*)        SEAT="${arg#zuup.seat=}" ;;
+    zuup.edge=*)        EDGE_IP="${arg#zuup.edge=}" ;;
+    zuup.hq=*)          HQ_LIST="${arg#zuup.hq=}" ;;
+    zuup.centre=*)      CENTRE="${arg#zuup.centre=}" ;;
+  esac
+done
+
+mkdir -p "$IDENTITY_DIR" "$NFT_DIR"
+chmod 0755 "$IDENTITY_DIR" "$NFT_DIR"
+
+# An unprovisioned image is a normal state, not a fault: it is what comes off
+# the build before any terminal has been commissioned. Say so and leave every
+# set empty — the firewall's default drop then denies everything, the Gate has
+# no identity to offer, and the machine is inert rather than half-configured.
+if [[ -z "$TERMINAL_ID" ]]; then
+  log "no zuup.terminal_id on the cmdline — this image has not been provisioned. \
+Firewall stays fully closed and no station identity is published."
+  exit 0
+fi
+
+if [[ ! "$TERMINAL_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  # Refuse rather than publish a malformed id. Everything downstream treats the
+  # identity file as authoritative, and a half-valid one is harder to diagnose
+  # than none at all.
+  log "zuup.terminal_id is not a UUID ('${TERMINAL_ID}') — refusing to publish it." err
+  exit 0
+fi
+
+case "$CAPABILITY" in
+  CANDIDATE_SEAT|INVIGILATOR_STATION|ADMIN_STATION) ;;
+  *)
+    log "zuup.capability='${CAPABILITY}' is not a known capability — refusing." err
+    exit 0 ;;
+esac
+
+printf '%s\n' "$TERMINAL_ID" > "$IDENTITY_DIR/terminal-id"
+printf '%s\n' "$CAPABILITY"  > "$IDENTITY_DIR/capability"
+[[ -n "$SEAT"   ]] && printf '%s\n' "$SEAT"   > "$IDENTITY_DIR/seat-no"
+[[ -n "$CENTRE" ]] && printf '%s\n' "$CENTRE" > "$IDENTITY_DIR/centre-id"
+chmod 0644 "$IDENTITY_DIR"/* 2>/dev/null || true
+
+# ── the Edge peer: every terminal gets exactly one ──────────────────────────
+# Without this element the firewall permits no WireGuard at all, so a typo here
+# is a terminal that cannot reach its centre — which is the correct failure.
+if [[ -n "$EDGE_IP" ]]; then
+  if [[ "$EDGE_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+    printf 'add element inet zuup edge_lan { %s }\n' "$EDGE_IP" > "$NFT_DIR/10-edge-peer.nft"
+    log "edge peer pinned to $EDGE_IP"
+  else
+    log "zuup.edge='${EDGE_IP}' is not an IPv4 address — no peer pinned, the tunnel cannot open." err
+  fi
+else
+  log "no zuup.edge on the cmdline — no WireGuard peer is permitted." warning
+fi
+
+# ── HQ egress: ADMIN_STATION only, and the check is on the SIGNED value ─────
+#
+# This is the single line that decides whether a machine can reach the internet.
+# It reads the capability parsed out of the signed cmdline, not a file anyone
+# could have written, so producing an egress-capable terminal requires the
+# authority's signing key rather than a text editor.
+if [[ "$CAPABILITY" == "ADMIN_STATION" && -n "$HQ_LIST" ]]; then
+  ELEMENTS=""
+  IFS=',' read -ra ENTRIES <<< "$HQ_LIST"
+  for e in "${ENTRIES[@]}"; do
+    host="${e%%:*}"; port="${e##*:}"
+    [[ "$host" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || { log "HQ entry '$e' is not ip:port — skipped." warning; continue; }
+    [[ "$port" =~ ^[0-9]+$ ]] && (( port > 0 && port < 65536 )) || { log "HQ entry '$e' has a bad port — skipped." warning; continue; }
+    ELEMENTS="${ELEMENTS:+$ELEMENTS, }${host} . ${port}"
+  done
+  if [[ -n "$ELEMENTS" ]]; then
+    printf 'add element inet zuup hq_dest { %s }\n' "$ELEMENTS" > "$NFT_DIR/20-hq-egress.nft"
+    log "ADMIN_STATION: HQ destinations pinned ($ELEMENTS). The window itself stays SHUT until zuup-egressd opens it."
+  else
+    log "zuup.hq had no usable entries — this admin station has no HQ destination." err
+  fi
+elif [[ -n "$HQ_LIST" ]]; then
+  # Loud, because it means a provisioning run put an HQ list on a machine that
+  # is not allowed one. Nothing is written; the seat stays internet-less.
+  log "zuup.hq present on a ${CAPABILITY} — IGNORED. Only an ADMIN_STATION may egress." err
+fi
+
+# ── key material from the ESP ───────────────────────────────────────────────
+#
+# Two files cannot live on the cmdline and cannot live in the squashfs either:
+#
+#   wg0.conf               contains this terminal's WireGuard PRIVATE key, and
+#                          /proc/cmdline is world-readable.
+#   biometric-attest.key   the Ed25519 key the capture daemon signs scores with.
+#                          Its public half is registered at enrolment, so it has
+#                          to be the SAME key on every boot — generating a fresh
+#                          one per boot (which is what the all-in-one does, and
+#                          gets away with only because it re-registers itself
+#                          every time) would make every signed score unverifiable
+#                          against the registry on a production terminal.
+#
+# Both are written to the ESP by provisioning. The ESP is FAT and outside
+# dm-verity, so this is where an attacker with the physical stick gets leverage
+# — see the residual note in tools/provision-terminal.sh for exactly how much
+# that is and is not worth to them.
+#
+# Mounted READ-ONLY and unmounted immediately: the material is copied into the
+# /run tmpfs and the partition is not left attached during an exam. INV-2 still
+# holds for everything the machine PRODUCES; this is material it was given.
+load_esp_material() {
+  local esp dev mnt
+  # Inside IDENTITY_DIR on purpose: the unit runs with ProtectSystem=strict and
+  # ReadWritePaths=/run/zuup-identity, so this is the only place it may create a
+  # mount point at all.
+  mnt="$IDENTITY_DIR/.esp"
+  mkdir -p "$mnt"
+
+  # This unit runs early — before network-pre.target — so udev may not have
+  # finished creating /dev/disk/by-*/ yet, and on real hardware a USB stick can
+  # take seconds to enumerate after the controller comes up. The initramfs
+  # already learned this the hard way and retries for ~20 s before giving up;
+  # the same is needed here, or a terminal that is merely slow to enumerate its
+  # own stick boots with no WireGuard key and no biometric key and reports it as
+  # a provisioning fault.
+  local waited=0
+  while (( waited < 20 )); do
+    for dev in /dev/disk/by-label/ZUUPESP "/dev/disk/by-partlabel/EFI System"; do
+      [[ -e "$dev" ]] || continue
+      if mount -t vfat -o ro,nosuid,nodev,noexec "$dev" "$mnt" 2>/dev/null; then
+        esp="$dev"
+        break 2
+      fi
+    done
+    sleep 1
+    waited=$(( waited + 1 ))
+  done
+  (( waited > 0 )) && [[ -n "${esp:-}" ]] && log "ESP appeared after ${waited}s"
+  if [[ -z "${esp:-}" ]]; then
+    log "no ESP found by label — WireGuard and biometric key material unavailable." err
+    rmdir "$mnt" 2>/dev/null || true
+    return 1
+  fi
+
+  if [[ -r "$mnt/zuup/wg0.conf" ]]; then
+    install -m 0600 "$mnt/zuup/wg0.conf" "$IDENTITY_DIR/wg0.conf"
+    log "WireGuard config loaded from the ESP"
+  else
+    log "no /zuup/wg0.conf on the ESP — the tunnel cannot come up." err
+  fi
+
+  if [[ -r "$mnt/zuup/biometric-attest.key" ]]; then
+    install -m 0640 "$mnt/zuup/biometric-attest.key" "$IDENTITY_DIR/biometric-attest.key"
+    # The daemon runs as zuup-bio and must be able to read it; nobody else may.
+    chgrp zuup-bio "$IDENTITY_DIR/biometric-attest.key" 2>/dev/null || true
+    log "biometric attestation key loaded from the ESP"
+  else
+    log "no biometric key on the ESP — this station cannot serve capture scores." warning
+  fi
+
+  umount "$mnt" 2>/dev/null || true
+  rmdir "$mnt" 2>/dev/null || true
+}
+load_esp_material || true
+
+log "identity published: ${CAPABILITY} ${SEAT:-(no seat)} ${TERMINAL_ID}"

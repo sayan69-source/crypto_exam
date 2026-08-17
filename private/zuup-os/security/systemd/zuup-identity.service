@@ -1,0 +1,72 @@
+# ZUUP-OS per-terminal identity (spec §7.1) — publishes who this machine is,
+# from the signed kernel cmdline, before anything can ask.
+#
+# Ordering is the whole point of this unit's [Unit] section. Three things read
+# what it writes and all three would be wrong without it:
+#
+#   zuup-firewall.service   includes /run/zuup-identity/nftables.d/*.nft, which
+#                           is where the Edge peer and (admin only) the HQ
+#                           destinations come from. Loading the ruleset before
+#                           those exist gives a terminal that cannot reach its
+#                           centre — and, worse, an admin station that silently
+#                           has no uplink on the day it needs one.
+#   zuup-wireguard.service  needs the peer permitted before the handshake.
+#   zuup-attest.service     needs the terminal id to attest as.
+#
+# DefaultDependencies=no + Before=network-pre.target puts it ahead of the whole
+# network stack, in the same early slot the firewall occupies.
+
+[Unit]
+Description=ZUUP-OS per-terminal identity from the signed cmdline
+DefaultDependencies=no
+Before=network-pre.target zuup-firewall.service
+Wants=network-pre.target
+# /run/zuup-identity is a tmpfs from rootfs/overlay.fstab; nothing may be
+# written into it before that mount exists, or the writes land on the read-only
+# root underneath and vanish the moment the tmpfs is mounted over them.
+#
+# RequiresMountsFor= rather than Requires=local-fs.target: it pulls in and
+# orders after exactly the one mount unit this needs. Requiring the whole target
+# from a DefaultDependencies=no unit that runs this early is how ordering cycles
+# get built, and this image has had one before.
+RequiresMountsFor=/run/zuup-identity
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/zuup/zuup-identity.sh
+# Deliberately NOT FailureAction=poweroff-force, unlike the firewall.
+#
+# Every failure mode inside the script is already handled by publishing nothing:
+# an unprovisioned image, a malformed id and an unknown capability all exit 0
+# having written no identity and no firewall element, which leaves the machine
+# inert behind a fully-closed default-drop. Powering off instead would turn
+# "this terminal was never commissioned" — the state every image is in the
+# moment it comes off the build — into a machine that appears dead on arrival.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+# CAP_SYS_ADMIN is needed to mount the ESP read-only for the two files that
+# cannot live anywhere else — the WireGuard private key and the biometric
+# daemon's signing key (see load_esp_material in the script). CAP_CHOWN is for
+# handing that key to the zuup-bio group. Nothing else is granted, and the mount
+# is undone before this unit exits.
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_CHOWN CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_SYS_ADMIN CAP_CHOWN CAP_DAC_OVERRIDE
+# The one path it writes, and the only place it may create a mount point.
+# ProtectSystem=strict makes everything else read-only.
+ReadWritePaths=/run/zuup-identity
+SystemCallFilter=@system-service @mount
+SystemCallFilter=~@debug @reboot @swap @obsolete
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=zuup-network.target

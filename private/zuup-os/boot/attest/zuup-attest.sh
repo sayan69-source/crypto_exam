@@ -68,12 +68,39 @@ first_identity() {
   done
   printf '%s' "$1"
 }
-ID_FILE="$(first_identity "${ZUUP_TERMINAL_ID_FILE:-}" /etc/zuup/terminal-id /run/zuup-identity/terminal-id)"
-# The Attestation Key context, created at commissioning with `tpm2_createak`.
-# The private half lives in the TPM and cannot be exported; only the public half
-# was registered with the Edge (terminals.ak_pubkey_pem).
+ID_FILE="$(first_identity "${ZUUP_TERMINAL_ID_FILE:-}" /run/zuup-identity/terminal-id /etc/zuup/terminal-id)"
+
+# The Attestation Key. Its private half lives in the TPM and cannot be exported;
+# only the public half was registered with the Edge (terminals.ak_pubkey_pem).
+#
+# On a PRODUCTION terminal it is a PERSISTENT TPM OBJECT at a fixed handle,
+# written once by the enrolment boot (security/systemd/zuup-enrol.sh). That
+# matters on a machine with a read-only root and a tmpfs /run: a context FILE
+# does not survive a power cycle, so re-deriving the AK each boot would produce
+# a DIFFERENT key every time and every quote would be denied against the key
+# registered at enrolment. A handle survives because the object lives in the
+# chip.
+#
+# The context-file paths remain for the all-in-one, which creates a fresh AK per
+# boot and re-registers it in the same breath.
+AK_HANDLE="${ZUUP_AK_HANDLE:-0x81010002}"
 AK_CTX="$(first_existing "${ZUUP_AK_CTX:-}" /etc/zuup/ak.ctx /run/zuup-identity/ak.ctx)"
-PCR_LIST="sha256:0,4,7,8,9,14"   # firmware, kernel, secure-boot state, GRUB/UKI stages
+
+# The PCRs this boot chain actually populates.
+#
+# Was `sha256:0,4,7,8,9,14`. PCRs 8, 9 and 14 are written by GRUB and shim, and
+# this image boots neither — 30-make-image.sh lays a single signed UKI straight
+# into /EFI/BOOT/BOOTX64.EFI. So three of the six were quoting all-zero
+# registers, which prove nothing and would have been faithfully recorded as
+# "golden". What this chain does measure:
+#
+#   0   firmware code                       (machine and model specific)
+#   4   the EFI application — the UKI hash  (image specific: identical fleet-wide)
+#   7   Secure Boot state / enrolled keys   (machine and model specific)
+#   11  systemd-stub's measurements of the UKI's kernel, initrd and cmdline
+#                                           (image specific, and the per-terminal
+#                                            identity is inside it)
+PCR_LIST="${ZUUP_PCR_LIST:-sha256:0,4,7,11}"
 WORK="$(mktemp -d /run/zuup-attest.XXXXXX)"   # tmpfs: nothing lands on disk
 trap 'rm -rf "$WORK"' EXIT
 
@@ -122,7 +149,17 @@ fi
 TERMINAL_ID="$(tr -d ' \n' < "$ID_FILE")"
 [[ "$TERMINAL_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] \
   || uncommissioned "terminal identity is a placeholder ('${TERMINAL_ID}') — this machine was never commissioned"
-[[ -r "$AK_CTX" ]] || uncommissioned "no attestation key context ($AK_CTX) — terminal not commissioned"
+# Prefer the persistent handle; fall back to a context file. `tpm2_readpublic`
+# is the cheapest way to ask "is there actually an AK at this handle" without
+# attempting a quote and reading the failure backwards.
+AK_REF=""
+if tpm2_readpublic -c "$AK_HANDLE" >/dev/null 2>&1; then
+  AK_REF="$AK_HANDLE"
+elif [[ -r "$AK_CTX" ]]; then
+  AK_REF="$AK_CTX"
+else
+  uncommissioned "no attestation key at $AK_HANDLE and no context file ($AK_CTX) — terminal not enrolled"
+fi
 
 # ── leg 1: a nonce the Edge chose ───────────────────────────────────────────
 NONCE=""
@@ -152,7 +189,7 @@ fi
 # what makes yesterday's quote worthless today.
 # -f plain emits the bare signature the Edge verifies against the registered AK.
 tpm2_quote \
-  --key-context "$AK_CTX" \
+  --key-context "$AK_REF" \
   --pcr-list "$PCR_LIST" \
   --qualification "$NONCE" \
   --message "$WORK/quote.msg" \

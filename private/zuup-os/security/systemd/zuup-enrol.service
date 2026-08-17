@@ -1,0 +1,44 @@
+# ZUUP-OS enrolment boot (spec §7.1) — capture this machine's attestation key
+# and golden measurements, write them to its own stick, power off.
+#
+# Inert unless `zuup.enrol=1` is on the signed cmdline: the script's first act
+# is to check for it and exit 0. So this unit ships on every image and runs on
+# essentially none of them — which is deliberate, because the alternative is a
+# separate enrolment image whose divergence from the service image is exactly
+# what would make the measurements it captures worthless.
+#
+# Ordered AFTER identity (it needs the terminal id) and BEFORE the kiosk, which
+# it never reaches — the machine powers off at the end of a successful capture.
+
+[Unit]
+Description=ZUUP-OS enrolment capture (attestation key + golden PCRs)
+After=zuup-identity.service
+Requires=zuup-identity.service
+Before=zuup-kiosk.service zuup-attest.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/zuup/zuup-enrol.sh
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+# Mounts the ESP read-write for exactly one file write, and talks to /dev/tpmrm0.
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_CHOWN
+AmbientCapabilities=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_CHOWN
+ReadWritePaths=/run/zuup-identity
+DeviceAllow=/dev/tpmrm0 rw
+SystemCallFilter=@system-service @mount
+SystemCallFilter=~@debug @swap @obsolete
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=zuup-network.target
