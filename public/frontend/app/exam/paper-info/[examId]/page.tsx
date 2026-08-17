@@ -111,7 +111,7 @@ export default function PaperInfoPage() {
                 <span className={styles.trustStatLabel}>Exams Conducted</span>
               </div>
               <div className={styles.trustStat}>
-                <span className={styles.trustStatValue} style={{ color: '#16a34a' }}>{setter.institution_leak_incidents}</span>
+                <span className={styles.trustStatValue} style={{ color: '#3f6f4a' }}>{setter.institution_leak_incidents}</span>
                 <span className={styles.trustStatLabel}>Paper Leak Incidents</span>
               </div>
             </div>
@@ -127,7 +127,7 @@ export default function PaperInfoPage() {
               </div>
               <div className={styles.detailItem}>
                 <span className={styles.detailLabel}>Verification Status</span>
-                <span className={styles.detailValue} style={{ color: '#16a34a', fontWeight: 700 }}>✓ Premier Verified</span>
+                <span className={styles.detailValue} style={{ color: '#3f6f4a', fontWeight: 700 }}>✓ Premier Verified</span>
               </div>
               <div className={styles.detailItem}>
                 <span className={styles.detailLabel}>Verified On</span>

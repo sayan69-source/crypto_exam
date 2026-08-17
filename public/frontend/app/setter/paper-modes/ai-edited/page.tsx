@@ -203,9 +203,9 @@ export default function AIEditedPage() {
               <div className={styles.cvText}>Computer Vision Optical Parsing...</div>
             </div>
           ) : (
-            <div className={styles.cvScanner} style={{ borderColor: '#6366f1' }}>
+            <div className={styles.cvScanner} style={{ borderColor: '#605d52' }}>
               <div className={styles.cvIcon}></div>
-              <div className={styles.cvText} style={{ color: '#818cf8' }}>Black-Box AI Randomization Active...</div>
+              <div className={styles.cvText} style={{ color: '#939084' }}>Black-Box AI Randomization Active...</div>
             </div>
           )}
 
@@ -247,7 +247,7 @@ export default function AIEditedPage() {
       {step === 3 && (
         <div className={styles.form}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>Review AI Black-Box Updates ({approvedCount}/{totalReviewable} approved)</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#fffefb' }}>Review AI Black-Box Updates ({approvedCount}/{totalReviewable} approved)</h3>
             <span style={{ fontSize: 12, color: 'var(--color-navy-400)' }}>
               {questions.filter(q => q.status === 'modified').length} randomized · {questions.filter(q => q.status === 'unchanged').length} unchanged
             </span>
@@ -293,8 +293,8 @@ export default function AIEditedPage() {
 
                 {q.status !== 'unchanged' && (
                   <div className={styles.diffActions}>
-                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginRight: 8 }}>✓ Approved</span>}
-                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600, marginRight: 8 }}>✗ Rejected</span>}
+                    {q.approved === true && <span style={{ fontSize: 11, color: '#6fa678', fontWeight: 600, marginRight: 8 }}>✓ Approved</span>}
+                    {q.approved === false && <span style={{ fontSize: 11, color: '#c25a48', fontWeight: 600, marginRight: 8 }}>✗ Rejected</span>}
                     <button className={styles.approveBtn} onClick={() => handleApprove(q.id)}>✓ Approve</button>
                     <button className={styles.rejectBtn} onClick={() => handleReject(q.id)}>✕ Reject</button>
                   </div>

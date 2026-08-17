@@ -108,9 +108,9 @@ export default function CandidateDashboard() {
                   <div className={styles.metaCell}>
                     <div className={styles.metaLabel}>Marking</div>
                     <div className={styles.metaVal}>
-                      <span style={{ color: '#16a34a' }}>+{exam.positive_marks}</span>
+                      <span style={{ color: '#3f6f4a' }}>+{exam.positive_marks}</span>
                       {' / '}
-                      <span style={{ color: '#dc2626' }}>-{exam.negative_marking}</span>
+                      <span style={{ color: '#9b2226' }}>-{exam.negative_marking}</span>
                     </div>
                   </div>
                 </div>

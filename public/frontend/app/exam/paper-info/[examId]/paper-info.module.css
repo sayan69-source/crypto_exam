@@ -6,39 +6,39 @@
 /* Main */
 .main { flex: 1; max-width: 800px; margin: 0 auto; padding: 16px 0 48px; width: 100%; }
 
-.pageTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #0D1526); margin-bottom: 6px; letter-spacing: -0.02em; }
-.pageSubtitle { font-size: 15px; color: var(--color-navy-500, #5B6478); line-height: 1.6; margin-bottom: 32px; }
+.pageTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin-bottom: 6px; letter-spacing: -0.02em; }
+.pageSubtitle { font-size: 15px; color: var(--color-navy-500, #605d52); line-height: 1.6; margin-bottom: 32px; }
 
 /* Setter Card */
 .setterCard {
-  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 12px; padding: 28px; margin-bottom: 20px;
   transition: box-shadow 200ms ease;
 }
-.setterCard:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+.setterCard:hover { box-shadow: 0 2px 12px rgba(32, 21, 21,0.04); }
 
 .setterHeader {
   display: flex; align-items: center; gap: 20px;
-  padding-bottom: 20px; border-bottom: 1px solid var(--border-soft, #E3E7F2); margin-bottom: 20px;
+  padding-bottom: 20px; border-bottom: 1px solid var(--border-soft, #e8e2d8); margin-bottom: 20px;
 }
 
 .setterAvatar {
   width: 56px; height: 56px; border-radius: 12px;
-  background: var(--color-navy-800, #132040);
-  color: white; font-size: 22px; font-weight: 700;
+  background: var(--color-navy-800, #201515);
+  color: #fffefb; font-size: 22px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 
 .setterInfo { flex: 1; }
-.setterName { font-size: 18px; font-weight: 700; color: var(--color-navy-900, #0D1526); display: block; }
-.setterDesignation { font-size: 14px; color: var(--color-navy-600, #213573); display: block; margin-top: 2px; }
-.setterDept { font-size: 13px; color: var(--color-navy-500, #5B6478); display: block; margin-top: 2px; }
+.setterName { font-size: 18px; font-weight: 700; color: var(--color-navy-900, #1a1010); display: block; }
+.setterDesignation { font-size: 14px; color: var(--color-navy-600, #3d332c); display: block; margin-top: 2px; }
+.setterDept { font-size: 13px; color: var(--color-navy-500, #605d52); display: block; margin-top: 2px; }
 
 .verifiedBadge {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: 999px;
-  background: #ECFDF5; border: 1px solid #A7F3D0;
-  color: #065F46; font-size: 12px; font-weight: 600; flex-shrink: 0;
+  padding: 6px 14px; border-radius: 12px;
+  background: #eef3ea; border: 1px solid #c3d9bf;
+  color: #2f5438; font-size: 12px; font-weight: 600; flex-shrink: 0;
 }
 
 /* Detail Grid */
@@ -46,69 +46,69 @@
 .detailItem { display: flex; flex-direction: column; gap: 4px; }
 .detailLabel {
   font-family: var(--font-mono, monospace);
-  font-size: 10px; font-weight: 600; color: var(--color-navy-400, #5B6478);
+  font-size: 10px; font-weight: 600; color: var(--color-navy-400, #605d52);
   text-transform: uppercase; letter-spacing: 0.06em;
 }
-.detailValue { font-size: 15px; font-weight: 500; color: var(--color-navy-800, #132040); }
+.detailValue { font-size: 15px; font-weight: 500; color: var(--color-navy-800, #201515); }
 .detailValueMono {
-  font-size: 12px; font-weight: 500; color: var(--color-navy-600, #213573);
+  font-size: 12px; font-weight: 500; color: var(--color-navy-600, #3d332c);
   font-family: var(--font-mono, monospace); word-break: break-all;
 }
 
 /* Trust Section */
 .trustCard {
-  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 12px; padding: 28px; margin-bottom: 20px;
 }
 
 .trustTitle {
-  font-size: 16px; font-weight: 700; color: var(--color-navy-800, #132040);
+  font-size: 16px; font-weight: 700; color: var(--color-navy-800, #201515);
   margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
 }
 
 .trustScoreContainer { margin-bottom: 16px; }
-.trustScoreLabel { display: flex; justify-content: space-between; font-size: 13px; color: var(--color-navy-600, #213573); margin-bottom: 6px; }
-.trustScoreValue { font-weight: 700; color: #059669; }
+.trustScoreLabel { display: flex; justify-content: space-between; font-size: 13px; color: var(--color-navy-600, #3d332c); margin-bottom: 6px; }
+.trustScoreValue { font-weight: 700; color: #3f6f4a; }
 
-.trustBar { height: 6px; background: var(--color-navy-50, #EFF1FA); border-radius: 999px; overflow: hidden; }
-.trustFill { height: 100%; background: linear-gradient(90deg, #059669, #34D399); border-radius: 999px; transition: width 600ms ease; }
+.trustBar { height: 6px; background: var(--color-navy-50, #f8f4f0); border-radius: 12px; overflow: hidden; }
+.trustFill { height: 100%; background: linear-gradient(90deg, #3f6f4a, #6fa678); border-radius: 12px; transition: width 600ms ease; }
 
 .trustStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .trustStat {
   text-align: center; padding: 16px;
-  background: var(--color-navy-50, #EFF1FA);
-  border-radius: 10px; border: 1px solid var(--border-soft, #E3E7F2);
+  background: var(--color-navy-50, #f8f4f0);
+  border-radius: 12px; border: 1px solid var(--border-soft, #e8e2d8);
 }
-.trustStatValue { font-size: 22px; font-weight: 700; color: var(--color-navy-800, #132040); display: block; }
-.trustStatLabel { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--color-navy-400, #5B6478); display: block; margin-top: 4px; text-transform: uppercase; }
+.trustStatValue { font-size: 22px; font-weight: 700; color: var(--color-navy-800, #201515); display: block; }
+.trustStatLabel { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--color-navy-400, #605d52); display: block; margin-top: 4px; text-transform: uppercase; }
 
 /* Blockchain Card */
 .blockchainCard {
-  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 12px; padding: 28px; margin-bottom: 20px;
 }
 
 .blockchainTitle {
-  font-size: 16px; font-weight: 700; color: var(--color-navy-800, #132040);
+  font-size: 16px; font-weight: 700; color: var(--color-navy-800, #201515);
   margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
 }
 
 .txLink {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 12px; font-family: var(--font-mono, monospace);
-  color: var(--color-navy-500, #5B6478);
-  padding: 8px 12px; background: var(--color-navy-50, #EFF1FA);
-  border: 1px solid var(--border-soft, #E3E7F2);
-  border-radius: 8px; text-decoration: none; transition: all 150ms ease;
+  color: var(--color-navy-500, #605d52);
+  padding: 8px 12px; background: var(--color-navy-50, #f8f4f0);
+  border: 1px solid var(--border-soft, #e8e2d8);
+  border-radius: 12px; text-decoration: none; transition: all 150ms ease;
   word-break: break-all;
 }
-.txLink:hover { background: var(--color-navy-100, #D7DCF0); color: var(--color-navy-700, #1A2D5A); }
+.txLink:hover { background: var(--color-navy-100, #ddd8cc); color: var(--color-navy-700, #2b211c); }
 
 /* Footer */
 .footer {
   text-align: center; padding: 20px 0;
-  border-top: 1px solid var(--border-soft, #E3E7F2);
-  font-size: 13px; color: var(--color-navy-400, #5B6478);
+  border-top: 1px solid var(--border-soft, #e8e2d8);
+  font-size: 13px; color: var(--color-navy-400, #605d52);
 }
 
 @media (max-width: 768px) {

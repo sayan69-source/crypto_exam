@@ -8,9 +8,9 @@ import { useEffect, useState } from 'react';
 import { adminApi, type AdminExam } from '@/lib/api/admin';
 
 const STATUS_COLORS: Record<string, string> = {
-  LIVE: '#4ade80', LOCKED: '#a78bfa', COMPLETED: '#6ee7b7', DRAFT: '#6b7280',
-  GENERATING: '#fbbf24', PROOF_PENDING: '#c9a84c', DISTRIBUTED: '#6b84d4',
-  AUDITED: '#34d399', ABORTED: '#f87171', PAUSED: '#f59e0b',
+  LIVE: '#6fa678', LOCKED: '#939084', COMPLETED: '#a8c9a5', DRAFT: '#605d52',
+  GENERATING: '#d9a441', PROOF_PENDING: '#b07d1a', DISTRIBUTED: '#939084',
+  AUDITED: '#6fa678', ABORTED: '#c25a48', PAUSED: '#b07d1a',
 };
 
 export default function AdminExamsPage() {
@@ -35,7 +35,7 @@ export default function AdminExamsPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid #7f1d1d', background: 'rgba(127,29,29,0.15)', borderRadius: 12, color: '#fca5a5' }}>
+        <div style={{ padding: 16, border: '1px solid #631518', background: 'rgba(99, 21, 24,0.15)', borderRadius: 12, color: '#d99a8e' }}>
           Could not reach the backend: {error}
         </div>
       )}
@@ -46,7 +46,7 @@ export default function AdminExamsPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {exams.map((exam) => (
-          <div key={exam.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center', gap: 16, padding: '14px 18px', background: '#fff', borderRadius: 12, border: '1px solid var(--border-soft)', borderLeft: `3px solid ${STATUS_COLORS[exam.status] || '#6b7280'}` }}>
+          <div key={exam.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center', gap: 16, padding: '14px 18px', background: '#fffefb', borderRadius: 12, border: '1px solid var(--border-soft)', borderLeft: `3px solid ${STATUS_COLORS[exam.status] || '#605d52'}` }}>
             <div>
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-navy-900)', display: 'block' }}>{exam.name}</span>
               <span style={{ fontSize: 12, color: 'var(--color-navy-500)' }}>{exam.exam_body} · {exam.exam_type} · {exam.sets_count} set(s)</span>

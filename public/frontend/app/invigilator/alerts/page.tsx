@@ -55,7 +55,7 @@ export default function AlertsPage() {
       {/* V3 §7.3 — Panic alerts (silent candidate distress signals) */}
       {openPanics.length > 0 && (
         <div style={{ marginBottom: 18 }}>
-          <h3 className={styles.cardTitle} style={{ color: '#C82020' }}>Panic Alerts — Candidate Distress Signals</h3>
+          <h3 className={styles.cardTitle} style={{ color: '#9b2226' }}>Panic Alerts — Candidate Distress Signals</h3>
           {openPanics.map((p) => (
             <div key={p.id} className={`${styles.alert} ${styles.alertCritical}`}>
               <span className={styles.alertIcon}></span>

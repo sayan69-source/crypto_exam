@@ -41,7 +41,7 @@ export default function VerifyPage() {
       {/* Stepper */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
         {['Identity', 'System Check', 'Exam Brief'].map((s, i) => (
-          <div key={i} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, background: i <= step ? 'var(--color-navy-600)' : 'var(--color-navy-50)', textAlign: 'center', fontSize: 13, fontWeight: i <= step ? 600 : 400, color: i <= step ? 'white' : 'var(--color-navy-400)', transition: 'all 200ms ease' }}>
+          <div key={i} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, background: i <= step ? 'var(--color-navy-600)' : 'var(--color-navy-50)', textAlign: 'center', fontSize: 13, fontWeight: i <= step ? 600 : 400, color: i <= step ? '#fffefb' : 'var(--color-navy-400)', transition: 'all 200ms ease' }}>
             {i < step ? '✓' : i + 1}. {s}
           </div>
         ))}
@@ -49,7 +49,7 @@ export default function VerifyPage() {
 
       {/* Step 1 — Identity */}
       {step === 0 && (
-        <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ background: '#fffefb', border: '1px solid #e8e2d8', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
           <h2 style={{ fontSize: 20, marginBottom: 4 }}>Identity Verification</h2>
           <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 24 }}>Confirm your identity before entering the exam</p>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: 16, background: 'var(--color-navy-50)', borderRadius: 12, marginBottom: 24 }}>
@@ -60,17 +60,17 @@ export default function VerifyPage() {
             </div>
             <span style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 12px', borderRadius: 9999, background: 'var(--color-success-light)', color: 'var(--color-success-text)', fontWeight: 600 }}>✓ Verified</span>
           </div>
-          <button onClick={() => setStep(1)} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)', background: 'var(--color-navy-600)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Proceed to System Check →</button>
+          <button onClick={() => setStep(1)} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)', background: 'var(--color-navy-600)', color: '#fffefb', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Proceed to System Check →</button>
         </div>
       )}
 
       {/* Step 2 — System Check */}
       {step === 1 && (
-        <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ background: '#fffefb', border: '1px solid #e8e2d8', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
           <h2 style={{ fontSize: 20, marginBottom: 16 }}>System Compatibility Check</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {SYSTEM_CHECKS.map((check, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, background: checks[i] === true ? 'var(--color-success-light)' : checks[i] === false ? 'var(--color-danger-light)' : '#f9fafb', transition: 'background 300ms ease' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, background: checks[i] === true ? 'var(--color-success-light)' : checks[i] === false ? 'var(--color-danger-light)' : '#fffefb', transition: 'background 300ms ease' }}>
                 <span style={{ fontSize: 16 }}>{check.icon}</span>
                 <span style={{ flex: 1, fontSize: 13, color: 'var(--color-navy-700)' }}>{check.label}</span>
                 <span style={{ fontSize: 14 }}>
@@ -79,7 +79,7 @@ export default function VerifyPage() {
               </div>
             ))}
           </div>
-          <button onClick={() => setStep(2)} disabled={!allChecksPassed} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)', background: allChecksPassed ? 'var(--color-navy-600)' : '#d1d5db', color: 'white', border: 'none', borderRadius: 8, cursor: allChecksPassed ? 'pointer' : 'not-allowed', marginTop: 16 }}>
+          <button onClick={() => setStep(2)} disabled={!allChecksPassed} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)', background: allChecksPassed ? 'var(--color-navy-600)' : '#c5c0b1', color: '#fffefb', border: 'none', borderRadius: 8, cursor: allChecksPassed ? 'pointer' : 'not-allowed', marginTop: 16 }}>
             {allChecksPassed ? 'Proceed to Exam Brief →' : 'Running checks...'}
           </button>
         </div>
@@ -87,21 +87,21 @@ export default function VerifyPage() {
 
       {/* Step 3 — Exam Brief */}
       {step === 2 && (
-        <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ background: '#fffefb', border: '1px solid #e8e2d8', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
           <h2 style={{ fontSize: 20, marginBottom: 16 }}>Exam Brief</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 16px', fontSize: 14, marginBottom: 24 }}>
-            <span style={{ color: '#9ca3af' }}>Exam</span><span style={{ fontWeight: 600 }}>{exam.name}</span>
-            <span style={{ color: '#9ca3af' }}>Duration</span><span>{exam.duration_minutes} minutes</span>
-            <span style={{ color: '#9ca3af' }}>Questions</span><span>{exam.subject_taxonomy.subjects.reduce((a, s) => a + s.question_count, 0)}</span>
-            <span style={{ color: '#9ca3af' }}>Negative</span><span>-{exam.negative_marking} per wrong answer</span>
-            <span style={{ color: '#9ca3af' }}>Set</span><span>Set B</span>
+            <span style={{ color: '#939084' }}>Exam</span><span style={{ fontWeight: 600 }}>{exam.name}</span>
+            <span style={{ color: '#939084' }}>Duration</span><span>{exam.duration_minutes} minutes</span>
+            <span style={{ color: '#939084' }}>Questions</span><span>{exam.subject_taxonomy.subjects.reduce((a, s) => a + s.question_count, 0)}</span>
+            <span style={{ color: '#939084' }}>Negative</span><span>-{exam.negative_marking} per wrong answer</span>
+            <span style={{ color: '#939084' }}>Set</span><span>Set B</span>
           </div>
           <div style={{ padding: 14, background: 'var(--color-navy-50)', borderRadius: 12, marginBottom: 24, fontSize: 12, color: 'var(--color-navy-500)' }}>
             <p style={{ margin: '0 0 4px' }}>Your answers will be encrypted as you answer.</p>
             <p style={{ margin: '0 0 4px' }}>On submission, all answers are committed to the Polygon blockchain.</p>
             <p style={{ margin: 0 }}>Paper difficulty has been verified by ZK proof (Groth16).</p>
           </div>
-          <Link href={`/exam/session/${exam.id}`} style={{ display: 'block', width: '100%', padding: 14, fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', background: 'linear-gradient(135deg, var(--color-india-saffron), var(--color-saffron-500))', color: 'white', border: 'none', borderRadius: 8, textAlign: 'center', textDecoration: 'none' }}>
+          <Link href={`/exam/session/${exam.id}`} style={{ display: 'block', width: '100%', padding: 14, fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', background: 'linear-gradient(135deg, var(--color-india-saffron), var(--color-saffron-500))', color: '#fffefb', border: 'none', borderRadius: 8, textAlign: 'center', textDecoration: 'none' }}>
             Enter Exam →
           </Link>
         </div>

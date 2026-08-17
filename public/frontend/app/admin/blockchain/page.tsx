@@ -33,7 +33,7 @@ export default function AdminBlockchainPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
+        <div style={{ padding: 16, border: '1px solid rgba(155, 34, 38,0.35)', background: 'rgba(155, 34, 38,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
       )}
 
       {status && (
@@ -73,6 +73,6 @@ export default function AdminBlockchainPage() {
   );
 }
 
-const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20 };
+const card: React.CSSProperties = { background: '#fffefb', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20 };
 const cardLabel: React.CSSProperties = { fontSize: 12, color: 'var(--color-navy-500)', display: 'block' };
 const cardValue: React.CSSProperties = { fontSize: 22, fontWeight: 700, color: 'var(--color-navy-900)', fontFamily: 'var(--font-mono)', display: 'block', marginTop: 4 };

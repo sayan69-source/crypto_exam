@@ -30,7 +30,7 @@ export default function AdminCandidatesPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
+        <div style={{ padding: 16, border: '1px solid rgba(155, 34, 38,0.35)', background: 'rgba(155, 34, 38,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
       )}
 
       {!loading && !error && rows.length === 0 && (
@@ -38,7 +38,7 @@ export default function AdminCandidatesPage() {
       )}
 
       {rows.length > 0 && (
-        <div style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ background: '#fffefb', border: '1px solid var(--border-soft)', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.4fr 1fr 1fr auto', gap: 16, padding: '12px 18px', borderBottom: '2px solid var(--border-soft)', fontSize: 11, fontWeight: 600, color: 'var(--color-navy-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             <span>Candidate</span><span>Roll Number</span><span>Centre</span><span>State</span><span>Status</span>
           </div>
@@ -48,7 +48,7 @@ export default function AdminCandidatesPage() {
               <code style={{ fontSize: 12, color: 'var(--color-navy-600)', background: 'none', padding: 0 }}>{c.rollNumber ?? '—'}{c.setLabel ? ` · Set ${c.setLabel}` : ''}</code>
               <span style={{ fontSize: 12, color: 'var(--color-navy-600)' }}>{c.centreName ?? '—'}</span>
               <span style={{ fontSize: 12, color: 'var(--color-navy-600)' }}>{c.state ?? '—'}</span>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: c.enrollmentStatus ? 'rgba(26,122,76,0.12)' : 'rgba(107,114,128,0.12)', color: c.enrollmentStatus ? 'var(--color-success)' : 'var(--color-navy-500)' }}>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: c.enrollmentStatus ? 'rgba(63, 111, 74,0.12)' : 'rgba(96, 93, 82,0.12)', color: c.enrollmentStatus ? 'var(--color-success)' : 'var(--color-navy-500)' }}>
                 {c.enrollmentStatus ?? 'NOT ENROLLED'}
               </span>
             </div>

@@ -95,8 +95,8 @@ export default function CandidateEnrolment() {
           disabled={busy || down || !fullName.trim() || !dob || !examId || !centerId || !faceDescriptor}
           onClick={submit}
           style={{ width: "100%", marginTop: 18, padding: 14, borderRadius: 10, border: "none",
-            background: busy || !fullName.trim() || !dob || !examId || !centerId || !faceDescriptor ? "#94a3b8" : "#1e40af",
-            color: "#fff", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
+            background: busy || !fullName.trim() || !dob || !examId || !centerId || !faceDescriptor ? "#939084" : "#4a3f34",
+            color: "#fffefb", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
         >
           {busy ? "Enrolling…" : "Enrol"}
         </button>
@@ -150,11 +150,11 @@ function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => v
   }
 
   return (
-    <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 12, background: "#f8fafc" }}>
+    <div style={{ border: "1px solid #c5c0b1", borderRadius: 10, padding: 12, background: "#fffefb" }}>
       {state === "idle" && <button onClick={start} style={ghostBtn}>Enable camera for face capture</button>}
-      {state === "loading" && <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>{msg}</p>}
+      {state === "loading" && <p style={{ fontSize: 13, color: "#36342e", margin: 0 }}>{msg}</p>}
       {state === "denied" && (
-        <p style={{ fontSize: 13, color: "#b91c1c", margin: 0 }}>
+        <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
           Camera/model unavailable — face capture is required to enrol.
           <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
         </p>
@@ -162,21 +162,21 @@ function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => v
       <video ref={videoRef} muted playsInline style={{ width: "100%", borderRadius: 8, display: state === "live" ? "block" : "none" }} />
       {state === "live" && (
         <>
-          <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#1e40af", color: "#fff", border: "none" }}>Capture face</button>
-          {msg && <p style={{ fontSize: 12, color: "#334155", margin: "8px 0 0" }}>{msg}</p>}
+          <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#4a3f34", color: "#fffefb", border: "none" }}>Capture face</button>
+          {msg && <p style={{ fontSize: 12, color: "#36342e", margin: "8px 0 0" }}>{msg}</p>}
         </>
       )}
-      {state === "captured" && <p style={{ ...mono, fontSize: 12, margin: 0, color: "#15803d" }}>{msg}</p>}
+      {state === "captured" && <p style={{ ...mono, fontSize: 12, margin: 0, color: "#2f5438" }}>{msg}</p>}
     </div>
   );
 }
 
-const page: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 16px", background: "#f1f5f9" };
-const card: React.CSSProperties = { width: "min(640px, 96vw)", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "30px 32px" };
+const page: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 16px", background: "#f8f4f0" };
+const card: React.CSSProperties = { width: "min(640px, 96vw)", background: "#fffefb", border: "1px solid #e8e2d8", borderRadius: 16, padding: "30px 32px" };
 const h1: React.CSSProperties = { margin: 0, fontSize: 24 };
-const muted: React.CSSProperties = { color: "#64748b", fontSize: 14 };
-const label: React.CSSProperties = { display: "block", fontSize: 12, color: "#64748b", margin: "18px 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
-const field: React.CSSProperties = { width: "100%", padding: "11px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, background: "#fff" };
+const muted: React.CSSProperties = { color: "#605d52", fontSize: 14 };
+const label: React.CSSProperties = { display: "block", fontSize: 12, color: "#605d52", margin: "18px 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
+const field: React.CSSProperties = { width: "100%", padding: "11px 12px", borderRadius: 8, border: "1px solid #c5c0b1", fontSize: 14, background: "#fffefb" };
 const mono: React.CSSProperties = { fontFamily: "ui-monospace, monospace", wordBreak: "break-all" };
-const errp: React.CSSProperties = { color: "#b91c1c", fontSize: 13 };
-const ghostBtn: React.CSSProperties = { display: "block", width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: "#334155", fontSize: 13, cursor: "pointer" };
+const errp: React.CSSProperties = { color: "#8f2418", fontSize: 13 };
+const ghostBtn: React.CSSProperties = { display: "block", width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #c5c0b1", background: "#fffefb", color: "#36342e", fontSize: 13, cursor: "pointer" };

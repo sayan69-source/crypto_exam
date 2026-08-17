@@ -31,7 +31,7 @@ export default function AdminNodesPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid #7f1d1d', background: 'rgba(127,29,29,0.15)', borderRadius: 12, color: '#fca5a5' }}>
+        <div style={{ padding: 16, border: '1px solid #631518', background: 'rgba(99, 21, 24,0.15)', borderRadius: 12, color: '#d99a8e' }}>
           Could not reach the backend: {error}
         </div>
       )}
@@ -43,14 +43,14 @@ export default function AdminNodesPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {nodes.map((node) => (
           <div key={node.id} style={{
-            background: '#fff', border: `1px solid ${node.is_online ? 'var(--border-soft)' : 'rgba(200,32,32,0.35)'}`,
+            background: '#fffefb', border: `1px solid ${node.is_online ? 'var(--border-soft)' : 'rgba(155, 34, 38,0.35)'}`,
             borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 6,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <code style={{ fontSize: 13, color: 'var(--color-navy-700)' }}>{node.serial_number}</code>
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
-                background: node.is_online ? 'rgba(26,122,76,0.12)' : 'rgba(200,32,32,0.12)',
+                background: node.is_online ? 'rgba(63, 111, 74,0.12)' : 'rgba(155, 34, 38,0.12)',
                 color: node.is_online ? 'var(--color-success)' : 'var(--color-danger)',
               }}>{node.is_online ? 'ONLINE' : 'OFFLINE'}</span>
             </div>

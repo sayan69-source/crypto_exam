@@ -88,7 +88,7 @@ export default function ZKProofPage() {
                 left: `${Math.random() * 100}%`,
                 animationDelay: `${Math.random() * 2}s`,
                 animationDuration: `${2 + Math.random() * 3}s`,
-                backgroundColor: ['#FF9933', '#FFFFFF', '#138808'][i % 3],
+                backgroundColor: ['#FF9933', '#fffefb', '#138808'][i % 3],
               }}
             />
           ))}

@@ -30,12 +30,12 @@ export default function AdminRolesPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
+        <div style={{ padding: 16, border: '1px solid rgba(155, 34, 38,0.35)', background: 'rgba(155, 34, 38,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {roles.map((role) => (
-          <div key={role.role} style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div key={role.role} style={{ background: '#fffefb', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-navy-900)' }}>{role.role}</span>
             <span style={{ fontSize: 12, color: 'var(--color-navy-600)' }}>{role.permissions}</span>
             <span style={{ fontSize: 11, color: 'var(--color-navy-400)' }}>{role.users} user(s) assigned</span>
