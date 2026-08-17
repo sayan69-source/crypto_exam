@@ -168,10 +168,35 @@ bash private/zuup-os/tools/provision-terminal.sh \
     --build private/zuup-os/image-build/out-prod
 ```
 
-Copy onto the stick's ESP (the FAT partition, visible in Explorer/Finder):
+Now copy two files onto the stick's ESP:
 
 - `provisioned/INV-1/BOOTX64.EFI` → `/EFI/BOOT/BOOTX64.EFI` (replace)
 - `provisioned/INV-1/wg0.conf` → `/zuup/wg0.conf` (create the `zuup` folder)
+
+**Getting at the ESP is not obvious on Windows.** It does not appear in Explorer:
+Windows deliberately hides EFI System Partitions and assigns them no drive
+letter, so the stick looks empty or unformatted even though it is fine. Assign a
+letter by hand, in an **Administrator** Command Prompt:
+
+```
+diskpart
+list disk                     REM identify the USB by size — get this right
+select disk N                 REM N = the USB, NOT your system disk
+list partition
+select partition 1            REM the ESP; "System" type, ~48 MB
+assign letter=X
+exit
+```
+
+`X:` is then browsable. When you are done, `select partition 1` again and
+`remove letter=X` so nothing writes to it by accident.
+
+> Check the disk number twice. `select disk` followed by the wrong number is how
+> people repartition their own machine.
+
+On **Linux**: `sudo mount /dev/sdX1 /mnt` — the ESP is partition 1.
+On **macOS**: it usually mounts on its own; otherwise
+`diskutil mount disk4s1`.
 
 ### 5d. Boot again
 
@@ -205,7 +230,7 @@ bash private/zuup-os/tools/provision-terminal.sh \
     --capability INVIGILATOR_STATION --seat INV-1 \
     --terminal-id <the same id as before> \
     --build private/zuup-os/image-build/out-prod
-# then append ` zuup.enrol=1` to that terminal's cmdline and re-sign
+    --enrol
 ```
 
 Boot it. It captures the AK and PCRs, writes `/zuup/enrolment.json` to the ESP,

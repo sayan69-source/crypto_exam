@@ -87,6 +87,14 @@ Optional:
   --out DIR              where to write          (default: ./provisioned)
   --terminal-id UUID     reuse an id instead of minting one (re-provisioning)
   --tunnel-ip IP         override the auto-allocated tunnel address
+  --predict-pcr          arm the authority-computed PCR 11 for this terminal.
+                         OFF by default: the boot phase the quote is taken in is
+                         unconfirmed on hardware, and a wrong phase denies every
+                         terminal. Turn on once one real enrolment agrees.
+  --enrol                sign an ENROLMENT stick: the machine captures its TPM
+                         attestation key and golden PCRs to its own ESP, then
+                         powers off. Re-sign WITHOUT this before it goes to a
+                         hall — an enrolment stick powers off on every boot.
 
 The centre config is a shell fragment:
 
@@ -103,7 +111,7 @@ EOF
 }
 
 BUILD_DIR="./build"; OUT_DIR="./provisioned"; CFG=""
-CAPABILITY=""; SEAT=""; TERMINAL_ID=""; TUNNEL_IP=""
+CAPABILITY=""; SEAT=""; TERMINAL_ID=""; TUNNEL_IP=""; ENROL=0; PREDICT_PCR=0
 while (($#)); do
   case "$1" in
     --capability) CAPABILITY="${2:?}"; shift 2 ;;
@@ -112,6 +120,8 @@ while (($#)); do
     --build) BUILD_DIR="${2:?}"; shift 2 ;;
     --out) OUT_DIR="${2:?}"; shift 2 ;;
     --terminal-id) TERMINAL_ID="${2:?}"; shift 2 ;;
+    --enrol|--enroll) ENROL=1; shift ;;
+    --predict-pcr) PREDICT_PCR=1; shift ;;
     --tunnel-ip) TUNNEL_IP="${2:?}"; shift 2 ;;
     -h|--help) usage ;;
     *) die "unknown argument $1" ;;
@@ -194,6 +204,15 @@ EXTRA+=" zuup.edge=${EDGE_TUNNEL_IP} zuup.centre=${CENTRE_ID}"
 # HQ endpoints go on the cmdline ONLY for the admin station. zuup-identity.sh
 # refuses them on any other capability too — belt and braces, because this is
 # the one parameter that decides whether a machine can reach the internet.
+# The enrolment boot (§7.1). zuup-enrol.sh is inert on every image unless it
+# finds this on the cmdline, so the flag is what turns an ordinary stick into a
+# one-shot capture run — and, because the cmdline is inside the signed UKI, an
+# enrolment stick cannot be forged into existence by editing the ESP either.
+if [[ "$ENROL" == 1 ]]; then
+  EXTRA+=" zuup.enrol=1"
+  note "ENROLMENT stick: this terminal will capture its AK + PCRs and power off."
+fi
+
 if [[ "$CAPABILITY" == "ADMIN_STATION" ]]; then
   [[ -n "${HQ_ENDPOINTS:-}" ]] || die "ADMIN_STATION needs HQ_ENDPOINTS in the centre config"
   EXTRA+=" zuup.hq=${HQ_ENDPOINTS}"
@@ -224,15 +243,58 @@ OUT="$DEST/BOOTX64.EFI" ZUUP_EXTRA_CMDLINE="$EXTRA" \
 # It is per terminal because the cmdline is per terminal — this machine's id,
 # capability and seat are inside the measured section. That is also why the
 # image build does not publish one fleet-wide value: there isn't one.
+# systemd-measure is NOT on PATH on Debian — it ships as
+# /usr/lib/systemd/systemd-measure. A bare `command -v` therefore reported it
+# missing on a machine that has it, so every terminal silently lost its
+# predicted PCR and fell back to enrolment-observed values only. That is exactly
+# the trust-on-first-use hole the prediction exists to close, failing open and
+# saying so in a warning nobody would connect to the cause.
+MEASURE=""
+for c in systemd-measure /usr/lib/systemd/systemd-measure /lib/systemd/systemd-measure; do
+  if command -v "$c" >/dev/null 2>&1 || [[ -x "$c" ]]; then MEASURE="$c"; break; fi
+done
+
 PREDICTED="null"
-if command -v systemd-measure >/dev/null 2>&1 && [[ -r "$DEST/BOOTX64.EFI.cmdline" ]]; then
-  PCR11="$(systemd-measure calculate \
-             --linux="$BZIMAGE" --initrd="$INITRD" \
-             --cmdline="$(cat "$DEST/BOOTX64.EFI.cmdline")" 2>/dev/null \
-           | sed -n 's/^11:sha256=\([0-9a-f]\{64\}\).*/\1/p' | head -1)"
+if [[ -n "$MEASURE" && -r "$DEST/BOOTX64.EFI.cmdline" ]]; then
+  # --cmdline takes a PATH, not the cmdline text. Passing "$(cat …)" made
+  # systemd-measure try to open a 433-character filename and fail, which the
+  # pipeline then swallowed.
+  #
+  # `|| true` is load-bearing under `set -o pipefail`: without it a failing
+  # systemd-measure takes the whole script down AFTER the UKI is signed and
+  # BEFORE registry.json is written, leaving a provisioned stick with no
+  # registry record and no error naming the cause.
+  #
+  # And the value is chosen by PHASE, which is the part that matters. PCR 11 is
+  # EXTENDED at each boot-phase transition, so `systemd-measure calculate` emits
+  # a different digest for <enter-initrd>, <…:leave-initrd>, <…:sysinit>,
+  # <…:ready> and so on. Taking the first (which is what `head -1` did) pins the
+  # initrd-entry value, while zuup-attest.sh quotes long afterwards — every
+  # terminal in the estate would fail attestation on exam morning against a
+  # number that was never wrong, just measured at the wrong moment.
+  PHASES="$("$MEASURE" calculate \
+              --linux="$BZIMAGE" --initrd="$INITRD" \
+              --cmdline="$DEST/BOOTX64.EFI.cmdline" 2>/dev/null || true)"
+  PCR11="$(printf '%s' "$PHASES" \
+           | sed -n 's/^11:sha256=\([0-9a-f]\{64\}\).*/\1/p' | tail -1 || true)"
   if [[ -n "${PCR11:-}" ]]; then
-    PREDICTED="{\"11\": \"$PCR11\"}"
-    note "predicted PCR 11 = ${PCR11:0:16}…"
+    # OFF unless --predict-pcr is passed, and that default is deliberate.
+    #
+    # Which phase is current when zuup-attest.sh takes its quote has never been
+    # observed on hardware. If the guess is wrong, the Edge denies EVERY
+    # terminal — a worse outcome than falling back to enrolment-observed values,
+    # which are merely weaker. So the arithmetic runs, the answer is reported,
+    # and it is not armed until one real terminal has confirmed which phase its
+    # quote lands in. Compare the value here against that machine's PCR 11 in
+    # its enrolment.json; when they match, provision with --predict-pcr.
+    if [[ "$PREDICT_PCR" == 1 ]]; then
+      PREDICTED="{\"11\": \"$PCR11\"}"
+      note "predicted PCR 11 (final phase) = ${PCR11:0:16}… — ARMED"
+    else
+      note "predicted PCR 11 (final phase) = ${PCR11:0:16}…"
+      note "  not armed: pass --predict-pcr once a real terminal's enrolment confirms"
+      note "  this is the phase its quote is taken in. A wrong phase denies the estate."
+    fi
   else
     note "WARNING: systemd-measure returned no PCR 11; this terminal will fall back"
     note "         to enrolment-observed values only (trust-on-first-use)."
@@ -275,6 +337,6 @@ cat <<EOF
     registry.json  → merge into the centre bundle
 
   NEXT: this terminal has no attestation key and no golden PCRs yet, so every
-  privileged login on it will deny. Boot it once on its own hardware with
-  \`zuup.enrol=1\` to capture them, then run tools/collect-enrolment.sh.
+  privileged login on it will deny. Re-run this command with --enrol, boot the
+  stick once on its own hardware to capture them, then collect-enrolment.sh.
 EOF

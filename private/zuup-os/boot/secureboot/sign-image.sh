@@ -97,13 +97,24 @@ ${CONSOLE_ARGS}${EXTRA:+ $EXTRA}"
 # digest no terminal will ever produce, and the whole estate fails attestation.
 printf '%s' "$CMDLINE" > "${OUT}.cmdline"
 
+# The unsigned intermediate goes to a TEMP DIR, not the working directory.
+#
+# ukify writes its output relative to cwd, so this script silently required the
+# caller to be somewhere writable. 30-make-image.sh happens to `cd "$BUILD"`
+# first and never noticed; tools/provision-terminal.sh does not, and inside the
+# builder container the cwd is the read-only repo mount — so per-terminal
+# provisioning died with `OSError: Read-only file system: 'zuup.efi'` from
+# inside pefile, several frames below anything that names the real cause.
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
 ukify build \
   --linux "$KERNEL" \
   --initrd "$INITRD" \
   --cmdline "$CMDLINE" \
-  --output zuup.efi
+  --output "$WORK/zuup.efi"
 
-sbsign --key "$DB_KEY" --cert "$DB_CRT" --output "$OUT" zuup.efi
+sbsign --key "$DB_KEY" --cert "$DB_CRT" --output "$OUT" "$WORK/zuup.efi"
 sbverify --cert "$DB_CRT" "$OUT"
 
 echo "[zuup-os] signed UKI OK: $OUT (verity root ${ROOTHASH:0:16}…)"

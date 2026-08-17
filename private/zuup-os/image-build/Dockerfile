@@ -26,6 +26,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cryptsetup-bin busybox-static \
     # ── UKI assembly + Secure Boot signing (§7.1) ────────────────────────
     systemd-ukify systemd-boot-efi sbsigntool efitools uuid-runtime \
+    # ── per-terminal provisioning (tools/provision-terminal.sh) ──────────
+    # wireguard-tools mints each terminal's keypair and the centre preshared
+    # key. Without it provisioning dies at `wg genkey` — and it dies on the
+    # HOST too, because Windows and macOS have none of these either, which is
+    # why tools/provision-in-container.sh exists at all.
+    wireguard-tools \
     # ── unprivileged disk assembly (no loop devices, no mounts) ──────────
     mtools dosfstools fdisk jq \
     # ── QEMU smoke boot (40-qemu-smoke.sh) ───────────────────────────────
