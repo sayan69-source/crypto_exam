@@ -37,7 +37,11 @@ async def _override_get_db(request: Request):
             raise
 
 
-app.dependency_overrides[get_db] = _override_get_db
+# NOT set at import time. `app.dependency_overrides` is ONE global dict shared by
+# every test module, so an import-time assignment means the module that happens
+# to be imported last owns the database for the whole run — each file passes
+# alone and they fail together. The autouse fixture below claims the override
+# for the duration of THIS module's tests and puts back whatever was there.
 
 from app.models import (  # noqa: E402
     Exam, ExamBody, ExamFormSet, ExamStatus, ExamType, UserRole,
@@ -45,7 +49,6 @@ from app.models import (  # noqa: E402
 from app.services.auth import get_current_user  # noqa: E402
 
 ADMIN = {"user_id": str(uuid.uuid4()), "role": UserRole.ADMIN}
-app.dependency_overrides[get_current_user] = lambda: ADMIN
 EXAM = str(uuid.uuid4())
 
 
@@ -63,10 +66,15 @@ async def _seed():
 
 @pytest.fixture(scope="module", autouse=True)
 def _db():
+    _prev = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = lambda: ADMIN
     asyncio.run(_seed())
     yield
     asyncio.run(_engine.dispose())
     _DB.unlink(missing_ok=True)
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(_prev)
 
 
 def _run(c):

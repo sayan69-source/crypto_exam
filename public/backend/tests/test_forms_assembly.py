@@ -57,7 +57,11 @@ async def _override_get_db(request: Request):
             raise
 
 
-app.dependency_overrides[get_db] = _override_get_db
+# NOT set at import time. `app.dependency_overrides` is ONE global dict shared by
+# every test module, so an import-time assignment means the module that happens
+# to be imported last owns the database for the whole run — each file passes
+# alone and they fail together. The autouse fixture below claims the override
+# for the duration of THIS module's tests and puts back whatever was there.
 from app.models import (  # noqa: E402
     Exam, ExamBody, ExamStatus, ExamType, ItemStatus, PoolItem, ItemTemplate, UserRole,
 )
@@ -74,8 +78,6 @@ EXAM_ID = str(uuid.uuid4())
 # key it on an object no route actually depends on — the override silently does
 # nothing and every request 401s. require_role delegates to get_current_user,
 # which is a stable module-level function, so that is the real seam.
-app.dependency_overrides[get_current_user] = lambda: ADMIN
-
 
 def _client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
@@ -114,11 +116,16 @@ async def _seed() -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def _db():
+    _prev = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = lambda: ADMIN
     asyncio.get_event_loop_policy().new_event_loop()
     asyncio.run(_seed())
     yield
     asyncio.run(_engine.dispose())
     _DB.unlink(missing_ok=True)
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(_prev)
 
 
 def _run(coro):
