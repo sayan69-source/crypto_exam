@@ -1,0 +1,73 @@
+# ZUUP-OS HQ egress supervisor (spec §6) — holds the Centre Admin's uplink open
+# only while no paper is in flight, and shuts it otherwise.
+#
+# Shipped on EVERY image, and that is deliberate. The unit is identical
+# everywhere; what differs is whether the image carries an HQ destination at all
+# (`hq_dest`, written at provisioning into an ADMIN_STATION image only). On a
+# candidate seat the daemon finds an empty set and exits within a second, which
+# means there is exactly one artifact to review rather than a per-capability unit
+# graph where the interesting case is the one that is missing.
+#
+# Ordered after the tunnel because it asks the Edge — over that tunnel — whether
+# the centre is clear. Not Requires=: on a machine that is not an ADMIN_STATION
+# this exits 0 immediately, and a failed tunnel there should not be reported as
+# an egress fault.
+
+[Unit]
+Description=ZUUP-OS HQ egress window supervisor (Centre Admin only)
+After=zuup-network.target zuup-attest.service
+Wants=zuup-network.target
+# The firewall must exist before anything tries to add a rule to it. Without
+# this the daemon can start against an unloaded table, log an nft failure and
+# leave the operator believing the uplink is broken rather than not-yet-loaded.
+Requires=zuup-firewall.service
+After=zuup-firewall.service
+# Rate limiting belongs in [Unit], not [Service] — systemd parses it there and
+# ignores it here. The boot transcript said so out loud
+# ("Unknown key 'StartLimitIntervalSec' in section [Service], ignoring"), which
+# is the sort of thing that only surfaces when someone actually watches a boot.
+# 0 = never give up: the supervisor that shuts the HQ uplink has no acceptable
+# stopped state, and systemd's default burst limit would abandon it after five
+# quick restarts.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/zuup/zuup-egressd.sh
+# Shut the window on stop as well as on the daemon's own EXIT trap — a SIGKILL
+# skips the trap, and an uplink left open by a killed supervisor is precisely
+# the state this unit exists to make impossible.
+ExecStopPost=-/usr/sbin/nft flush chain inet zuup hq_window
+Restart=always
+RestartSec=5
+
+# ── §7.5 runtime hardening ───────────────────────────────────────────────────
+# CAP_NET_ADMIN is the whole point of this unit and cannot be dropped; every
+# other capability can be, and is. It writes nothing anywhere.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+SystemCallFilter=@system-service
+# Deliberately NOT denying @privileged here, unlike the rest of the deny-list.
+# nft reaches the kernel over netlink, which is not in that group — but the
+# group is broad and this unit is the one that must never fail silently on
+# hardware. A window that cannot be shut because the supervisor was killed by a
+# seccomp filter is a worse outcome than the marginal syscall surface.
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+PrivateTmp=yes
+
+[Install]
+WantedBy=zuup-session.target
