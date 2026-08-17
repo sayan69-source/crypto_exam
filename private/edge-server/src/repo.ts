@@ -907,6 +907,73 @@ export async function egressStatus(q: Q, centerId: string, examId: string, now: 
   };
 }
 
+/**
+ * Whether this centre's uplink may be OPEN AT ALL right now (§6).
+ *
+ * `egressStatus` answers "may the Centre Admin authorise the post-exam push for
+ * exam X". This answers the question the firewall actually has to ask, which is
+ * different in two ways: it is not about one exam, and it is asked by a machine
+ * that holds no session.
+ *
+ * The centre has two legitimate reasons to reach HQ, and they sit on opposite
+ * sides of the exam:
+ *
+ *   before   pull the provisioning bundle (§12) — days ahead, nothing is live;
+ *   after    push the sealed ledger (§13.4)     — window shut, everyone done.
+ *
+ * The state that must never permit egress is the one in between: a paper in
+ * flight. So rather than enumerate the two permitted cases — and inevitably
+ * miss one — this reports the centre BLOCKED whenever any exam it is running is
+ * still in flight, and open otherwise. An exam is in flight if its window has
+ * not closed yet, or if a candidate is sitting at a seat that has not submitted.
+ *
+ * That is the property worth enforcing: the centre's uplink is shut for exactly
+ * as long as there is a live paper inside the building, and it does not depend
+ * on anyone remembering to close it afterwards.
+ */
+export interface CentreEgressState {
+  /** True when no exam at this centre is in flight. */
+  open: boolean;
+  /** The exams holding the uplink shut, for the operator's screen. */
+  blockedBy: { examId: string; reason: "WINDOW_OPEN" | "SUBMISSIONS_PENDING"; pending: number }[];
+}
+
+export async function centreEgressState(q: Q, centerId: string, now: number): Promise<CentreEgressState> {
+  // Only exams this centre actually runs. A centre is not held shut by a paper
+  // being sat somewhere else in the country.
+  const res = await q.query(
+    `SELECT e.id,
+            e.window_closes_at,
+            (SELECT count(*) FROM enrollments en
+              WHERE en.center_id = $1 AND en.exam_id = e.id AND en.status = 'PRESENT') AS present,
+            (SELECT count(DISTINCT a.seat_no) FROM answer_ledger a
+              WHERE a.center_id = $1 AND a.exam_id = e.id AND a.seat_no IS NOT NULL) AS submitted
+       FROM exams e
+      WHERE EXISTS (SELECT 1 FROM enrollments en
+                     WHERE en.center_id = $1 AND en.exam_id = e.id)`,
+    [centerId],
+  );
+
+  const blockedBy: CentreEgressState["blockedBy"] = [];
+  for (const r of res.rows) {
+    const closesAt = r.window_closes_at ? new Date(r.window_closes_at as string).getTime() : null;
+    const pending = Math.max(0, Number(r.present) - Number(r.submitted));
+    // A candidate at a seat with no envelope in the ledger is the strongest
+    // signal there is that the paper is live, and it outranks the clock: an
+    // exam that overran its window is still an exam in progress.
+    if (pending > 0) {
+      blockedBy.push({ examId: String(r.id), reason: "SUBMISSIONS_PENDING", pending });
+      continue;
+    }
+    // No window recorded is not "in flight" — an unscheduled row would
+    // otherwise hold the uplink shut forever with nobody able to say why.
+    if (closesAt != null && now < closesAt) {
+      blockedBy.push({ examId: String(r.id), reason: "WINDOW_OPEN", pending: 0 });
+    }
+  }
+  return { open: blockedBy.length === 0, blockedBy };
+}
+
 /** Record that egress was opened (idempotent). Caller must have verified mayOpen. */
 export async function openEgress(client: pg.PoolClient, examId: string, byId: string): Promise<void> {
   await client.query(
@@ -924,18 +991,28 @@ export async function openEgress(client: pg.PoolClient, examId: string, byId: st
  */
 export interface TerminalAttestKeys {
   akPubkeyPem: string | null;
+  /** What this machine measured about ITSELF at enrolment (§7.1). */
   goldenPcr: Record<string, string> | null;
+  /**
+   * What the AUTHORITY computed this terminal's signed UKI must measure,
+   * recorded at provisioning. Outranks `goldenPcr` for any index it names —
+   * migration 006 explains why the distinction is the whole point.
+   */
+  predictedPcr: Record<string, string> | null;
 }
 
 export async function terminalAttestKeys(q: Q, terminalId: string): Promise<TerminalAttestKeys | null> {
   const res = await q.query(
-    `SELECT ak_pubkey_pem, golden_pcr FROM terminals WHERE id = $1`,
+    `SELECT ak_pubkey_pem, golden_pcr, predicted_pcr FROM terminals WHERE id = $1`,
     [terminalId],
   );
   if (!res.rowCount) return null;
   return {
     akPubkeyPem: res.rows[0].ak_pubkey_pem ?? null,
     goldenPcr: (res.rows[0].golden_pcr as Record<string, string> | null) ?? null,
+    // What the AUTHORITY computed this terminal's UKI must measure, as opposed
+    // to what the terminal reported measuring. See migration 006.
+    predictedPcr: (res.rows[0].predicted_pcr as Record<string, string> | null) ?? null,
   };
 }
 

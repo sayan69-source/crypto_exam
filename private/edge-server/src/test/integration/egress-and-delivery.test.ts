@@ -30,6 +30,7 @@ const config: EdgeConfig = {
   tokenSecret: new Uint8Array(32).fill(1), bindSecret: new Uint8Array(32).fill(2), nodeSignSeed: new Uint8Array(32).fill(3),
   // Explicitly off: a test must never inherit a trust concession.
   allowFirstBootCommissioning: false,
+  fleetPcr: null,
 };
 let pool: Pool | null = null;
 let app: FastifyInstance | null = null;

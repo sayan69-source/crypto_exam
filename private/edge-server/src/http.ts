@@ -567,7 +567,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
     const verdict = verifyQuote(
       { quote, signature, pcrs: b.pcrs ?? {} },
-      { akPubkeyPem: keys.akPubkeyPem ?? "", nonce: hex(b.nonce!), goldenPcr: keys.goldenPcr },
+      {
+        akPubkeyPem: keys.akPubkeyPem ?? "",
+        nonce: hex(b.nonce!),
+        goldenPcr: keys.goldenPcr,
+        // The image-determined PCRs are checked against what the AUTHORITY
+        // computed, not against what this machine recorded for itself — so a
+        // terminal enrolled while already compromised cannot keep vouching for
+        // its own image.
+        //
+        // Per-terminal first: provisioning predicts PCR 11 from the exact UKI
+        // it signed for THIS machine, and that cmdline carries this machine's
+        // id and capability, so the value is necessarily per terminal. The
+        // estate-wide `EDGE_FLEET_PCR` is the fallback for a deployment that
+        // ships one identical UKI everywhere. Null on the all-in-one, where a
+        // single self-commissioned laptop is the whole estate.
+        fleetPcr: keys.predictedPcr ?? config.fleetPcr,
+      },
     );
     await record(verdict.ok, verdict.failures);
     // The boot flow HALTs on ok:false (§7.1), so the failure list is the only
@@ -650,6 +666,46 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!enrolment) return deny(reply, 404, "UNKNOWN_REQUEST");
     if (enrolment.boundTerminalId !== q.terminalId) return deny(reply, 403, "ACTIVATION_WRONG_STATION");
     return { faceEmbeddingHash: enrolment.faceEmbeddingHash, fingerprintTemplate: enrolment.fingerprintTemplate };
+  });
+
+  /**
+   * May THIS machine hold its HQ uplink open right now? (§6)
+   *
+   * Asked by `zuup-egress.service` on the ADMIN_STATION, which has no session —
+   * it is a boot-time daemon, not a logged-in operator — so the authority here
+   * comes from the same server-measured facts the login rule uses:
+   *
+   *   1. the request comes FROM that terminal's own bound address;
+   *   2. the machine passed a TPM quote recently, so it is running the golden
+   *      image rather than merely claiming a station id;
+   *   3. the commissioned capability is ADMIN_STATION.
+   *
+   * (3) is the one that matters for the guarantee the centre is sold on. A
+   * candidate seat asking this question is told `NOT_AN_ADMIN_STATION` and gets
+   * no window — but that denial is a courtesy, not the control. The control is
+   * that a seat's signed image carries no HQ destination at all, so there is
+   * nothing for a window to open onto (security/nftables.conf, `hq_dest`).
+   * Answering honestly here just means the seat's daemon says so on the screen
+   * instead of failing silently.
+   *
+   * Deliberately NOT scoped to one exam: the firewall's question is "is any
+   * paper in flight in this building", which is what `centreEgressState`
+   * answers. See its comment for why enumerating the permitted cases instead
+   * would be the wrong shape.
+   */
+  app.get("/api/terminal/:id/egress", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const placement = await repo.terminalPlacement(pool, id);
+    if (!placement) return deny(reply, 404, "UNKNOWN_TERMINAL");
+    if (!(await requestIsFromTerminal(req, id))) return deny(reply, 403, "NOT_THIS_TERMINAL");
+    if (!(await repo.hasFreshAttestation(pool, id, now(), ATTESTATION_TTL_MS))) {
+      return deny(reply, 403, "TERMINAL_NOT_ATTESTED");
+    }
+    if (placement.capability !== "ADMIN_STATION") {
+      return deny(reply, 403, "NOT_AN_ADMIN_STATION");
+    }
+    const state = await repo.centreEgressState(pool, config.centreId, now());
+    return { ok: true, ...state };
   });
 
   // §10.2 — seat heartbeat (zuup-heartbeatd). LAN/no-auth by design: the wg

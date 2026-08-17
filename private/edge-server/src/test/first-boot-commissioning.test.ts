@@ -32,6 +32,7 @@ const baseConfig: EdgeConfig = {
   bindSecret: new Uint8Array(32).fill(2),
   nodeSignSeed: new Uint8Array(32).fill(3),
   allowFirstBootCommissioning: false,
+  fleetPcr: null,
 };
 
 /** A pool the route must never reach — reaching it is the failure. */

@@ -61,6 +61,7 @@ function edgeFor(centreId: string): EdgeConfig {
     bindSecret: new Uint8Array(32).fill(2),
     nodeSignSeed: new Uint8Array(32).fill(3),
     allowFirstBootCommissioning: true,
+    fleetPcr: null,
   };
 }
 

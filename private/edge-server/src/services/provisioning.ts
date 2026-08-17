@@ -46,8 +46,16 @@ export interface ProvisioningBundle {
     wg_pubkey: string;
     /** Fixed LAN address this machine is bound to; the Edge checks the socket. */
     bound_ip?: string | null;
-    /** {"<pcr index>": "<sha256 hex>"} for the sha256 bank. */
+    /** {"<pcr index>": "<sha256 hex>"} — what the machine measured at enrolment. */
     golden_pcr?: Record<string, string> | null;
+    /**
+     * {"<pcr index>": "<sha256 hex>"} — what the AUTHORITY computed the signed
+     * UKI must measure (`systemd-measure` over the exact cmdline provisioning
+     * signed for this terminal). Outranks `golden_pcr` for the indices it
+     * names, which is what stops a terminal enrolled while already compromised
+     * from vouching for its own image. See migration 006.
+     */
+    predicted_pcr?: Record<string, string> | null;
     ak_pubkey_pem?: string | null;
     bio_pubkey_pem?: string | null;
   }[];
@@ -158,16 +166,19 @@ export async function ingestBundle(
       // mid-exam back to AVAILABLE and strand a candidate.
       await client.query(
         `INSERT INTO terminals
-           (id, center_id, seat_no, capability, wg_pubkey, bound_ip, golden_pcr, ak_pubkey_pem, bio_pubkey_pem)
-         VALUES ($1,$2,$3,$4::terminal_cap,$5,$6,$7,$8,$9)
+           (id, center_id, seat_no, capability, wg_pubkey, bound_ip, golden_pcr,
+            predicted_pcr, ak_pubkey_pem, bio_pubkey_pem)
+         VALUES ($1,$2,$3,$4::terminal_cap,$5,$6,$7,$8,$9,$10)
          ON CONFLICT (id) DO UPDATE SET
            center_id=EXCLUDED.center_id, seat_no=EXCLUDED.seat_no,
            capability=EXCLUDED.capability, wg_pubkey=EXCLUDED.wg_pubkey,
            bound_ip=EXCLUDED.bound_ip, golden_pcr=EXCLUDED.golden_pcr,
+           predicted_pcr=EXCLUDED.predicted_pcr,
            ak_pubkey_pem=EXCLUDED.ak_pubkey_pem, bio_pubkey_pem=EXCLUDED.bio_pubkey_pem`,
         [
           t.id, b.centre.id, t.seat_no, t.capability, t.wg_pubkey, t.bound_ip ?? null,
           t.golden_pcr ? JSON.stringify(t.golden_pcr) : null,
+          t.predicted_pcr ? JSON.stringify(t.predicted_pcr) : null,
           t.ak_pubkey_pem ?? null, t.bio_pubkey_pem ?? null,
         ],
       );

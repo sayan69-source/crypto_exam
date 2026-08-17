@@ -57,6 +57,21 @@ export interface EdgeConfig {
    *     one an authority vouched for.
    */
   allowFirstBootCommissioning: boolean;
+  /**
+   * The fleet's image-determined PCR reference (§7.1) — index → sha256 hex.
+   *
+   * PCR 4 (the UKI's hash) and PCR 11 (systemd-stub's measurements of the
+   * kernel, initrd and cmdline inside it) are the same on every correctly-built
+   * terminal in the estate, and are properties of the signed artifact rather
+   * than of any machine. Pinning them here means a terminal's own enrolment
+   * record cannot vouch for its own image: see `fleetPcr` in lib/tpm-quote.ts
+   * for why per-terminal golden PCRs alone are trust-on-first-use.
+   *
+   * Produced by the image build and shipped with the release record. Null — the
+   * default — falls back to per-terminal matching, which is correct for the
+   * all-in-one, where one self-commissioned laptop is the whole estate.
+   */
+  fleetPcr: Record<string, string> | null;
 }
 
 import { randomBytes } from "node:crypto";
@@ -173,5 +188,42 @@ export function loadConfig(): EdgeConfig {
     // failure mode this flag would otherwise introduce.
     allowFirstBootCommissioning:
       process.env.EDGE_ALLOW_FIRST_BOOT_COMMISSION === "true" && !isProduction(),
+    fleetPcr: fleetPcr(),
   };
+}
+
+/**
+ * Read the fleet PCR reference from `EDGE_FLEET_PCR` (inline JSON) or
+ * `EDGE_FLEET_PCR_FILE` (a path, which is how the build's release record is
+ * normally mounted).
+ *
+ * Throws rather than degrading on a malformed value. Silently falling back to
+ * per-terminal matching would turn a typo into the quiet removal of the check
+ * that distinguishes "this machine boots what it booted at enrolment" from
+ * "this machine boots the image we signed" — and nothing downstream would say
+ * so, because both states verify.
+ */
+function fleetPcr(): Record<string, string> | null {
+  const path = process.env.EDGE_FLEET_PCR_FILE;
+  const raw = path ? readFileSync(path, "utf8") : process.env.EDGE_FLEET_PCR;
+  if (!raw || !raw.trim()) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`EDGE_FLEET_PCR${path ? "_FILE" : ""} is not valid JSON: ${(e as Error).message}`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("EDGE_FLEET_PCR must be an object of {\"<pcr index>\": \"<sha256 hex>\"}");
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!/^\d+$/.test(k)) throw new Error(`EDGE_FLEET_PCR key ${JSON.stringify(k)} is not a PCR index`);
+    if (typeof v !== "string" || !/^(0x)?[0-9a-fA-F]{64}$/.test(v.trim())) {
+      throw new Error(`EDGE_FLEET_PCR[${k}] is not a sha256 digest`);
+    }
+    out[k] = v.trim().replace(/^0x/i, "").toLowerCase();
+  }
+  return Object.keys(out).length ? out : null;
 }

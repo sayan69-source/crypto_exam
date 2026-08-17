@@ -62,6 +62,38 @@ export interface QuoteExpectation {
   nonce: Uint8Array;
   /** The commissioned golden PCR set: index → sha256 digest hex. */
   goldenPcr: Record<string, string> | null;
+  /**
+   * The FLEET reference for the image-determined PCRs — index → sha256 hex.
+   *
+   * Golden PCRs alone are trust-on-first-use. They are recorded from whatever
+   * the machine measured at enrolment, so if a terminal was already carrying a
+   * modified image at that moment, its measurements of that modified image
+   * become its golden set and every later boot of the compromise verifies
+   * perfectly, forever. The check proves the machine boots the same thing it
+   * booted at enrolment — not that the thing is the image we signed.
+   *
+   * The split that fixes it follows the boot chain rather than the storage:
+   *
+   *   IMAGE-BOUND    PCR 4  the UKI's own hash, as the firmware measured it
+   *                  PCR 11 systemd-stub's measurements of the kernel, initrd
+   *                         and cmdline INSIDE that UKI
+   *                  Identical on every correctly-built terminal in the estate,
+   *                  and derivable from the signed artifact without booting
+   *                  anything. Pinned here, fleet-wide.
+   *
+   *   MACHINE-BOUND  PCR 0  firmware code — differs per model and per firmware
+   *                         revision
+   *                  PCR 7  Secure Boot state — depends on the enrolled key set
+   *                         and the vendor's own db entries
+   *                  Cannot be predicted centrally, so these stay per-terminal
+   *                  in `goldenPcr`, recorded at supervised enrolment.
+   *
+   * Null disables the fleet check and falls back to pure per-terminal matching,
+   * which is the pre-existing behaviour — correct for the all-in-one, where one
+   * self-commissioned laptop is the entire estate and there is no fleet to
+   * reference.
+   */
+  fleetPcr?: Record<string, string> | null;
 }
 
 export interface QuoteVerdict {
@@ -293,16 +325,39 @@ export function verifyQuote(sub: QuoteSubmission, exp: QuoteExpectation): QuoteV
     failures.push("QUOTE_PCR_VALUES_INCOMPLETE");
   }
 
-  // …and those values must be the golden ones.
+  // …and those values must be the expected ones.
+  //
+  // For an image-determined PCR the FLEET reference wins over what this machine
+  // recorded at enrolment. That ordering is the whole point: a terminal enrolled
+  // while already compromised would have recorded the compromise as its own
+  // golden set, and comparing it only against itself would verify that forever.
+  // Where a fleet value exists, the per-terminal one is not consulted at all.
   for (const index of golden) {
-    const want = normaliseDigest(exp.goldenPcr[String(index)]);
-    const got = normaliseDigest(sub.pcrs[String(index)]);
+    const key = String(index);
+    const fleet = exp.fleetPcr ? normaliseDigest(exp.fleetPcr[key]) : null;
+    const want = fleet ?? normaliseDigest(exp.goldenPcr[key]);
+    const got = normaliseDigest(sub.pcrs[key]);
     if (want === null) {
       failures.push(`GOLDEN_PCR_${index}_MALFORMED`);
       continue;
     }
     if (got === null || got !== want) {
-      failures.push(`PCR_${index}_MISMATCH`);
+      // Name which reference it failed against. "PCR 4 differs from the fleet"
+      // is a tampered or mis-built image and affects every terminal; "PCR 0
+      // differs from this machine's record" is one box whose firmware changed.
+      // Sending an operator down the wrong one of those on exam morning costs
+      // the whole hall.
+      failures.push(fleet !== null ? `FLEET_PCR_${index}_MISMATCH` : `PCR_${index}_MISMATCH`);
+    }
+  }
+
+  // A fleet reference that names a PCR the quote never covered is a
+  // misconfiguration that would otherwise pass silently: the loop above only
+  // walks the indices the terminal was commissioned with, so an image-bound PCR
+  // missing from that set would simply never be checked.
+  for (const key of Object.keys(exp.fleetPcr ?? {})) {
+    if (!golden.includes(Number(key))) {
+      failures.push(`FLEET_PCR_${key}_NOT_COMMISSIONED`);
     }
   }
 

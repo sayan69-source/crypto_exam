@@ -41,6 +41,7 @@ const config: EdgeConfig = {
   nodeSignSeed: new Uint8Array(32).fill(9),
   // Explicitly off: a test must never inherit a trust concession.
   allowFirstBootCommissioning: false,
+  fleetPcr: null,
 };
 
 let pool: Pool | null = null;

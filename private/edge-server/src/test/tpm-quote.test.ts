@@ -226,3 +226,97 @@ test("DER-encoded ECDSA signatures are accepted as well as raw r‖s", () => {
   });
   assert.equal(v.ok, true, v.failures.join(","));
 });
+
+// ═══════════ the fleet reference — golden PCRs alone are trust-on-first-use ═══
+//
+// A per-terminal golden set only ever proves that a machine boots what it booted
+// at enrolment. If it was already carrying a modified image at that moment, the
+// modification IS its golden set and every later boot of the compromise verifies
+// perfectly, forever. Pinning the image-determined PCRs (4 = the UKI's hash,
+// 11 = systemd-stub's measurements of what is inside it) to a fleet-wide
+// reference is what turns that into "boots the image we signed".
+//
+// GOLDEN_INDICES in the helper are the machine's commissioned set; the fleet
+// reference covers the subset that the image determines.
+const FLEET_INDEX = GOLDEN_INDICES[1]!;
+
+test("a terminal enrolled on a TAMPERED image no longer verifies against the fleet", () => {
+  // This machine recorded its own (tampered) measurement as golden at
+  // enrolment, and faithfully reproduces it on every boot. Against itself it is
+  // perfect; against the fleet it is the one machine running something else.
+  const tampered = goldenPcrSet();
+  tampered[String(FLEET_INDEX)] = pcrValue(FLEET_INDEX, "tampered-image");
+
+  const selfConsistent = verifyQuote(submission(NONCE, tampered), {
+    akPubkeyPem: akPem, nonce: NONCE, goldenPcr: tampered,
+  });
+  assert.equal(selfConsistent.ok, true, "without a fleet reference this is exactly the TOFU hole");
+
+  const v = verifyQuote(submission(NONCE, tampered), {
+    akPubkeyPem: akPem,
+    nonce: NONCE,
+    goldenPcr: tampered,
+    fleetPcr: { [String(FLEET_INDEX)]: pcrValue(FLEET_INDEX, "golden") },
+  });
+  assert.equal(v.ok, false);
+  assert.ok(v.failures.includes(`FLEET_PCR_${FLEET_INDEX}_MISMATCH`), v.failures.join(","));
+});
+
+test("the fleet reference OUTRANKS the terminal's own record for image PCRs", () => {
+  // Same machine, same recorded golden set — the only thing that changed is
+  // that the fleet says something different. The per-terminal value must not be
+  // consulted at all, or a compromised enrolment could still vouch for itself.
+  const pcrs = goldenPcrSet();
+  const v = verifyQuote(submission(NONCE, pcrs), {
+    akPubkeyPem: akPem,
+    nonce: NONCE,
+    goldenPcr: pcrs,
+    fleetPcr: { [String(FLEET_INDEX)]: pcrValue(FLEET_INDEX, "a-different-release") },
+  });
+  assert.equal(v.ok, false);
+  assert.ok(v.failures.includes(`FLEET_PCR_${FLEET_INDEX}_MISMATCH`));
+});
+
+test("machine-bound PCRs still come from the terminal's own record", () => {
+  // PCR 0 and 7 are firmware and Secure Boot state: they legitimately differ
+  // per machine and per model, so the fleet must NOT pin them. A machine whose
+  // firmware measurement differs from its neighbour's is normal.
+  const mine = goldenPcrSet("this-machines-firmware");
+  const v = verifyQuote(submission(NONCE, mine), {
+    akPubkeyPem: akPem,
+    nonce: NONCE,
+    goldenPcr: mine,
+    // The image PCR agrees with the fleet; everything else is this machine's.
+    fleetPcr: { [String(FLEET_INDEX)]: pcrValue(FLEET_INDEX, "this-machines-firmware") },
+  });
+  assert.deepEqual(v.failures, []);
+  assert.equal(v.ok, true);
+});
+
+test("a fleet PCR the terminal was never commissioned for is a misconfiguration, not a pass", () => {
+  // The value loop walks the COMMISSIONED indices, so an image-bound PCR absent
+  // from that set would simply never be compared — the check would look enabled
+  // and enforce nothing.
+  const pcrs = goldenPcrSet();
+  const uncommissioned = Math.max(...GOLDEN_INDICES) + 5;
+  const v = verifyQuote(submission(NONCE, pcrs), {
+    akPubkeyPem: akPem,
+    nonce: NONCE,
+    goldenPcr: pcrs,
+    fleetPcr: { [String(uncommissioned)]: pcrValue(uncommissioned, "golden") },
+  });
+  assert.equal(v.ok, false);
+  assert.ok(v.failures.includes(`FLEET_PCR_${uncommissioned}_NOT_COMMISSIONED`), v.failures.join(","));
+});
+
+test("no fleet reference falls back to per-terminal matching (the all-in-one)", () => {
+  // One self-commissioned laptop IS the whole estate; there is no fleet to
+  // reference and requiring one would deny every boot.
+  const pcrs = goldenPcrSet();
+  for (const fleet of [null, undefined, {}]) {
+    const v = verifyQuote(submission(NONCE, pcrs), {
+      akPubkeyPem: akPem, nonce: NONCE, goldenPcr: pcrs, fleetPcr: fleet,
+    });
+    assert.equal(v.ok, true, `fleetPcr=${JSON.stringify(fleet)} should fall back cleanly`);
+  }
+});
