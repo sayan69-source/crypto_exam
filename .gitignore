@@ -98,6 +98,10 @@ scripts/out/
 
 # ZUUP-OS image pipeline artifacts (multi-GB: disk image, kernel tree, UKI)
 private/zuup-os/image-build/out/
+# Any alternate image-build output directory (ZUUP_OUT=…). These hold built
+# images, the kernel tree, and whatever signing key the build was handed —
+# nothing under here is ever committed.
+private/zuup-os/image-build/out-*/
 
 # ZUUP-OS terminal walkthrough zip (local demo only, never tracked)
 zuup-os-terminal.zip

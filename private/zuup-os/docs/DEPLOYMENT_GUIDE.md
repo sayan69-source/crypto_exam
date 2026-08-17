@@ -119,8 +119,11 @@ OS image (build host + hardware, see `THREAT_MODEL.md` for the per-row mapping):
 - [ ] Rootfs: SquashFS+dm-verity, tmpfs overlays, no shells, `find / -perm -4000` empty.
 - [ ] Network: nftables default-drop, WireGuard-only, local resolver, no WAN.
 - [ ] Display: Cage single-surface, locked Firefox policy, virtual keyboard.
-- [ ] Runtime: AppArmor + seccomp + Tetragon enforcing; closed process set.
-- [ ] INV-3 four-test suite fails to reach the internet from terminal AND Edge.
+- [ ] Runtime: AppArmor enforcing AND attached (`aa-status` names the running
+      browser, not just the profile); systemd seccomp filter on the kiosk unit.
+- [ ] INV-3: a candidate seat and an invigilator station reach nothing but the
+      Edge. The ADMIN_STATION reaches the pinned HQ endpoints and nothing else,
+      and only while `zuup-egressd` reports the window open.
 
 ## 6. Answer egress (after the window)
 

@@ -16,7 +16,7 @@ The system splits cleanly into two halves:
   the `edge-server` test suite that runs in CI and locally against a dockerised
   Postgres.
 - **The OS image** (kernel, rootfs, Secure Boot, nftables, AppArmor, seccomp,
-  Tetragon, WireGuard, PXE) — INV-1,2,3 and the physical/boot attack rows — is
+  WireGuard, PXE) — INV-1,2,3 and the physical/boot attack rows — is
   **authored as build-host artifacts in `../`.** They are not run on the
   developer workstation (they operate on kernels, block devices, and firewall
   tables; running them directly on Windows would be meaningless or destructive).
@@ -77,7 +77,7 @@ surface therefore **cannot** appear on a candidate seat or on the public web.
 |---|---|---|---|
 | INV-1 | `remount,rw /` fails | authored + **built** | `boot/initramfs/init` (verity open, ro squashfs), `rootfs/overlay.fstab`, `kernel/zuup.config`; sealed by `image-build/30-make-image.sh` (dm-verity squashfs) |
 | INV-2 | power-off → forensic zero | authored + **built** | `boot/initramfs/init` + `rootfs/overlay.fstab` (all writes tmpfs); `image-build/40-qemu-smoke.sh` boots with no persistent writable medium |
-| INV-3 | no internet from terminal/Edge | authored + **built** | `security/nftables.conf` + `security/systemd/zuup-firewall.service` (drop before link-up), `network/wireguard`, `network/pxe/dnsmasq.conf`; firewall+wg units enabled into the image by `image-build/20-stage-rootfs.sh` |
+| INV-3 | no internet from a candidate seat or invigilator station, ever; the ADMIN_STATION reaches pinned HQ endpoints only while no paper is in flight | authored + **built** | `security/nftables.conf` + `security/systemd/zuup-firewall.service` (drop before link-up), `security/systemd/zuup-egressd.sh`, `network/systemd/zuup-lan.network`, `network/wireguard`, `network/pxe/dnsmasq.conf`; units enabled and asserted by `image-build/20-stage-rootfs.sh` |
 | INV-4 | identity intersection (match-all) | **runnable** | `src/test/match-all.test.ts` (8 deny paths), `src/test/integration/cascade.test.ts` |
 | INV-5 | terminal binding (roll↔seat) | **runnable** | `cascade.test.ts` (foreign roll denied), `http.ts` `/candidate/login` |
 | INV-6 | centre is blind (no key) | **runnable** | `src/test/integration/rbac.test.ts`, `src/test/envelope.test.ts`, `answer-pipeline.test.ts`, `hq-vault.test.ts`, `sysadmin-vault-compat.test.ts` (portal decrypt boundary) |
@@ -94,8 +94,8 @@ surface therefore **cannot** appear on a candidate seat or on the public web.
 | 2 | keyboard escape | blocked at compositor + logind | authored: `security/kiosk/zuup-kiosk.service` (Cage, `TTYVTDisallocate`), `security/systemd/logind.conf.d-zuup.conf` (`NAutoVTs=0`) |
 | 3 | screen capture / overlay | single surface only | authored: Cage single-`wl_surface` (§7.4) |
 | 4 | LAN MitM / rogue PXE | WG mTLS rejects; unsigned PXE fails | authored: `network/wireguard`, `boot/secureboot` |
-| 5 | internet exfiltration | all fail | authored: `security/nftables.conf` |
-| 6 | Firefox RCE | contained to tmpfs, killed | authored: `apparmor/usr.bin.firefox`, `seccomp/firefox.json`, `tetragon` |
+| 5 | internet exfiltration | all fail on a seat/invigilator station; an ADMIN_STATION reaches pinned HQ endpoints only, and only while no paper is in flight | authored: `security/nftables.conf` (`hq_dest` written at provisioning into an ADMIN_STATION image only; `hq_window` empty at boot), `security/systemd/zuup-egressd.sh`, Edge `centreEgressState` |
+| 6 | Firefox RCE | denied outside tmpfs; no ptrace, no new process | authored: `apparmor/zuup-firefox` (attachment asserted against the installed binary at build time), `security/kiosk/zuup-kiosk.service` (systemd seccomp filter) |
 | 7 | foreign roll at bound seat | rejected | **runnable**: `cascade.test.ts` (INV-5) |
 | 8 | DOB brute force | Argon2id + 3-strike lock | **runnable**: `http.ts` rate-limit; `lib/dob.ts` (Argon2id) |
 | 9 | impostor invigilator | denied (match-all) | **runnable**: `match-all.test.ts` (INV-4) |

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # ── Application ──
     APP_NAME: str = "CryptoExam Core"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # ── Database ──
     DATABASE_URL: str = "sqlite+aiosqlite:///./cryptoexam.db"

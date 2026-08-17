@@ -38,14 +38,14 @@ zuup-os/
 ├── kernel/        §7.2  hardened kernel config + build driver
 ├── rootfs/        §7.3  SquashFS + dm-verity + OverlayFS→tmpfs
 ├── security/
-│   ├── apparmor/  §7.5  Firefox confinement
-│   ├── seccomp/   §7.5  browser syscall allow-list
-│   ├── tetragon/  §7.5  closed process set (kill on violation)
-│   ├── kiosk/     §7.4  Cage + locked Firefox unit
-│   ├── systemd/   §6, §7.4  firewall/wireguard/session units, logind + sysctl lockdown, heartbeat
+│   ├── apparmor/  §7.5  browser confinement (attachment asserted at build)
+│   ├── kiosk/     §7.4  Cage + locked Firefox unit (carries the seccomp filter)
+│   ├── systemd/   §6, §7.4  firewall/wireguard/network/session units, logind +
+│   │                        sysctl lockdown, heartbeat, HQ egress supervisor
 │   ├── usbguard/  §7.2  port-pinned USB allow-list (BadUSB row 1)
-│   └── nftables.conf  §6.3 default-drop
-├── network/       §6.4  WireGuard (image-baked) + PXE serving
+│   ├── nftables.conf   §6.3 default-drop, one pinned peer
+│   └── nftables.d/     §6.3 provisioning drop-ins (Edge peer, HQ destinations)
+├── network/       §6.4  WireGuard (image-baked) + LAN .network + PXE serving
 ├── boot/
 │   ├── secureboot/ §7.1  key ceremony, UKI signing, UEFI enrolment
 │   ├── initramfs/  §7.3  /init: dm-verity open → tmpfs overlays → switch_root
