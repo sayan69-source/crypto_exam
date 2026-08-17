@@ -810,6 +810,50 @@ class ExamForm(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class ExamFormSet(Base):
+    """
+    The T−7d commitment, and the T₀ draw — the two halves of "no one knows the
+    paper in advance" (§6.1).
+
+    `form_set_root` is published when the forms are built, days before the exam.
+    It binds all N of them at once, so the set cannot be edited afterwards: swap
+    an item in any form and the root changes and no longer matches what was
+    published. At that point the paper EXISTS but WHICH ONE RUNS does not.
+
+    `selected_index` is filled at T₀ from a public random beacon that did not
+    exist when the forms were built. Storing the selection rather than
+    re-deriving it on demand is what makes 3,000 centres agree — an index cannot
+    drift, and anyone can recompute it afterwards from
+    (beacon, exam_id, form_count) and check this row is honest.
+
+    One row per exam. It is a separate table rather than columns on `Exam`
+    because the app builds its schema with `create_all`, which creates missing
+    TABLES but never adds columns to existing ones.
+    """
+
+    __tablename__ = "exam_form_sets"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"),
+                     nullable=False, unique=True, index=True)
+
+    form_count = Column(Integer, nullable=False)
+    paper_length = Column(Integer, nullable=False)
+    blueprint = Column(JSON, nullable=False)          # {subject: count}
+    # sha256 over every form hash, in index order — the published commitment.
+    form_set_root = Column(String(64), nullable=False)
+    # The assembly seed, kept so an auditor can rebuild the identical form set
+    # from the pool rather than take this row's word for it.
+    seed_hex = Column(String(64), nullable=False)
+    committed_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # ── filled at T₀, never before ──
+    beacon_hex = Column(String(160), nullable=True)
+    drand_round = Column(Integer, nullable=True)
+    selected_index = Column(Integer, nullable=True)
+    selected_at = Column(DateTime(timezone=True), nullable=True)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # EXAM REQUESTS → ACTIVE EXAMS → CANDIDATE CHOICES
 # ═══════════════════════════════════════════════════════════════════════════
