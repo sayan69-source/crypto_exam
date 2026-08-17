@@ -33,6 +33,9 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children, userName = 'Vikram S. Rathore', alertCount = 4 }: AdminLayoutProps) {
   const pathname = usePathname();
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
   const [clockTime, setClockTime] = useState(new Date());
 
   // Live clock

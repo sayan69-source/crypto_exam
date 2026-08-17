@@ -16,12 +16,16 @@
  * with code + live fingerprint (§9.4). This page cannot mint a working login.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { staffApi, type Centre } from "@/lib/api/staff";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
 
 export default function StaffRegistration() {
-  const [role, setRole] = useState<Role>("CENTER_INVIGILATOR");
+  const searchParams = useSearchParams();
+  const roleParam = searchParams.get("role");
+  const initialRole: Role = roleParam === "CENTER_ADMIN" ? "CENTER_ADMIN" : "CENTER_INVIGILATOR";
+  const [role, setRole] = useState<Role>(initialRole);
   const [centres, setCentres] = useState<Centre[] | null>(null);
   const [relayDown, setRelayDown] = useState(false);
   const [centerId, setCenterId] = useState("");

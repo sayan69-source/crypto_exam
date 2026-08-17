@@ -41,9 +41,9 @@ export default function ContactPage() {
 
               <div className={s.channels}>
                 {[
-                  { icon: "mail", label: "Programme enquiries", value: "access@cryptoexamcore.in" },
-                  { icon: "building-2", label: "Examining bodies", value: "boards@cryptoexamcore.in" },
-                  { icon: "search-check", label: "Audit & press", value: "audit@cryptoexamcore.in" },
+                  { icon: "mail", label: "Programme enquiries", value: "manabdelhi1@gmail.com" },
+                  { icon: "building-2", label: "Examining bodies", value: "manabdelhi1@gmail.com" },
+                  { icon: "search-check", label: "Audit & press", value: "somab2159@gmail.com" },
                   { icon: "map-pin", label: "Registered office", value: "Bengaluru · Karnataka · India", isText: true },
                 ].map((ch) => (
                   <div className={s.channel} key={ch.label}>
