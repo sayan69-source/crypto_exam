@@ -13,6 +13,7 @@
  */
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Icon from "./LucideIcon";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -26,6 +27,13 @@ export default function SiteHeader() {
   const pathname = usePathname();
   const { session } = useAuth();
   const role = session?.role ?? null;
+
+  // Resolved after mount, not during render — reading navigator while
+  // rendering would differ between server and client and break hydration.
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    setIsMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
+  }, []);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
@@ -66,14 +74,18 @@ export default function SiteHeader() {
         </nav>
 
         <div className="hdr-right">
+          {/* A labelled control rather than a bare icon — as an icon alone it
+              did not read as something you could click. */}
           <button
             type="button"
             className="hdr-search"
             onClick={() => window.dispatchEvent(new Event("cmdk:open"))}
-            aria-label="Search features (Ctrl or Command + K)"
-            title="Search features  ⌘K"
+            aria-label="Search features"
+            title="Search all features"
           >
-            <Icon name="search" size={17} strokeWidth={2} />
+            <Icon name="search" size={16} strokeWidth={2} />
+            <span className="hdr-searchLabel">Search</span>
+            <kbd className="hdr-kbd">{isMac ? "⌘K" : "Ctrl K"}</kbd>
           </button>
 
           {/* Adding an examination is not self-serve — an examining body talks

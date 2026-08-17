@@ -1098,19 +1098,43 @@ body.is-scrolled .nav-inner { height: 56px; }
   flex-shrink: 0; margin-left: auto;
 }
 .hdr-search {
-  display: grid; place-items: center;
-  width: 34px; height: 34px;
-  background: none; border: 0; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 10px 0 12px;
+  background: rgba(255, 254, 251, 0.07);
+  border: 1px solid rgba(255, 254, 251, 0.16);
+  border-radius: var(--radius-sm);
   color: var(--brand-mute); cursor: pointer;
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+  font-family: var(--font-sans); font-size: var(--fs-sm); font-weight: 500;
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
-.hdr-search:hover { background: rgba(255, 254, 251, 0.10); color: var(--brand-canvas); }
+.hdr-search:hover {
+  background: rgba(255, 254, 251, 0.13);
+  border-color: rgba(255, 254, 251, 0.30);
+  color: var(--brand-canvas);
+}
 .hdr-search:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.hdr-searchLabel { line-height: 1; }
+.hdr-kbd {
+  font-family: var(--font-sans); font-size: 11px; font-weight: 600;
+  line-height: 1; letter-spacing: 0.02em;
+  color: var(--brand-mute);
+  background: rgba(255, 254, 251, 0.10);
+  border: 1px solid rgba(255, 254, 251, 0.14);
+  border-radius: 4px; padding: 3px 6px;
+}
+
+/* Shed the shortcut hint, then the label, before the button itself goes. */
+@media (max-width: 900px) { .hdr-kbd { display: none; } }
+@media (max-width: 700px) {
+  .hdr-searchLabel { display: none; }
+  .hdr-search { padding: 0 10px; }
+}
 
 /* The one primary action, hard right. */
 .hdr-cta {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px;
+  height: 40px; padding: 0 18px;
   background: var(--brand-primary); color: var(--brand-on-primary);
   border-radius: var(--radius-sm);
   font-size: var(--fs-body); font-weight: 600; text-decoration: none;
