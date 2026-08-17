@@ -76,11 +76,50 @@ LockPersonality=yes
 # the JS JIT off, and Firefox crashes under strict W^X. The remaining hardening —
 # read-only verity root, no shell, seccomp, AppArmor, lockdown LSM, air-gap —
 # still stands; this only lifts W^X for the browser surface.
+# ── seccomp (§7.5) ───────────────────────────────────────────────────────────
+#
+# This is the whole of the syscall enforcement, and it is the real thing — a
+# kernel seccomp-bpf filter installed by systemd before exec.
+#
+# It replaces security/seccomp/firefox.json, which was installed to
+# /etc/zuup/firefox-seccomp.json and read by NOTHING: `SystemCallFilter=` takes
+# systemd syscall-set names, never a path to an OCI seccomp document, so the
+# file was inert. It would also not have worked if something had loaded it — its
+# default action was KILL_PROCESS over an allow-list of 50 syscalls, and a
+# browser needs several hundred, so the first frame Firefox rendered would have
+# killed it. The useful half of that file was its explicit kill list, and every
+# entry of it is reproduced below.
+#
+# The base allow-list. @system-service already excludes @clock, @cpu-emulation,
+# @debug, @module, @mount, @obsolete, @privileged, @raw-io, @reboot and @swap.
 SystemCallFilter=@system-service
 SystemCallArchitectures=native
+# Denied syscalls return EPERM rather than killing the process, and that is a
+# deliberate departure from firefox.json's KILL_PROCESS default.
+#
+# systemd can kill per-syscall (`SystemCallFilter=~ptrace:kill`), and for a
+# server it would be the right choice. This is an examination terminal: a kill
+# on a false positive is a candidate losing their seat mid-paper, with no shell,
+# no second window and an invigilator who cannot do anything about it. EPERM
+# denies the operation just as completely — the syscall does not happen — and
+# fails the attempt instead of the exam. The layers that would actually contain
+# a live exploit (read-only verity root, AppArmor, lockdown, the air-gap) do not
+# depend on which of the two this is.
 SystemCallErrorNumber=EPERM
-# seccomp allow-list (the explicit kill-list complement, §7.5)
-SystemCallFilter=~@debug @mount @reboot @swap @obsolete
+# The explicit kill list, carried over verbatim from firefox.json. Most are
+# already covered by the exclusions above; naming them is what makes the policy
+# legible and survives a future change to what @system-service contains.
+#
+# ptrace/process_vm_* — reading another process's memory is the move that turns
+# a browser compromise into a compromise of the biometric daemon next to it.
+# userfaultfd is not in any systemd group and is a well-worn kernel-exploit
+# primitive, so it is worth naming on its own.
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete @module @raw-io
+SystemCallFilter=~ptrace process_vm_readv process_vm_writev
+SystemCallFilter=~kexec_load kexec_file_load init_module finit_module
+SystemCallFilter=~mount umount2 pivot_root chroot
+SystemCallFilter=~bpf perf_event_open userfaultfd
+SystemCallFilter=~setuid setgid reboot swapon swapoff
 # Writable surfaces are tmpfs only (RAM; INV-2). RuntimeDirectory creates
 # /run/firefox at start (0700, auto-removed on stop); PrivateTmp gives a fresh
 # private /tmp tmpfs for the Firefox profile. These EXIST before the sandbox is

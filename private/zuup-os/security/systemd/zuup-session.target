@@ -2,8 +2,18 @@
 #
 # This is the image's default target: there is no multi-user.target, no
 # graphical.target, no getty. The ONLY units WantedBy this target are the
-# biometric daemon, the attestation gate, the heartbeat, and the kiosk —
-# the closed process set Tetragon enforces (security/tetragon).
+# biometric daemon, the attestation gate, the heartbeat, the HQ egress
+# supervisor, and the kiosk.
+#
+# The closed process set is enforced by what the image contains and what the
+# units permit — no shell to log into, `NoNewPrivileges`, the AppArmor profile's
+# `deny /usr/bin/** x`, and the kiosk's seccomp filter — not by a runtime
+# monitor. An eBPF watcher (Tetragon) was specified for this role and has been
+# dropped: it needs BTF and kprobes, and this kernel ships with
+# `CONFIG_DEBUG_INFO` off, no `CONFIG_DEBUG_INFO_BTF` and no `CONFIG_KPROBES`,
+# while `lockdown=confidentiality` blocks the kernel-memory-reading BPF it
+# relies on. It could not have run here, and a policy file that cannot load is
+# worse than no policy file, because it reads as a control that exists.
 
 [Unit]
 Description=ZUUP-OS locked examination session

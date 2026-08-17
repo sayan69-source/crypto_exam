@@ -1,0 +1,97 @@
+# ZUUP-OS AppArmor profile — the kiosk browser (spec §7.5).
+#
+# Firefox may read the webcam, draw to the Wayland socket, talk to the Edge over
+# the tunnel, and write only to tmpfs. Everything else — /home, /root, block
+# devices, USB, other processes' memory — is denied.
+#
+# Acceptance: a simulated Firefox RCE cannot write outside tmpfs or open a
+# non-tunnel socket.
+#
+# ── Why the attachment path is a glob, and why this file was renamed ─────────
+#
+# This profile was `usr.bin.firefox`, attaching `/usr/lib/firefox/firefox`. The
+# image installs **firefox-esr**, whose binary is `/usr/lib/firefox-esr/
+# firefox-esr` — a path this profile did not name. AppArmor attaches a profile
+# by the resolved pathname of the executable, so it attached to nothing: the
+# browser ran completely unconfined, on every image ever built, while
+# THREAT_MODEL.md credited AppArmor with containing a Firefox RCE. The file name
+# said `usr.bin` and the profile said `usr.lib`, which is roughly how it survived
+# review.
+#
+# Both halves are fixed here: the attachment covers the `firefox` and
+# `firefox-esr` layouts, the launcher resolves symlinks before exec so there is
+# exactly one path to reason about, and 20-stage-rootfs.sh now FAILS the build
+# if the installed browser is not matched by this profile. The name no longer
+# encodes a path, because encoding a path in the name is what made the mismatch
+# invisible.
+
+# No `abi <abi/N.0>,` declaration on purpose. Pinning an ABI means naming a file
+# (`/etc/apparmor.d/abi/3.0`) that must exist in the shipped apparmor package, and
+# if it does not the profile fails to PARSE — which lands in exactly the state
+# this rewrite exists to end: a kiosk browser running unconfined while a policy
+# file sits next to it looking authoritative. Omitting it takes the parser's
+# default ABI, which is the correct one for the profiles this image ships.
+
+#include <tunables/global>
+
+profile zuup-firefox /usr/lib/firefox{,-esr}/firefox{,-esr} flags=(attach_disconnected) {
+  #include <abstractions/base>
+  #include <abstractions/wayland>
+  #include <abstractions/fonts>
+  #include <abstractions/dri-common>
+  #include <abstractions/mesa>
+
+  # ── network: AF_INET to the Edge tunnel only; AF_UNIX for Wayland ─────────
+  # The firewall is what actually pins the destination; this only removes the
+  # address families the browser has no business opening at all.
+  network inet stream,
+  network inet dgram,
+  network unix stream,
+  deny network inet6,
+  deny network netlink,
+  deny network packet,
+  deny network raw,
+
+  # ── the browser binary + its libs (read/exec only) ───────────────────────
+  /usr/lib/firefox{,-esr}/** r,
+  /usr/lib/firefox{,-esr}/firefox{,-esr} rix,
+  /usr/lib/firefox{,-esr}/**.so mr,
+  /usr/lib/firefox{,-esr}/**/*.so mr,
+
+  # ── kiosk policy + the locked profile (read-only) ────────────────────────
+  /etc/firefox{,-esr}/policies/policies.json r,
+  /etc/firefox{,-esr}/zuup.user.js r,
+  # The fail-closed diagnostic page the launcher renders as file:// when no
+  # centre answered. Without this the terminal that most needs to explain
+  # itself is the one that shows a blank screen.
+  /usr/share/zuup/kiosk/*.html r,
+
+  # ── webcam for face capture / liveness; NO microphone ────────────────────
+  /dev/video* rw,
+  deny /dev/snd/** rwx,
+
+  # ── writable scratch: tmpfs only (RAM; gone on power-off, INV-2) ──────────
+  # $HOME is /tmp/firefox under PrivateTmp, and XDG_RUNTIME_DIR is /run/firefox
+  # via RuntimeDirectory — both tmpfs, both created by systemd before exec.
+  owner /run/firefox/** rwk,
+  owner /tmp/firefox/** rwk,
+  owner /tmp/firefox/ rw,
+
+  # ── hard denials: the whole point of the lockdown ────────────────────────
+  deny /home/** rwklx,
+  deny /root/** rwklx,
+  deny /etc/zuup/** rwklx,       # terminal identity, keys, firewall drop-ins
+  deny /run/zuup-identity/** rwklx,
+  deny /dev/sd* rwklx,
+  deny /dev/nvme* rwklx,
+  deny /dev/mmcblk* rwklx,
+  deny /dev/usb* rwklx,
+  deny /dev/mem rwklx,
+  deny /proc/*/mem rwklx,
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny /usr/bin/** x,        # no spawning shells/tools (there are none shipped)
+  deny /usr/sbin/** x,
+  deny mount,
+  deny umount,
+  deny ptrace,
+}

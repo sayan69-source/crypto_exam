@@ -26,18 +26,51 @@
 # an exam hall.
 set -eu
 
+# Boot progress has to be observable on the machine itself: kmsg reaches every
+# registered console (dev images list tty0, so it lands on the laptop screen)
+# and is discarded on production, where console=null is the point.
+#
+# Defined FIRST, before any code that might want it. It used to sit below the
+# configuration block, so a `log` call added above it would be a "command not
+# found" — fatal under `set -eu`, on the one script whose failure leaves the
+# terminal showing nothing at all.
+log() {
+  echo "zuup-kiosk: $*" > /dev/kmsg 2>/dev/null || true
+}
+
 EDGE="${ZUUP_EDGE_URL:-https://edge.local}"
+# Identity comes from /run first — published at boot by zuup-identity.service
+# out of the signed kernel cmdline (production) or by zuup-commission.sh (the
+# all-in-one). /etc/zuup/terminal-id is the image's baked placeholder and is
+# only ever the fallback.
 ID_FILE="/etc/zuup/terminal-id"
+[ -r /run/zuup-identity/terminal-id ] && ID_FILE=/run/zuup-identity/terminal-id
+CAP_FILE="/run/zuup-identity/capability"
 VARIANT_FILE="/etc/zuup/image-variant"
 DIAG_TEMPLATE="/usr/share/zuup/kiosk/no-centre.html"
-# The image bakes in firefox-esr (apt), whose binary is /usr/bin/firefox-esr.
-# Fall back across the common locations so the kiosk always finds the browser.
+# Which browser binary to exec.
+#
+# /etc/zuup/browser-path is written by the image build (20-stage-rootfs.sh) and
+# holds the REAL binary under /usr/lib — the same path the zuup-firefox AppArmor
+# profile attaches to, verified at build time. Preferring it over /usr/bin
+# matters: AppArmor attaches by resolved executable path, so exec'ing a wrapper
+# or a symlink is how a confined browser quietly becomes an unconfined one. The
+# build already failed if these two could not be made to agree, so by the time
+# this runs there is exactly one correct answer and it is in that file.
 FIREFOX="${ZUUP_FIREFOX:-}"
+if [ -z "$FIREFOX" ] && [ -r /etc/zuup/browser-path ]; then
+  FIREFOX="$(tr -d ' \n' < /etc/zuup/browser-path)"
+  [ -x "$FIREFOX" ] || FIREFOX=""
+fi
 if [ -z "$FIREFOX" ]; then
-  for c in /usr/bin/firefox-esr /usr/lib/firefox-esr/firefox-esr /usr/bin/firefox /usr/lib/firefox/firefox; do
+  # Only reached on an image built before browser-path existed. Still prefer the
+  # /usr/lib binaries, because those are the ones the profile can attach to.
+  for c in /usr/lib/firefox-esr/firefox-esr /usr/lib/firefox/firefox \
+           /usr/bin/firefox-esr /usr/bin/firefox; do
     [ -x "$c" ] && { FIREFOX="$c"; break; }
   done
-  [ -z "$FIREFOX" ] && FIREFOX=/usr/bin/firefox-esr
+  [ -z "$FIREFOX" ] && FIREFOX=/usr/lib/firefox-esr/firefox-esr
+  log "WARNING: /etc/zuup/browser-path missing — fell back to $FIREFOX"
 fi
 
 # The all-in-one demo image bundles its own centre stack and overrides this to
@@ -55,13 +88,6 @@ CAP_SLEEP="${ZUUP_KIOSK_CAP_SLEEP:-3}"
 
 VARIANT="unknown"
 [ -r "$VARIANT_FILE" ] && VARIANT="$(tr -d ' \n' < "$VARIANT_FILE")"
-
-# Boot progress has to be observable on the machine itself: kmsg reaches every
-# registered console (dev images list tty0, so it lands on the laptop screen)
-# and is discarded on production, where console=null is the point.
-log() {
-  echo "zuup-kiosk: $*" > /dev/kmsg 2>/dev/null || true
-}
 
 PROFILE="${HOME:-/tmp/firefox}/profile"
 mkdir -p "$PROFILE"
@@ -186,18 +212,29 @@ elif [ -z "$TID" ] || [ "$TID" = "REPLACE-AT-PROVISIONING" ]; then
   log "no terminal id — fail-closed wall"
   TARGET="$EDGE/locked"
 else
-  # Ask the Edge what this terminal is. The HTTP STATUS is the thing that
-  # matters, not just the body: an explicit 404 is the Edge denying an unknown
-  # terminal (→ /locked, deny by default), whereas a timeout while the Edge is
-  # still warming up is transient. Sending a transient failure to /locked is
-  # what strands a good terminal on a dead wall for the rest of the exam, so
-  # that case goes to the Gate instead — which is itself fail-closed: it shows
-  # the "centre offline" wall until /api/health answers, then re-reads the
-  # capability from the Edge and enables only the permitted role.
+  # What role is this machine allowed to present?
+  #
+  # First choice is the LOCAL answer, and on a production terminal it is the
+  # better one in both directions that matter. It is authenticated — the
+  # capability came off the Secure-Boot-signed cmdline, so changing it needs the
+  # authority's signing key rather than a reachable Edge — and it is instant,
+  # which takes up to CAP_TRIES × CAP_SLEEP (30 s by default) of Edge round
+  # trips out of the boot path. On a hall of terminals all cold-starting at once
+  # that is the difference between seats coming up together and coming up in a
+  # slow ragged wave while the Edge answers 500 capability lookups.
+  #
+  # The Edge lookup remains for images provisioned before identity moved onto
+  # the cmdline, and for the all-in-one, whose roles are self-commissioned at
+  # first boot and genuinely are not known until the Edge says so.
   CAP=""
   STATUS=""
+  if [ -r "$CAP_FILE" ]; then
+    CAP="$(tr -d ' \n' < "$CAP_FILE")"
+    STATUS="200"
+    log "capability from the signed cmdline: $CAP (no Edge lookup needed)"
+  fi
   cap_try=0
-  while [ "$cap_try" -lt "$CAP_TRIES" ]; do
+  while [ -z "$CAP" ] && [ "$cap_try" -lt "$CAP_TRIES" ]; do
     BODY="$PROFILE/.capability"
     STATUS="$(curl -s -o "$BODY" -w '%{http_code}' --max-time 8 \
               "$EDGE/api/terminal/$TID/capability" 2>/dev/null || true)"
