@@ -27,3 +27,17 @@ tmpfs                  /run/biometric tmpfs      rw,nosuid,nodev,noexec,size=128
 tmpfs                  /run/zuup-identity tmpfs  rw,nosuid,nodev,noexec,size=4m,mode=0755      0      0
 # /proc with hidepid=2 so no process can see another's command line/env (§7.3)
 proc                   /proc          proc       rw,nosuid,nodev,noexec,hidepid=2              0      0
+# EFI variables READ-ONLY. systemd mounts efivarfs read-write by default, which
+# gives anything running as root a path to the firmware's NVRAM.
+#
+# A terminal has no legitimate reason to write one: boot order, Secure Boot keys
+# and the boot entries are all set by the authority before the machine is
+# deployed, and INV-2 says the machine remembers nothing across a power cycle —
+# an EFI variable is the one store on the box that would survive.
+#
+# It is also a real destruction risk on some hardware. Samsung laptops of the
+# 2011-2012 generation were bricked by exactly this: EFI variable writes filled
+# NVRAM and the machine never booted again. The kernel has refused writes below
+# 50% free space since 3.x, so this is belt-and-braces on a 6.6 kernel — but the
+# braces cost nothing and the failure is unrecoverable.
+efivarfs               /sys/firmware/efi/efivars  efivarfs  ro,nosuid,nodev,noexec,noauto     0      0

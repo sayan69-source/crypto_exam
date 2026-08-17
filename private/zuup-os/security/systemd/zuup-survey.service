@@ -1,0 +1,46 @@
+# ZUUP-OS hardware survey — measure what this machine can offer, and say so.
+#
+# Runs on EVERY boot, including an unprovisioned one, because the first thing a
+# centre needs from a box it has never seen is "can this be a staff station, or
+# only a candidate seat" — and that question has an answer before any
+# provisioning exists.
+#
+# Read-only in every direction: it writes one JSON file to a tmpfs and touches
+# no disk, no EFI variable and no firmware setting.
+
+[Unit]
+Description=ZUUP-OS hardware capability survey
+DefaultDependencies=no
+After=zuup-identity.service
+Before=zuup-kiosk.service
+RequiresMountsFor=/run/zuup-identity
+# Not Requires=zuup-identity.service: the survey is useful precisely when there
+# is no identity, and a machine nobody has provisioned should still be able to
+# tell an operator what it is.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/zuup/zuup-survey.sh
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/run/zuup-identity
+SystemCallFilter=@system-service
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete @privileged
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=zuup-network.target

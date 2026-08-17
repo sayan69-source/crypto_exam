@@ -41,7 +41,26 @@ VSETUP="$(command -v veritysetup)"    # cryptsetup-bin → /sbin/veritysetup
 OUT="$BUILD/zuup-initramfs.cpio.gz" bash "$ZOS/boot/initramfs/mkinitramfs.sh" "$BBOX" "$VSETUP"
 
 # ── 3. Secure Boot signing keys (production HSM, else ephemeral DEV) ────────
+BUILD_VARIANT="$(cat "$BUILD/.rootfs-variant" 2>/dev/null || echo production)"
 if [[ -z "${ZUUP_DB_KEY:-}" || -z "${ZUUP_DB_CRT:-}" ]]; then
+  # A production image signed with a throwaway key is a terminal whose boot
+  # chain anyone can forge — and the whole §7.1 argument, from Secure Boot down
+  # through the per-terminal identity on the signed cmdline, rests on that key
+  # being the authority's. There is no warning strong enough for this; it has to
+  # be a refusal.
+  if [[ "$BUILD_VARIANT" == "production" ]]; then
+    cat >&2 <<'EOF'
+[zuup-os] FAIL: this is a PRODUCTION build and no Secure Boot signing key was given.
+
+          Set ZUUP_DB_KEY and ZUUP_DB_CRT to the exam authority's db key (an HSM
+          PKCS#11 URI, or a path on the offline key-ceremony host). Ephemeral DEV
+          keys are generated only for dev/all-in-one builds, and a terminal that
+          trusted one would accept a UKI signed by anybody.
+
+          To produce a signable key hierarchy: boot/secureboot/make-keys.sh
+EOF
+    exit 1
+  fi
   echo "[zuup-os] ⚠ no ZUUP_DB_KEY/ZUUP_DB_CRT — generating EPHEMERAL DEV keys." >&2
   echo "[zuup-os] ⚠ DEV keys must NEVER be enrolled on real terminal firmware." >&2
   mkdir -p "$BUILD/keys"
@@ -100,6 +119,31 @@ dd if="$ESP" of="$IMG" bs=1M seek=$((START/1048576))                       conv=
 dd if="$SQ"  of="$IMG" bs=1M seek=$(((START+ESP_BYTES)/1048576))           conv=notrunc status=none
 dd if="$VT"  of="$IMG" bs=1M seek=$(((START+ESP_BYTES+SQ_BYTES)/1048576))  conv=notrunc status=none
 rm -f "$ESP"
+
+# ── 6. a note on the PCR reference (§7.1) ───────────────────────────────────
+#
+# No fleet-wide PCR reference is emitted here, and that is deliberate rather
+# than an omission.
+#
+# The obvious move is to run `systemd-measure calculate` over this UKI and ship
+# the resulting PCR 11 as "the value every terminal must report". It would be
+# wrong. systemd-stub measures the UKI's cmdline SECTION into PCR 11, and
+# provisioning gives every terminal its own cmdline — its id, its capability,
+# its seat (tools/provision-terminal.sh). So PCR 11 differs per machine by
+# construction, and PCR 4 (the firmware's measurement of the whole UKI) differs
+# with it. A single value published from this stage would match the image
+# nobody boots and deny the entire estate on exam morning.
+#
+# The prediction therefore belongs where the per-terminal UKI is produced, and
+# that is where it happens: provision-terminal.sh runs systemd-measure against
+# the exact cmdline it just signed and records the expected PCR 11 in that
+# terminal's registry record. The property is preserved — the image-determined
+# measurement is COMPUTED BY THE AUTHORITY from a signed artifact, never taken
+# from what the machine reported about itself — and it is per terminal, which is
+# what the boot chain actually produces.
+#
+# `EDGE_FLEET_PCR` on the Edge remains available for genuinely estate-uniform
+# values, should a deployment ever ship one identical UKI to every seat.
 
 VARIANT="$(cat "$BUILD/.rootfs-variant" 2>/dev/null || echo production)"
 echo "[zuup-os] image OK: $IMG ($(numfmt --to=iec "$TOTAL"), variant=$VARIANT)"

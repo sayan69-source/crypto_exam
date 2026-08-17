@@ -129,18 +129,38 @@ echo "[zuup-os] input path present (xkb keymap, cage, seatd)"
 # ── 2. terminal identity + ZUUP config tree ────────────────────────────────
 mkdir -p "$ROOT/etc/zuup"
 inst 0644 "$ZOS/security/nftables.conf"               etc/zuup/nftables.conf
-inst 0644 "$ZOS/security/seccomp/firefox.json"        etc/zuup/firefox-seccomp.json
+# NOTE: there is no seccomp file to install. security/seccomp/firefox.json used
+# to land at /etc/zuup/firefox-seccomp.json, where nothing read it —
+# `SystemCallFilter=` takes systemd syscall-set names, never a path to an OCI
+# seccomp document. Its kill list now lives in zuup-kiosk.service, which is a
+# filter the kernel actually installs. See that unit for the full reasoning.
+# The firewall drop-in directory. 00-defaults.nft adds no rule; it exists so the
+# `include "…/nftables.d/*.nft"` glob always matches, because nft treats a glob
+# with no matches as a load error and a failed load powers the terminal off.
+# Provisioning adds 10-edge-peer.nft here (every terminal) and 20-hq-egress.nft
+# (ADMIN_STATION only) — see tools/provision-terminal.sh.
+for f in "$ZOS"/security/nftables.d/*.nft; do
+  inst 0644 "$f" "etc/zuup/nftables.d/$(basename "$f")"
+done
+# The wired LAN link. Nothing configured the network at all before this: the
+# image carried a WireGuard unit, a firewall and an attestation client, and no
+# `.network` unit — so on a production terminal the interface never came up.
+inst 0644 "$ZOS/network/systemd/zuup-lan.network"     etc/systemd/network/10-zuup-lan.network
 # per-terminal identity + WireGuard config are BAKED PER TERMINAL at
 # provisioning; ship inert placeholders so the units have a target path.
 printf 'REPLACE-AT-PROVISIONING\n' > "$ROOT/etc/zuup/terminal-id"
 inst 0600 "$ZOS/network/wireguard/wg0.conf.template"  etc/zuup/wg0.conf
 
 # ── 3. systemd units (network/session chain + workloads) ───────────────────
-for u in security/systemd/zuup-firewall.service \
+for u in security/systemd/zuup-identity.service \
+         security/systemd/zuup-firewall.service \
          security/systemd/zuup-wireguard.service \
          security/systemd/zuup-network.target \
          security/systemd/zuup-session.target \
          security/systemd/zuup-heartbeatd.service \
+         security/systemd/zuup-egressd.service \
+         security/systemd/zuup-enrol.service \
+         security/systemd/zuup-survey.service \
          biometric/zuup-biometric.service \
          boot/attest/zuup-attest.service \
          security/kiosk/zuup-kiosk.service; do
@@ -149,6 +169,10 @@ done
 
 # ── 4. daemons + scripts ───────────────────────────────────────────────────
 inst 0755 "$ZOS/security/systemd/zuup-heartbeatd.sh"  usr/lib/zuup/zuup-heartbeatd.sh
+inst 0755 "$ZOS/security/systemd/zuup-egressd.sh"     usr/lib/zuup/zuup-egressd.sh
+inst 0755 "$ZOS/security/systemd/zuup-identity.sh"    usr/lib/zuup/zuup-identity.sh
+inst 0755 "$ZOS/security/systemd/zuup-enrol.sh"       usr/lib/zuup/zuup-enrol.sh
+inst 0755 "$ZOS/security/systemd/zuup-survey.sh"      usr/lib/zuup/zuup-survey.sh
 inst 0755 "$ZOS/security/kiosk/zuup-kiosk-launch.sh"  usr/lib/zuup/zuup-kiosk-launch.sh
 # The launcher's last-resort surface: a local page naming why no centre was
 # reached. Without it a terminal that cannot find its Edge shows Firefox's own
@@ -222,7 +246,41 @@ fi
 # ── 5. host hardening: sysctl, logind, AppArmor, USBGuard ──────────────────
 inst 0644 "$ZOS/security/systemd/sysctl.d-99-zuup.conf"        etc/sysctl.d/99-zuup.conf
 inst 0644 "$ZOS/security/systemd/logind.conf.d-zuup.conf"      etc/systemd/logind.conf.d/zuup.conf
-inst 0644 "$ZOS/security/apparmor/usr.bin.firefox"             etc/apparmor.d/usr.bin.firefox
+inst 0644 "$ZOS/security/apparmor/zuup-firefox"                 etc/apparmor.d/zuup-firefox
+
+# ── AppArmor has to attach to the browser this image ACTUALLY installs ──────
+#
+# The profile named /usr/lib/firefox/firefox while the image installed
+# firefox-esr at /usr/lib/firefox-esr/firefox-esr. AppArmor attaches by resolved
+# executable path, so it attached to nothing: every image ever built ran the
+# kiosk browser unconfined while THREAT_MODEL.md credited AppArmor with
+# containing a Firefox RCE. A path inside a policy file is a claim about another
+# package's layout, and it has to be checked against the layout that landed.
+FF_REAL=""
+for c in "$ROOT/usr/lib/firefox-esr/firefox-esr" "$ROOT/usr/lib/firefox/firefox" \
+         "$ROOT/usr/lib/firefox-esr/firefox"     "$ROOT/usr/lib/firefox/firefox-esr"; do
+  [[ -x "$c" ]] && { FF_REAL="${c#"$ROOT"}"; break; }
+done
+[[ -n "$FF_REAL" ]] || {
+  echo "[zuup-os] FAIL: no browser binary under /usr/lib/firefox* — the zuup-firefox" >&2
+  echo "[zuup-os]       profile could attach to nothing and the kiosk would run" >&2
+  echo "[zuup-os]       unconfined. Installed browser package: $BROWSER_PKG" >&2
+  exit 1
+}
+# The same set of paths the profile's brace glob expands to. Spelled out rather
+# than globbed so this check cannot drift from the policy silently.
+case "$FF_REAL" in
+  /usr/lib/firefox/firefox|/usr/lib/firefox/firefox-esr|\
+  /usr/lib/firefox-esr/firefox|/usr/lib/firefox-esr/firefox-esr) : ;;
+  *)
+    echo "[zuup-os] FAIL: browser at $FF_REAL is not matched by the zuup-firefox" >&2
+    echo "[zuup-os]       attachment /usr/lib/firefox{,-esr}/firefox{,-esr}" >&2
+    exit 1 ;;
+esac
+# The launcher execs THIS path, so the binary that runs is the binary the
+# profile confines — no symlink in /usr/bin to reason about.
+printf '%s\n' "$FF_REAL" > "$ROOT/etc/zuup/browser-path"
+echo "[zuup-os] AppArmor profile zuup-firefox attaches to $FF_REAL"
 # USB device allow-list. The production rules pin every allowed device to the
 # port it was commissioned on; on a dev/all-in-one laptop those ports name
 # nothing, so the implicit block target takes EVERY USB device — including a
@@ -244,17 +302,51 @@ for acct in zuup-bio zuup-hb; do
 done
 
 # ── 7. enable the unit graph + lock the default target (offline) ───────────
-systemctl --root="$ROOT" enable \
-  seatd.service \
-  zuup-firewall.service zuup-wireguard.service \
-  zuup-attest.service zuup-biometric.service \
-  zuup-heartbeatd.service zuup-kiosk.service usbguard.service apparmor.service >/dev/null 2>&1 || true
+# Enabled ONE AT A TIME, and asserted. This was a single `systemctl enable a b
+# c … >/dev/null 2>&1 || true`, which reports success no matter what happens: a
+# unit with no [Install] section, a misspelled name, or a file that never got
+# installed all produce a green build and an image missing that unit — on a
+# machine whose only feedback channel is a kiosk browser.
+UNITS=(seatd.service systemd-networkd.service
+       zuup-identity.service zuup-firewall.service zuup-wireguard.service
+       zuup-attest.service zuup-biometric.service
+       zuup-heartbeatd.service zuup-egressd.service zuup-enrol.service
+       zuup-survey.service
+       zuup-kiosk.service usbguard.service apparmor.service)
+for u in "${UNITS[@]}"; do
+  systemctl --root="$ROOT" enable "$u" >/dev/null 2>&1 \
+    || { echo "[zuup-os] FAIL: could not enable $u" >&2; exit 1; }
+done
+echo "[zuup-os] unit graph enabled (${#UNITS[@]} units, each asserted)"
+
+# systemd-networkd's [Install] is WantedBy=multi-user.target, and step 7 masks
+# that target — so enabling it alone would create a symlink nothing ever pulls
+# and the link would never come up. zuup-network.target Wants= it explicitly;
+# this drop-in bounds the wait-online step so a hall with one unplugged terminal
+# cannot hold that machine at a 120 s default before the Gate appears.
+mkdir -p "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d"
+cat > "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d/zuup.conf" <<'EOF'
+# ZUUP-OS: bound the wait, and settle for any link being up. A terminal has one
+# wired NIC; --any avoids waiting on interfaces that will never be configured.
+[Service]
+ExecStart=
+ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any --timeout=30
+EOF
+
 systemctl --root="$ROOT" set-default zuup-session.target >/dev/null
 
 # enforce: there is no path to a login prompt or multi-user surface
 chroot "$ROOT" systemctl mask getty.target getty@.service serial-getty@.service \
   multi-user.target graphical.target rescue.service emergency.service \
   systemd-logind.service >/dev/null 2>&1 || true
+
+# systemd-networkd-persistent-storage wants to write lease state under /var/lib,
+# which is on the read-only verity root — it fails on every boot and prints
+# [FAILED] on the console of a machine that is working perfectly. Observed in
+# the production boot transcript. There is nothing to persist here: the whole
+# image is RAM-only by design (INV-2), and a terminal that remembered its last
+# lease would be remembering something.
+chroot "$ROOT" systemctl mask systemd-networkd-persistent-storage.service >/dev/null 2>&1 || true
 
 # ── 8. brand + strip ───────────────────────────────────────────────────────
 cat > "$ROOT/usr/lib/os-release" <<EOF
@@ -333,6 +425,55 @@ ExecStart=
 ExecStart=/bin/true
 EOF
   printf '00000000-0000-0000-0000-0000000000de\n' > "$ROOT/etc/zuup/terminal-id"
+fi
+
+# ── 10. PRODUCTION ASSERTS — a production image must be unable to ship a
+#        development relaxation ─────────────────────────────────────────────
+#
+# Every relaxation in this file is guarded by `if [[ $DEV == 1 ]]`, which is
+# correct and was never the problem. The problem is that `--allinone` sets
+# DEV=1 (line ~29), so the ONE image that has ever been built and booted took
+# the development path in full — WireGuard and attestation replaced with
+# /bin/true, USB storage compiled in, the permissive USBGuard rules, a
+# placeholder terminal id — while being described everywhere as the product.
+#
+# Nobody was going to notice that by reading, so the build asserts it instead.
+# A production run now FAILS rather than quietly producing a demo wearing the
+# word "production".
+if [[ $DEV == 0 ]]; then
+  echo "[zuup-os] asserting production posture…"
+  fail_prod() { echo "[zuup-os] FAIL (production assert): $*" >&2; exit 1; }
+
+  # The two fail-closed gates the dev drop-ins neutralise.
+  for d in zuup-wireguard.service.d zuup-attest.service.d; do
+    [[ -e "$ROOT/etc/systemd/system/$d" ]] && fail_prod "$d drop-in present — that is the DEV override of a fail-closed gate"
+  done
+
+  # The permissive USB rules allow HID on any port; production pins every device
+  # to the port it was commissioned on.
+  grep -q 'via-port' "$ROOT/etc/usbguard/rules.conf" \
+    || fail_prod "USBGuard rules are not port-pinned — this looks like rules-dev.conf"
+
+  # A login surface. §7.3 strips these and step 8 already asserts it; repeated
+  # here because the whole point of this block is that production is checked as
+  # a whole rather than trusting each earlier step's own guard.
+  for b in su login agetty passwd nsenter; do
+    [[ -e "$ROOT/usr/bin/$b" || -e "$ROOT/usr/sbin/$b" ]] && fail_prod "/usr/*/bin/$b survived — production ships no login surface"
+  done
+
+  # The variant marker the RUNTIME keys off. zuup-attest.sh halts on a failed
+  # attestation only when it reads `production` here; a mislabelled image is one
+  # that reports its own denials as survivable.
+  [[ "$(cat "$ROOT/etc/zuup/image-variant")" == "production" ]] \
+    || fail_prod "image-variant is not 'production'"
+
+  # Self-commissioning must not exist on a production image at all: it is the
+  # trust-on-first-use path, and its presence is what would let a terminal
+  # register its own measurements as golden.
+  [[ -e "$ROOT/usr/lib/zuup/zuup-commission.sh" ]] \
+    && fail_prod "zuup-commission.sh is present — self-commissioning is all-in-one only"
+
+  echo "[zuup-os] production posture OK (no dev drop-ins, port-pinned USB, no login surface, no self-commissioning)"
 fi
 
 BYTES=$(du -sb "$ROOT" | awk '{print $1}')

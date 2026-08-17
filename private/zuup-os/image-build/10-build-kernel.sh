@@ -54,6 +54,17 @@ make olddefconfig >/dev/null
 # In dev, confirm the USB-boot relaxation actually survived dependency resolution.
 if [[ $DEV == 1 ]]; then
   grep -q "^CONFIG_USB_STORAGE=y" .config || { echo "[zuup-os] FAIL: USB_STORAGE missing in dev build" >&2; exit 1; }
+else
+  # And in production, confirm it did NOT. `--allinone` implies DEV=1, so the
+  # only image ever built carried USB mass-storage — verified in the shipped
+  # kernel.config. On a terminal that is an exfiltration medium: plug in a stick,
+  # get a block device. The USBGuard allow-list is a runtime control on top; this
+  # is the structural one, and a production build that lost it must not ship.
+  grep -q "^CONFIG_USB_STORAGE=y" .config \
+    && { echo "[zuup-os] FAIL: CONFIG_USB_STORAGE=y in a PRODUCTION build — that is an exfil medium" >&2; exit 1; }
+  grep -q "^CONFIG_USB_UAS=y" .config \
+    && { echo "[zuup-os] FAIL: CONFIG_USB_UAS=y in a PRODUCTION build" >&2; exit 1; }
+  echo "[zuup-os] production kernel: USB mass-storage is compiled OUT"
 fi
 
 # Refuse to build if a security-critical option was dropped by Kconfig
