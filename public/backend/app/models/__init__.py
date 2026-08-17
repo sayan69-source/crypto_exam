@@ -810,6 +810,35 @@ class ExamForm(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class ExamPatternRow(Base):
+    """
+    The stored shape of one exam's paper (services/exam_pattern.ExamPattern).
+
+    Separate table rather than a column on `Exam` for the same reason as
+    `exam_form_sets`: the app builds its schema with `create_all`, which creates
+    missing TABLES and never adds columns to existing ones, so a column here
+    would silently not exist on any database that already ran.
+
+    One row per exam, and immutable once the paper is committed — the pattern
+    fixes the marking scheme, and a marking scheme that can change after the
+    forms are committed is one that can change after the exam is sat.
+    """
+
+    __tablename__ = "exam_patterns"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"),
+                     nullable=False, unique=True, index=True)
+    # The full ExamPattern.to_dict() — sections, marks, types, tolerances.
+    pattern = Column(JSON, nullable=False)
+    # Denormalised so a roster or an admit card can show them without parsing.
+    total_questions = Column(Integer, nullable=False)
+    max_marks = Column(Numeric(8, 2), nullable=False)
+    duration_minutes = Column(Integer, nullable=False)
+    preset = Column(String(32), nullable=True)          # JEE_MAIN, NEET_UG, or null
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
 class ExamFormSet(Base):
     """
     The T−7d commitment, and the T₀ draw — the two halves of "no one knows the

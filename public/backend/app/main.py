@@ -216,7 +216,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters
+from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 from app.database import commit_before_response
@@ -233,7 +233,7 @@ for _router in (
     enquiries.router,
     sysadmin_auth.router,
     staff_reg.router, provisioning.router, enroll.router, exam_requests.router, exam_setters.router,
-    item_pool.router, item_pool_forms.router,
+    item_pool.router, item_pool_forms.router, exam_pattern_api.router,
 ):
     commit_before_response(_router)
 
@@ -252,6 +252,7 @@ app.include_router(invigilator.router, prefix="/api/v1/invigilator", tags=["Invi
 app.include_router(question_modes.router, prefix="/api/v1/question-modes", tags=["Question Modes"])
 app.include_router(item_pool.router, prefix="/api/v1/item-pool", tags=["Item Pool (parametric authoring, §5.1)"])
 app.include_router(item_pool_forms.router, prefix="/api/v1/forms", tags=["Form assembly + T₀ draw (§6.1)"])
+app.include_router(exam_pattern_api.router, prefix="/api/v1/pattern", tags=["Exam pattern (paper shape + marking scheme)"])
 app.include_router(broadcast.router, prefix="/api/v1/broadcast", tags=["Mass Delivery (§27)"])
 app.include_router(complaint.router, prefix="/api/v1/complaint", tags=["Complaint Resolution (V3 §9)"])
 app.include_router(emergency.router, prefix="/api/v1/emergency", tags=["Emergency Dual-Control (V3 §10)"])
