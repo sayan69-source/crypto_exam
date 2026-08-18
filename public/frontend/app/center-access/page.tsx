@@ -146,21 +146,9 @@ export default function CenterAccessPage() {
           <div className="heading-block">
             <span className="eyebrow">What you can do from here</span>
             <h2>You are not locked out — only locked in.</h2>
-            <p>The portals are private, but the integrity of every examination is public.</p>
+            <p>The portals are private; access is planned with the examining body and the centre.</p>
           </div>
           <div className={s.pointGrid}>
-            <Link className={`card card-hover ${s.point}`} href="/about#transparency">
-              <span className="icon-chip"><Icon name="scale" size={18} strokeWidth={1.7} /></span>
-              <h3>Public transparency record</h3>
-              <p>See exactly what is public, what is private, and how anyone can independently verify an examination.</p>
-              <span className={s.pointLink}>Open transparency report <Icon name="arrow-right" size={14} /></span>
-            </Link>
-            <Link className={`card card-hover ${s.point}`} href="/exam/audit">
-              <span className="icon-chip"><Icon name="search-check" size={18} strokeWidth={1.7} /></span>
-              <h3>Public audit portal</h3>
-              <p>Verify any past examination on-chain — no account, no API key required.</p>
-              <span className={s.pointLink}>Open audit portal <Icon name="arrow-right" size={14} /></span>
-            </Link>
             <Link className={`card card-hover ${s.point}`} href="/contact">
               <span className="icon-chip"><Icon name="mail" size={18} strokeWidth={1.7} /></span>
               <h3>Examining body? Talk to us.</h3>

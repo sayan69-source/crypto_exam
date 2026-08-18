@@ -39,7 +39,7 @@ export const colors = {
   },
   india: {
     saffron:     '#FF9933',   // Tricolour — top stripe
-    #fffefb:       '#fffefb',
+    cream:         '#fffefb',   // Candidate exam background
     green:       '#138808',   // Tricolour — bottom stripe
     ashoka:      '#201515',   // Ashoka Chakra navy
     gold:        '#b07d1a',   // ZK proof achievement badges

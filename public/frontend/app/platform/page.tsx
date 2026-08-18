@@ -190,8 +190,8 @@ export default function PlatformPage() {
               action requires dual control.
             </p>
             <p className={s.roleGridPSpace}>
-              The Admin Console is where the key ceremony is convened, where the emergency
-              channel is opened, and where the audit trail of every action lives.
+              The Admin Console is where emergency controls, centre status and the signed audit
+              trail of every action live.
             </p>
             <ul className={s.featureList}>
               <Feature icon="users-round" title="Dual-control authorisation" desc="No single administrator can act on a sensitive operation. Every critical step needs two approvals." variant="deep" />
@@ -302,12 +302,6 @@ export default function PlatformPage() {
                 <span className={s.archMono}>{tile.mono}</span>
               </div>
             ))}
-          </div>
-          <div className={s.archCta}>
-            <Link className="btn btn-primary btn-lg" href="/pipeline">
-              Watch the sealing layer run, live <Icon name="arrow-right" size={15} />
-            </Link>
-            <span className={s.archCtaNote}>Per-question encryption → on-chain commit → one-at-a-time decryption, in your browser.</span>
           </div>
         </div>
       </section>

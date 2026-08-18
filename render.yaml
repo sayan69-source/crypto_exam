@@ -1,0 +1,86 @@
+## CryptoExam Core — Render Blueprint
+## Usage: Render → New → Blueprint → select this repo.
+## Render reads this file and creates:
+##   cryptoexam-db        — managed Postgres 16
+##   cryptoexam-backend   — FastAPI API (Docker, Dockerfile.render)
+##   cryptoexam-frontend  — Next.js 16 (Docker, Dockerfile.render)
+##
+## IMPORTANT: After first deploy, confirm the frontend URL Render assigns
+##   (usually https://cryptoexam-frontend.onrender.com) and update
+##   CORS_ALLOW_ORIGINS on the backend if it differs.
+##
+## Login: admin@cryptoexam.dev / CryptoExam@2026!
+## OTP:   DEBUG=true → the OTP is returned in the API response and shown in
+##        the login UI automatically (no Twilio SMS gateway needed).
+
+databases:
+  - name: cryptoexam-db
+    plan: free
+    databaseName: cryptoexam
+    user: ce
+
+services:
+  # ── FastAPI Backend ──────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-backend
+    plan: free
+    runtime: docker
+    dockerfilePath: ./public/backend/Dockerfile.render
+    dockerContext: ./public/backend
+    envVars:
+      # ── Database ──
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cryptoexam-db
+          property: connectionString
+
+      # ── Auth (RS256 JWT — pre-generated 2048-bit key pair) ────────────────
+      # These are public demo keys. Rotate before going to production.
+      - key: JWT_PRIVATE_KEY_PEM
+        value: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCeIfDHsDGG+TuY\nCCC3nUAwLxfEccWcSqe/x/pY8UfNKOYjxaW4hHpmVtPix3SWQ1CgDHxtHdIdAw39\nvN38jEfDLs1NJ+hw7jYmEvGabNi+dVOgdLzYescTBT8vprUHMDptJz4NUS1SAE+a\n+SX20ZqbzQB4X+M069m/T12K9TUW3TYRekxaME12Z7cteE2IfIBfliVDjJWfN2QV\n06dr1KRrr9rCXW1W/eKBcKsbCz0kukD9Qb54nFV/403KIjPmf7/zkku56oLAYO2b\nhjeYFZCKqFSI3jgZq2sM+GSaA6WpilAj/XsDt0aa/iw3s2J1dw4DJH0VK9/mWpQq\nngZzFpelAgMBAAECggEANPyaec8ISXnqBh9zFxOSFpMxG5oj5SL+4rxXnsX6kTxL\nIWFxDksV2ITvquW6oz8bHQYSC14asa38WjGXELDQuw5LrLbapDyt2EQwwNYIKomV\n5AY54TAC1NTFP2pU7nuymDC2EjBJR1jjU8J4fiPt8pbWuX8n2uvMotYtOgrAJ1Ch\ncDuhtXgFo8vtmH+pgVkImpvPRyGYimpg8xHQJViEuIte5AFS6XV+NS+0urflDso/\npo5Q1xiuKwfabONIdRiyzT17FV/5Rh9pSF0qV84FSNleWpz0U1ykhcggf8QaS7H2\n4ezQVhzg7bZBeCS2BBCPYAXOUToNSmzWt8NDzCyXYQKBgQDT7h85NbfF+pYy6jka\n9unR9YCp2fyxpdW3uRyijzImgtZrzu2RKrqNp5sVO608mmq02QoUpYIe5yf8Em5N\nRDghGWiz5UVuw5w54YpXB+q1UZJ6Auq1IWnATE2QuBHoti5i+uds7OrcAvfOPIsV\n5wwgqZC6f0nxHPKSWi+x61+cGwKBgQC/A/YNEVUN09aJVySwLcEyDkOfv+k85dsn\nB4kwzB6w0UDdqIvZzxdQ/vnvR/OYMneq6HYPydoU+sWDpmIMliR2ZrPlBFvKhTNQ\n334hahzmtQtTEAgKkRlhPC7nj9JJB7vEo936qCF7KfytdSnQC2c/+M5A9vZfxCir\nfp5RXaZXPwKBgDQWAxCBdlAvHTkYPb61zpOundeg3q0ej98enL4LKY0zfNV0Pwj9\nkmn8Nm5Kg3IwlWcrLIIUh11m/HnEYd2VlaH057nG8ICfjMbg+qoXJQU5LiHUk7C+\nrIn5dtrJkoU6OT5UYgpwU+yMwjCqypgwd9eTNSHQ5PBgZ/G2PqCgs5ffAoGAEBO5\nRehLjFpkGDMpd1qihCAHOQ7iBqoiA+rydRT5EFDMcNuayb5QbBTJ3IXlzs2QnOXr\n6fBHVrS0oxwB7KVGdGC4i3IOd8E2THxDFXTk8dYTGe6jfqAvzqtOF1dXj6YC+83/\nBPXZu5ARIFhYKJaNHilG0tj2a6EK+0Qw9xA2y+kCgYEAqpPgba3Vt6qQKhcAuwxD\nQoJhHDnvQYrgD6Q6dpZ2sklshFpYiZy1ObrVlGauaZnBjdNn4wWEMC9jWIh1AYBd\n3/hGF8Dld7VXopEEgkGhDK1LJJhjocITS3X1/48WgmCnHM0S7sz6tUzZ+/bGsR9k\nMPaRlPDUDp79dcTN8mlX7Qg=\n-----END PRIVATE KEY-----"
+      - key: JWT_PUBLIC_KEY_PEM
+        value: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAniHwx7Axhvk7mAggt51A\nMC8XxHHFnEqnv8f6WPFHzSjmI8WluIR6ZlbT4sd0lkNQoAx8bR3SHQMN/bzd/IxH\nwy7NTSfocO42JhLxmmzYvnVToHS82HrHEwU/L6a1BzA6bSc+DVEtUgBPmvkl9tGa\nm80AeF/jNOvZv09divU1Ft02EXpMWjBNdme3LXhNiHyAX5YlQ4yVnzdkFdOna9Sk\na6/awl1tVv3igXCrGws9JLpA/UG+eJxVf+NNyiIz5n+/85JLueqCwGDtm4Y3mBWQ\niqhUiN44GatrDPhkmgOlqYpQI/17A7dGmv4sN7NidXcOAyR9FSvf5lqUKp4GcxaX\npQIDAQAB\n-----END PUBLIC KEY-----"
+
+      # ── Admin seed credentials ────────────────────────────────────────────
+      - key: SEED_ADMIN_EMAIL
+        value: admin@cryptoexam.dev
+      - key: SEED_ADMIN_PASSWORD
+        value: "CryptoExam@2026!"
+      - key: SEED_ADMIN_PHONE
+        value: "+919000000000"
+
+      # ── App behaviour ─────────────────────────────────────────────────────
+      - key: DEBUG
+        value: "true"          # Shows dev OTP in API response — no Twilio needed
+      - key: SEED_ON_START
+        value: "true"          # Seeds the DB on first boot, no-ops afterwards
+
+      # ── CORS (set to the frontend URL Render assigns) ─────────────────────
+      - key: CORS_ALLOW_ORIGINS
+        value: https://cryptoexam-frontend.onrender.com
+
+      # ── Cryptography ──────────────────────────────────────────────────────
+      - key: DRAND_CHAIN_HASH
+        value: "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
+
+      # ── Blockchain (Polygon Amoy testnet — public RPC, no key needed) ─────
+      - key: POLYGON_RPC_URL
+        value: https://rpc-amoy.polygon.technology
+      - key: POLYGON_CHAIN_ID
+        value: "80002"
+
+  # ── Next.js Frontend ─────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-frontend
+    plan: free
+    runtime: docker
+    dockerfilePath: ./public/frontend/Dockerfile.render
+    dockerContext: ./public/frontend
+    dockerBuildArgs:
+      # NEXT_PUBLIC_* are baked into the client bundle at build time.
+      # Must point to the live backend URL before the frontend build starts.
+      NEXT_PUBLIC_API_URL: https://cryptoexam-backend.onrender.com/api/v1
+      NEXT_PUBLIC_USE_MOCK: "false"
+    envVars:
+      - key: NODE_ENV
+        value: production

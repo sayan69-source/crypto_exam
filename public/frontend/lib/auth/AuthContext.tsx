@@ -67,10 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const publicRoutes = [
       '/', '/about', '/platform', '/contact', '/privacy', '/terms',
       '/candidates', '/setters', '/invigilators', '/administration',
-      '/center-access', '/pipeline', '/explore',
+      '/center-access', '/explore',
       '/exam',
       '/login', '/setter/login', '/admin/login', '/invigilator/login', '/invigilator/register',
-      '/exam/audit', '/exam/t0-broadcast', '/exam/complaint', '/ceremony',
+      '/exam/t0-broadcast', '/exam/complaint',
       // Centre staff register on the PUBLIC site (centre LANs are internet-free,
       // ZUUP-OS INV-3); approval + in-person activation still gate every identity.
       '/staff-registration',

@@ -64,7 +64,7 @@ Open [amoy.polygonscan.com](https://amoy.polygonscan.com/), paste the TX hash, a
 
 ---
 
-## How to run the full project step by step guide
+## Quick Start
 
 ### One-Command Setup
 

@@ -9,10 +9,10 @@ import { GROUPS } from "@/lib/navigation";
  * real feature set instead of drifting into a handful of repeated anchors.
  */
 
-const COLUMNS = ["candidate", "setter", "invigilator", "admin", "verify"];
+const COLUMNS = ["candidate", "setter", "invigilator", "admin"];
 
 /** Role hubs. The header no longer carries role tabs, so these headings are
- *  one of the main ways in. "verify" has no hub — it lives on Home. */
+ *  one of the main ways in. */
 const HUBS: Record<string, string> = {
   candidate: "/candidates",
   setter: "/setters",
@@ -79,7 +79,7 @@ export default function Footer() {
           <div className="footer-legal">
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
-            <Link href="/about">Transparency</Link>
+            <Link href="/about">About</Link>
             <span className="mono" style={{ color: "var(--text-on-dark-muted)" }}>
               Polygon PoS · CIRCOM Groth16
             </span>

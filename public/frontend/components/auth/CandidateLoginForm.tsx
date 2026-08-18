@@ -251,11 +251,6 @@ export default function CandidateLoginForm() {
           )}
         </div>
 
-        <div className={styles.footer}>
-          <Link href="/exam/audit" className={styles.auditLink}>
-            Public Audit Portal — Verify any exam (No Login Required)
-          </Link>
-        </div>
       </div>
     </div>
   );

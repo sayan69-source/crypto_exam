@@ -93,7 +93,7 @@ export const GROUPS: NavGroup[] = [
   {
     id: "candidate",
     label: "Candidates",
-    blurb: "Sit the exam, check your machine, verify your own result.",
+    blurb: "Sit the exam, check your machine and raise exam-day issues.",
     icon: "graduation-cap",
     stages: ["Before exam day", "On the day", "Afterwards"],
     items: [
@@ -101,7 +101,6 @@ export const GROUPS: NavGroup[] = [
       { title: "System check", href: "/exam/system-check", stage: "Before exam day", desc: "Confirm the terminal meets exam requirements.", icon: "monitor-check", keywords: ["hardware", "browser", "readiness", "test"] },
       { title: "My dashboard", href: "/exam/dashboard", stage: "Before exam day", desc: "Upcoming exams, admit cards and centre allocation.", icon: "layout-dashboard", auth: true, keywords: ["admit card", "upcoming"] },
       { title: "T₀ broadcast", href: "/exam/t0-broadcast", stage: "On the day", desc: "The synchronised moment every paper unseals.", icon: "radio", keywords: ["start", "unseal", "drand", "beacon"] },
-      { title: "Verify a result", href: "/exam/audit", stage: "Afterwards", desc: "Check any answer record against the on-chain Merkle root.", icon: "search-check", keywords: ["audit", "merkle", "proof", "receipt", "verify", "blockchain"] },
       { title: "Raise a complaint", href: "/exam/complaint", stage: "Afterwards", desc: "Formally dispute a question or an exam-day incident.", icon: "message-square-warning", keywords: ["dispute", "grievance", "objection"] },
     ],
   },
@@ -161,18 +160,6 @@ export const GROUPS: NavGroup[] = [
   },
 
   /* ── Not tabs. These are absorbed into Home as proof and depth. ── */
-  {
-    id: "verify",
-    label: "Verify & audit",
-    blurb: "Open to anyone. No login, no API key, no trust required.",
-    icon: "scale",
-    items: [
-      { title: "Live pipeline", href: "/pipeline", desc: "Watch a paper get sealed, committed and delivered.", icon: "workflow", keywords: ["demo", "sealing", "live", "flow"] },
-      { title: "Key ceremony", href: "/ceremony", desc: "Shamir shares split across independent custodians.", icon: "key-square", keywords: ["shamir", "sss", "custodian", "keys"] },
-      { title: "Verify a result", href: "/exam/audit", desc: "Independently check any answer record.", icon: "search-check", keywords: ["merkle", "audit", "proof"] },
-      { title: "Transparency report", href: "/about", desc: "What we publish, and what we deliberately cannot see.", icon: "eye", keywords: ["transparency", "open"] },
-    ],
-  },
   {
     id: "learn",
     label: "Learn",
