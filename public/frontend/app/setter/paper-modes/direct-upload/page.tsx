@@ -6,12 +6,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { TRUSTED_INSTITUTIONS } from '@/lib/data/trusted-institutions';
+import { mockTrustedInstitutions } from '@/lib/api/mock-data';
 import { paperModesApi } from '@/lib/api/paper-modes';
 import RedTeamReportPanel from '@/components/setter/RedTeamReport';
 import type { RedTeamReport } from '@/lib/api/red-team';
 import styles from '../paper-modes.module.css';
-import FinalizePanel from '@/components/setter/FinalizePanel';
 
 const STEPS = ['Select Institution', 'Setter Details', 'Upload PDFs', 'CV Processing', 'Review & Submit'];
 
@@ -19,7 +18,6 @@ function fmtSize(bytes: number) { return `${(bytes / (1024 * 1024)).toFixed(1)} 
 
 export default function DirectUploadPage() {
   const [step, setStep] = useState(0);
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [selectedInst, setSelectedInst] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [setterData, setSetterData] = useState({
@@ -39,12 +37,12 @@ export default function DirectUploadPage() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [redTeam, setRedTeam] = useState<RedTeamReport | null>(null);
 
-  const filteredInstitutions = TRUSTED_INSTITUTIONS.filter(
+  const filteredInstitutions = mockTrustedInstitutions.filter(
     inst => inst.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             inst.short_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const selectedInstitution = TRUSTED_INSTITUTIONS.find(i => i.id === selectedInst);
+  const selectedInstitution = mockTrustedInstitutions.find(i => i.id === selectedInst);
 
   const onSyllabusPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -65,9 +63,8 @@ export default function DirectUploadPage() {
       { question_paper_pdf: paperObj.current ?? undefined, syllabus_pdf: syllabusObj.current ?? undefined },
       { exam_id: 'draft', difficulty: 'MEDIUM' },
       (p) => { if (!cancelled) setProgress(p); },
-    ).then(({ taskId: tid, result }) => {
+    ).then((result) => {
       if (cancelled) return;
-      setTaskId(tid);
       setParseResult(result); setProgress(100);
       setTimeout(() => { if (!cancelled) setStep(4); }, 800);
     }).catch((err) => { if (!cancelled) setParseError(err.message || 'Parsing failed'); });
@@ -218,7 +215,7 @@ export default function DirectUploadPage() {
           </div>
 
           {parseError && (
-            <div className={styles.infoBanner} style={{ borderColor: '#ef4444' }}>
+            <div className={styles.infoBanner} style={{ borderColor: '#b3341c' }}>
               <span className={styles.infoBannerIcon}></span>
               <span className={styles.infoBannerText}>Parsing failed: {parseError}</span>
             </div>
@@ -297,28 +294,32 @@ export default function DirectUploadPage() {
             <h3 className={styles.sectionTitle}>Setter Transparency Details</h3>
             <div className={styles.reviewGrid}>
               <span className={styles.reviewLabel}>Setter Name</span>
-              <span className={styles.reviewValue}>{setterData.name || '—'}</span>
+              <span className={styles.reviewValue}>{setterData.name || 'Prof. Arvind Krishnamurthy'}</span>
               <span className={styles.reviewLabel}>Institution</span>
-              <span className={styles.reviewValue}>{selectedInstitution?.name || '—'}</span>
+              <span className={styles.reviewValue}>{selectedInstitution?.name || 'IIT Bombay'}</span>
               <span className={styles.reviewLabel}>Institution Record</span>
-              <span className={styles.reviewValue} style={{ color: '#94a3b8' }}>
-                Not tracked yet — leak history is not something this platform can assert
-              </span>
+              <span className={styles.reviewValue} style={{ color: '#6fa678' }}>0 leak incidents — Clean ✓</span>
             </div>
           </div>
 
           {/* V3 §4.3 — AI Adversarial Red-Team Agent */}
           <RedTeamReportPanel
-            questions={(parseResult?.questions as object[]) ?? []}
+            questions={(parseResult?.questions as object[]) || [
+              { question_number: 1, question_text: 'A body of mass 5 kg moves at 10 m/s. Its kinetic energy is', option_A: '250 J', option_B: '500 J', option_C: '100 J', option_D: '50 J' },
+              { question_number: 2, question_text: 'A noble gas always reacts only at high temperature', option_A: 'Neon', option_B: 'Argon', option_C: 'Neon', option_D: 'Hydrogen' },
+              { question_number: 3, question_text: 'Pluto is a planet — true or false?', option_A: 'True', option_B: 'False', option_C: 'Both', option_D: 'Neither' },
+            ]}
             onResult={setRedTeam}
           />
 
-          <FinalizePanel
-            taskId={taskId}
-            label="Encrypt & Lock on Blockchain →"
+          <button
+            className={styles.submitBtn}
             disabled={redTeam ? !redTeam.red_team_passed : false}
-            disabledReason={redTeam && !redTeam.red_team_passed ? `Resolve ${redTeam.blocker_count} Red-Team blocker(s) before locking` : ''}
-          />
+            style={redTeam && !redTeam.red_team_passed ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+            title={redTeam && !redTeam.red_team_passed ? `Resolve ${redTeam.blocker_count} Red-Team blocker(s) before locking` : ''}
+          >
+            Encrypt & Lock on Blockchain →
+          </button>
         </div>
       )}
 

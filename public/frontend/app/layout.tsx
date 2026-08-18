@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from '@/lib/auth/AuthContext';
+import CommandPalette from '@/components/marketing/CommandPalette';
+import ScrollFX from '@/components/marketing/ScrollFX';
+import SiteHeader from '@/components/marketing/SiteHeader';
 
 export const metadata: Metadata = {
   title: "CryptoExam Core — Zero-Trust Examination Infrastructure",
@@ -24,7 +27,18 @@ export default function RootLayout({
     <html lang="en" data-scroll-behavior="smooth">
       <body>
         <AuthProvider>
+          {/* Primary navigation, held on every route — marketing, auth and
+              the signed-in portals alike. Portals previously rendered no site
+              nav at all, which made signing in a one-way door. */}
+          <SiteHeader />
           {children}
+          {/* Global ⌘K navigator — available on every route, including the
+              authenticated portals, not just the marketing pages. */}
+          <CommandPalette />
+          {/* Scroll progress, nav condense, back-to-top, and the site-wide
+              reveal observer. Mounted here so every route animates, not just
+              the landing page. */}
+          <ScrollFX />
         </AuthProvider>
       </body>
     </html>

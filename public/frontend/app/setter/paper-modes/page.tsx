@@ -79,13 +79,13 @@ export default function PaperModesHub() {
             </p>
           </div>
           <div>
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Mode 2 — AI-Edited</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#939084', marginBottom: 8 }}>Mode 2 — AI-Edited</p>
             <p style={{ fontSize: 12, color: 'var(--color-navy-400)', lineHeight: 1.7 }}>
               You upload the base paper and select a difficulty level. AI randomly modifies 20–80% of questions while preserving topic distribution and marks. You review every change before submission.
             </p>
           </div>
           <div>
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#34d399', marginBottom: 8 }}>Mode 3 — AI Generated</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#6fa678', marginBottom: 8 }}>Mode 3 — AI Generated</p>
             <p style={{ fontSize: 12, color: 'var(--color-navy-400)', lineHeight: 1.7 }}>
               Upload PYQs and syllabus. The AI analyzes patterns, difficulty curves, and topic distribution to generate a completely new paper calibrated with IRT parameters. Full human review before finalization.
             </p>

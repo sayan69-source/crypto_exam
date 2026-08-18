@@ -11,7 +11,7 @@
 
 /* Left — dark panel */
 .contactAside {
-  background: var(--bg-darkest); color: #fff;
+  background: var(--bg-darkest); color: #fffefb;
   padding: clamp(36px, 5vw, 56px);
   position: relative; overflow: hidden;
 }
@@ -22,13 +22,13 @@
   pointer-events: none;
 }
 .contactAside h1 {
-  color: #fff; font-size: clamp(28px, 3.6vw, 40px);
+  color: #fffefb; font-size: clamp(28px, 3.6vw, 40px);
   margin-top: var(--space-md); line-height: var(--lh-tight);
   letter-spacing: var(--tracking-tight);
 }
 .contactAside h1 em {
-  font-family: var(--font-display); font-style: italic;
-  color: var(--color-saffron-300); font-weight: var(--fw-regular);
+  font-family: var(--font-display); font-style: normal;
+  color: var(--color-saffron-300); font-weight: 500;
 }
 .asideLead {
   margin-top: var(--space-lg); color: var(--color-navy-200);
@@ -36,11 +36,11 @@
 }
 
 .channels { margin-top: var(--space-2xl); display: flex; flex-direction: column; gap: var(--space-md); position: relative; }
-.channel { display: flex; gap: var(--space-md); align-items: flex-start; padding: var(--space-md) 0; border-top: 1px solid rgba(255,255,255,0.10); }
+.channel { display: flex; gap: var(--space-md); align-items: flex-start; padding: var(--space-md) 0; border-top: 1px solid rgba(255, 254, 251,0.10); }
 .channel:first-child { border-top: 0; padding-top: 0; }
 .channelChip {
   width: 38px; height: 38px;
-  background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14);
+  background: rgba(255, 254, 251,0.06); border-color: rgba(255, 254, 251,0.14);
   color: var(--color-saffron-300); flex-shrink: 0;
 }
 .channelChip svg { width: 17px; height: 17px; }
@@ -49,13 +49,13 @@
   letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--color-navy-400);
 }
-.ctVal { color: #fff; font-weight: var(--fw-medium); font-size: var(--fs-sm); margin-top: 2px; }
-.ctVal a { color: #fff; text-decoration: none; }
+.ctVal { color: #fffefb; font-weight: var(--fw-medium); font-size: var(--fs-sm); margin-top: 2px; }
+.ctVal a { color: #fffefb; text-decoration: none; }
 .ctVal a:hover { color: var(--color-saffron-300); }
 
 .assurance {
   margin-top: var(--space-2xl); padding: var(--space-md) var(--space-lg);
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 254, 251,0.04); border: 1px solid rgba(255, 254, 251,0.08);
   border-radius: var(--radius-md);
   font-size: var(--fs-xs); color: var(--color-navy-200);
   line-height: var(--lh-normal);
@@ -92,7 +92,7 @@
 .field textarea { resize: vertical; min-height: 130px; font-family: inherit; line-height: 1.55; }
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: 0; border-color: var(--color-navy-400);
-  background: #fff; box-shadow: 0 0 0 3px rgba(41, 66, 166, 0.10);
+  background: #fffefb; box-shadow: 0 0 0 3px rgba(96, 93, 82, 0.10);
 }
 .field select {
   appearance: none;
@@ -155,35 +155,4 @@
   .contactGrid { grid-template-columns: 1fr; }
   .faqGrid { grid-template-columns: 1fr; gap: var(--space-xl); }
   .form { grid-template-columns: 1fr; }
-}
-
-/* An enquiry that failed to send must look like a failure, not a quiet no-op —
-   the old form always showed the success state regardless. */
-.formError {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
-  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
-  border-radius: 10px;
-  color: var(--color-danger);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.formError strong { display: block; margin-bottom: 2px; }
-.formError span { color: var(--color-text-muted, inherit); }
-
-.sentRef {
-  margin-top: 14px;
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-.sentRef code {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, currentColor 10%, transparent);
 }

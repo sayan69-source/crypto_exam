@@ -118,8 +118,8 @@ export default function PanicButton({ examId, candidateId, seatNumber, centerId 
         <div style={armedOverlay}>
           <div style={armedCard}>
             <div style={{ fontSize: 40 }}></div>
-            <h3 style={{ margin: '8px 0', color: '#fff' }}>Hold to call for help</h3>
-            <p style={{ margin: 0, color: '#cbd5e1', fontSize: 13 }}>Keep holding to alert the invigilator…</p>
+            <h3 style={{ margin: '8px 0', color: '#fffefb' }}>Hold to call for help</h3>
+            <p style={{ margin: 0, color: '#c5c0b1', fontSize: 13 }}>Keep holding to alert the invigilator…</p>
             <div style={progressBg}>
               <div style={{ ...progressFill, width: `${Math.round(progress * 100)}%` }} />
             </div>
@@ -131,12 +131,12 @@ export default function PanicButton({ examId, candidateId, seatNumber, centerId 
         <div style={confirmOverlay} role="status">
           <div style={confirmCard}>
             <div style={{ fontSize: 48 }}>✓</div>
-            <h3 style={{ margin: '8px 0 4px', color: '#fff' }}>Help has been requested</h3>
-            <p style={{ margin: 0, color: '#cbd5e1', fontSize: 14 }}>An invigilator is on their way to your seat.</p>
-            <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 12 }}>Your exam timer is still running — you may continue or wait.</p>
+            <h3 style={{ margin: '8px 0 4px', color: '#fffefb' }}>Help has been requested</h3>
+            <p style={{ margin: 0, color: '#c5c0b1', fontSize: 14 }}>An invigilator is on their way to your seat.</p>
+            <p style={{ margin: '8px 0 0', color: '#939084', fontSize: 12 }}>Your exam timer is still running — you may continue or wait.</p>
             <button onClick={() => setAlerted(false)} style={dismissBtn}>Dismiss</button>
-            {error && <p style={{ marginTop: 8, color: '#fca5a5', fontSize: 12 }}>Backend offline ({error}); your alert is queued locally.</p>}
-            {debug && <p style={{ marginTop: 4, color: '#475569', fontSize: 10 }}>{debug}</p>}
+            {error && <p style={{ marginTop: 8, color: '#d99a8e', fontSize: 12 }}>Backend offline ({error}); your alert is queued locally.</p>}
+            {debug && <p style={{ marginTop: 4, color: '#4a463d', fontSize: 10 }}>{debug}</p>}
           </div>
         </div>
       )}
@@ -149,11 +149,11 @@ export default function PanicButton({ examId, candidateId, seatNumber, centerId 
   );
 }
 
-const armedOverlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(8,14,30,0.55)', display: 'grid', placeItems: 'center', zIndex: 1000 };
-const armedCard: React.CSSProperties = { background: '#0F172A', border: '1px solid #7f1d1d', padding: 24, borderRadius: 14, textAlign: 'center', maxWidth: 360 };
-const progressBg: React.CSSProperties = { marginTop: 14, height: 8, width: '100%', background: '#1e293b', borderRadius: 4, overflow: 'hidden' };
-const progressFill: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg, #fbbf24, #ef4444)', transition: 'width 100ms linear' };
+const armedOverlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(21, 14, 14,0.55)', display: 'grid', placeItems: 'center', zIndex: 1000 };
+const armedCard: React.CSSProperties = { background: '#1a1010', border: '1px solid #631518', padding: 24, borderRadius: 14, textAlign: 'center', maxWidth: 360 };
+const progressBg: React.CSSProperties = { marginTop: 14, height: 8, width: '100%', background: '#2f2a26', borderRadius: 4, overflow: 'hidden' };
+const progressFill: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg, #d9a441, #b3341c)', transition: 'width 100ms linear' };
 
 const confirmOverlay: React.CSSProperties = { position: 'fixed', top: 24, right: 24, zIndex: 1000 };
-const confirmCard: React.CSSProperties = { background: '#0B1120', border: '1px solid #16a34a', padding: 22, borderRadius: 14, textAlign: 'center', maxWidth: 340, boxShadow: '0 20px 50px rgba(0,0,0,0.4)' };
-const dismissBtn: React.CSSProperties = { marginTop: 12, padding: '8px 18px', background: '#1A2D5A', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' };
+const confirmCard: React.CSSProperties = { background: '#150e0e', border: '1px solid #3f6f4a', padding: 22, borderRadius: 14, textAlign: 'center', maxWidth: 340, boxShadow: '0 20px 50px rgba(32, 21, 21,0.4)' };
+const dismissBtn: React.CSSProperties = { marginTop: 12, padding: '8px 18px', background: '#2b211c', color: '#fffefb', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' };

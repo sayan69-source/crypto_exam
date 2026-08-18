@@ -58,30 +58,30 @@ export default function RedTeamReportPanel({ questions, answerKey, examId, autoR
 
   return (
     <div style={{
-      background: 'rgba(15, 23, 42, 0.6)',
-      border: `1px solid ${summary?.tone === 'danger' ? '#dc2626' : summary?.tone === 'warn' ? '#d97706' : '#1A2D5A'}`,
+      background: 'rgba(26, 16, 16, 0.6)',
+      border: `1px solid ${summary?.tone === 'danger' ? '#9b2226' : summary?.tone === 'warn' ? '#b07d1a' : '#2b211c'}`,
       borderRadius: 14, padding: 22, marginTop: 18, fontFamily: 'var(--font-sans)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <span style={{ fontSize: 22 }}></span>
         <div style={{ flex: 1 }}>
-          <h3 style={{ margin: 0, color: '#fff', fontSize: 16 }}>AI Adversarial Red-Team Report</h3>
-          <p style={{ margin: '2px 0 0', color: '#94a3b8', fontSize: 12 }}>
+          <h3 style={{ margin: 0, color: '#fffefb', fontSize: 16 }}>AI Adversarial Red-Team Report</h3>
+          <p style={{ margin: '2px 0 0', color: '#939084', fontSize: 12 }}>
             Three personas attack every question: Clever Student · RTI Officer · Opposition Lawyer
           </p>
         </div>
-        {report && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#64748b' }}>backend: {report.backend}</span>}
+        {report && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#605d52' }}>backend: {report.backend}</span>}
       </div>
 
-      {busy && <div style={{ color: '#94a3b8', fontSize: 14 }}>Running adversarial attack on {questions.length} questions…</div>}
-      {error && <div style={{ color: '#ef4444', fontSize: 14 }}>{error}</div>}
+      {busy && <div style={{ color: '#939084', fontSize: 14 }}>Running adversarial attack on {questions.length} questions…</div>}
+      {error && <div style={{ color: '#b3341c', fontSize: 14 }}>{error}</div>}
 
       {report && summary && (
         <>
           <div style={{
             padding: '12px 16px', borderRadius: 10, marginBottom: 14, fontWeight: 700, fontSize: 14,
-            background: summary.tone === 'danger' ? 'rgba(220,38,38,0.15)' : summary.tone === 'warn' ? 'rgba(217,119,6,0.15)' : 'rgba(22,163,74,0.15)',
-            color: summary.tone === 'danger' ? '#fca5a5' : summary.tone === 'warn' ? '#fbbf24' : '#86efac',
+            background: summary.tone === 'danger' ? 'rgba(155, 34, 38,0.15)' : summary.tone === 'warn' ? 'rgba(176, 125, 26,0.15)' : 'rgba(63, 111, 74,0.15)',
+            color: summary.tone === 'danger' ? '#d99a8e' : summary.tone === 'warn' ? '#d9a441' : '#a8c9a5',
           }}>
             {summary.tone === 'danger' ? '' : summary.tone === 'warn' ? '' : '✓'} {summary.text}
           </div>
@@ -90,8 +90,8 @@ export default function RedTeamReportPanel({ questions, answerKey, examId, autoR
           <FlagList flags={report.warnings} kind="WARN" />
 
           <button onClick={run} disabled={busy} style={{
-            marginTop: 6, background: 'transparent', color: '#94a3b8',
-            border: '1px solid #1A2D5A', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+            marginTop: 6, background: 'transparent', color: '#939084',
+            border: '1px solid #2b211c', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
           }}>↻ Re-run Red-Team</button>
         </>
       )}
@@ -101,24 +101,24 @@ export default function RedTeamReportPanel({ questions, answerKey, examId, autoR
 
 function FlagList({ flags, kind }: { flags: RedTeamFlag[]; kind: 'BLOCKER' | 'WARN' }) {
   if (flags.length === 0) return null;
-  const color = kind === 'BLOCKER' ? '#fca5a5' : '#fbbf24';
+  const color = kind === 'BLOCKER' ? '#d99a8e' : '#d9a441';
   return (
     <div style={{ marginBottom: 12 }}>
       <h4 style={{ margin: '8px 0', color, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{kind === 'BLOCKER' ? `${flags.length} Blocker(s)` : `${flags.length} Warning(s)`}</h4>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {flags.map((f, i) => (
           <details key={`${kind}-${f.question_number}-${i}`} style={{
-            border: `1px solid ${kind === 'BLOCKER' ? 'rgba(220,38,38,0.4)' : 'rgba(217,119,6,0.4)'}`,
-            borderRadius: 8, padding: '8px 12px', background: 'rgba(8,14,30,0.6)',
+            border: `1px solid ${kind === 'BLOCKER' ? 'rgba(155, 34, 38,0.4)' : 'rgba(176, 125, 26,0.4)'}`,
+            borderRadius: 8, padding: '8px 12px', background: 'rgba(21, 14, 14,0.6)',
           }}>
-            <summary style={{ cursor: 'pointer', fontSize: 13, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, color: '#e8e2d8', display: 'flex', alignItems: 'center', gap: 8 }}>
               <b style={{ color }}>Q{f.question_number}</b>
-              <span style={{ color: '#cbd5e1' }}>· {f.attack_type.replace(/_/g, ' ')}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#64748b' }}>{PERSONA_LABEL[f.persona] ?? f.persona} · {(f.confidence * 100).toFixed(0)}%</span>
+              <span style={{ color: '#c5c0b1' }}>· {f.attack_type.replace(/_/g, ' ')}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#605d52' }}>{PERSONA_LABEL[f.persona] ?? f.persona} · {(f.confidence * 100).toFixed(0)}%</span>
             </summary>
-            <p style={{ margin: '8px 0 4px', fontSize: 13, color: '#cbd5e1', lineHeight: 1.6 }}>{f.description}</p>
+            <p style={{ margin: '8px 0 4px', fontSize: 13, color: '#c5c0b1', lineHeight: 1.6 }}>{f.description}</p>
             {f.suggested_fix && (
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#86efac' }}>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#a8c9a5' }}>
                 <b>Suggested fix:</b> {f.suggested_fix}
               </p>
             )}

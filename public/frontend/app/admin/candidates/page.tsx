@@ -4,102 +4,57 @@
  */
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminApi, type AdminCandidate } from '@/lib/api/admin';
-import {
-  AdminPage, PageHeader, Card, Badge, Button, Table, Toolbar, Chip,
-  ErrorState, EmptyState, SkeletonRows, toneForStatus, cellMono, cellStrong,
-} from '@/components/admin/AdminUI';
 
 export default function AdminCandidatesPage() {
   const [rows, setRows] = useState<AdminCandidate[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [state, setState] = useState<string>('ALL');
 
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    let alive = true;
     adminApi.candidates()
-      .then((r) => { setRows(r.items); setTotal(r.total); })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load candidates'))
-      .finally(() => setLoading(false));
+      .then((r) => { if (alive) { setRows(r.items); setTotal(r.total); } })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : 'Failed to load candidates'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []);
 
-  useEffect(load, [load]);
-
-  // Filter client-side: the roster endpoint returns the page in one shot, and a
-  // state filter that needs a round trip would feel worse than one that doesn't.
-  const states = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const c of rows) {
-      const k = c.state ?? 'Unknown';
-      seen.set(k, (seen.get(k) ?? 0) + 1);
-    }
-    return [...seen.entries()].sort((a, b) => b[1] - a[1]);
-  }, [rows]);
-
-  const visible = state === 'ALL' ? rows : rows.filter((c) => (c.state ?? 'Unknown') === state);
-
   return (
-    <AdminPage>
-      <PageHeader
-        eyebrow="Enrolment"
-        title="Candidate Roster"
-        subtitle={
-          loading
-            ? 'Loading candidates…'
-            : `${total} enrolled. Names and roll numbers are personal data under the DPDP Act — this view is audit-logged.`
-        }
-        actions={<Button onClick={load} disabled={loading}>Refresh</Button>}
-      />
+    <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
+      <h1 style={{ fontSize: 22, color: 'var(--color-navy-900)', marginBottom: 8 }}>Candidate Roster</h1>
+      <p style={{ fontSize: 13, color: 'var(--color-navy-500)', marginBottom: 24 }}>
+        {loading ? 'Loading candidates…' : `${total} candidate(s) · live from the backend`}
+      </p>
 
-      {states.length > 1 && (
-        <Toolbar>
-          <Chip active={state === 'ALL'} count={rows.length} onClick={() => setState('ALL')}>All states</Chip>
-          {states.slice(0, 6).map(([st, n]) => (
-            <Chip key={st} active={state === st} count={n} onClick={() => setState(st)}>{st}</Chip>
+      {error && (
+        <div style={{ padding: 16, border: '1px solid rgba(155, 34, 38,0.35)', background: 'rgba(155, 34, 38,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
+      )}
+
+      {!loading && !error && rows.length === 0 && (
+        <p style={{ color: 'var(--color-navy-500)' }}>No candidates enrolled.</p>
+      )}
+
+      {rows.length > 0 && (
+        <div style={{ background: '#fffefb', border: '1px solid var(--border-soft)', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.4fr 1fr 1fr auto', gap: 16, padding: '12px 18px', borderBottom: '2px solid var(--border-soft)', fontSize: 11, fontWeight: 600, color: 'var(--color-navy-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <span>Candidate</span><span>Roll Number</span><span>Centre</span><span>State</span><span>Status</span>
+          </div>
+          {rows.map((c) => (
+            <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.4fr 1fr 1fr auto', gap: 16, padding: '12px 18px', borderBottom: '1px solid var(--border-soft)', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-navy-900)' }}>{c.name}</span>
+              <code style={{ fontSize: 12, color: 'var(--color-navy-600)', background: 'none', padding: 0 }}>{c.rollNumber ?? '—'}{c.setLabel ? ` · Set ${c.setLabel}` : ''}</code>
+              <span style={{ fontSize: 12, color: 'var(--color-navy-600)' }}>{c.centreName ?? '—'}</span>
+              <span style={{ fontSize: 12, color: 'var(--color-navy-600)' }}>{c.state ?? '—'}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: c.enrollmentStatus ? 'rgba(63, 111, 74,0.12)' : 'rgba(96, 93, 82,0.12)', color: c.enrollmentStatus ? 'var(--color-success)' : 'var(--color-navy-500)' }}>
+                {c.enrollmentStatus ?? 'NOT ENROLLED'}
+              </span>
+            </div>
           ))}
-        </Toolbar>
+        </div>
       )}
-
-      {error && <ErrorState message={error} onRetry={load} />}
-
-      {!error && (
-        <Card flush>
-          <Table head={['Candidate', 'Roll number', 'Centre', 'State', 'Enrolment']}>
-            {loading && <SkeletonRows rows={6} cols={5} />}
-
-            {!loading && visible.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ padding: 0, borderBottom: 0 }}>
-                  <EmptyState
-                    title="No candidates enrolled"
-                    hint="Candidates appear here after enrolling on the public site and being synced to a centre."
-                  />
-                </td>
-              </tr>
-            )}
-
-            {!loading && visible.map((c) => (
-              <tr key={c.id}>
-                <td className={cellStrong}>{c.name}</td>
-                <td className={cellMono}>
-                  {c.rollNumber ?? '—'}{c.setLabel ? ` · Set ${c.setLabel}` : ''}
-                </td>
-                <td>{c.centreName ?? '—'}</td>
-                <td>{c.state ?? '—'}</td>
-                <td>
-                  <Badge tone={c.enrollmentStatus ? toneForStatus(c.enrollmentStatus) : 'neutral'}>
-                    {c.enrollmentStatus ?? 'Not enrolled'}
-                  </Badge>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </Card>
-      )}
-    </AdminPage>
+    </div>
   );
 }

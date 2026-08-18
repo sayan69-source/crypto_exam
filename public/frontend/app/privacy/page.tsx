@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "../legal.module.css";
@@ -16,8 +15,6 @@ const LAST_UPDATED = "2026-06-09";
 export default function PrivacyPage() {
   return (
     <main>
-      <Navbar />
-
       <section className={s.hero}>
         <div className="wrap">
           <span className="eyebrow">Privacy</span>
@@ -34,7 +31,7 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section className={s.bodySection}>
+      <section className={`${s.bodySection} reveal reveal-rise`}>
         <div className="wrap-narrow">
           <div className={s.callout}>
             <span className="icon-chip"><Icon name="shield" size={18} strokeWidth={1.7} /></span>
@@ -130,23 +127,10 @@ export default function PrivacyPage() {
               <li>Nominate another individual to exercise these rights on your behalf.</li>
               <li>Lodge a grievance with us, and escalate to the Data Protection Board of India.</li>
             </ul>
-            {/* This used to name dpo@cryptoexam.core — an address on a domain
-                that cannot exist (".core" is not a TLD), for an officer who has
-                not been appointed. Under the DPDP Act the Data Protection
-                Officer's contact must be real and reachable, so an invented one
-                is a false compliance claim, not a placeholder. The route below
-                is the channel that genuinely works: it lands in the HQ queue. */}
             <p>
-              To exercise any of these rights, use the{" "}
-              <Link className={s.link} href="/contact">enquiry form</Link> and choose
-              the privacy topic. Your request is recorded with a reference you can quote,
-              and we respond within statutory timelines.
-            </p>
-            <p className={s.note}>
-              <strong>Before this platform processes real candidate data,</strong> the operating
-              body must appoint a named Data Protection Officer and publish their contact
-              here. Until that appointment is made this notice does not name one, rather
-              than naming an address that would not reach anybody.
+              To exercise any of these rights, write to{" "}
+              <a className={s.link} href="mailto:dpo@cryptoexam.core">dpo@cryptoexam.core</a> with
+              the subject &ldquo;DPDP rights request&rdquo;. We respond within statutory timelines.
             </p>
           </Article>
 
@@ -171,9 +155,9 @@ export default function PrivacyPage() {
 
           <Article number="11" title="Contact">
             <p>
-              For privacy-specific requests use the{" "}
-              <Link className={s.link} href="/contact">enquiry form</Link> and choose the
-              privacy topic — it is recorded with a reference you can quote.
+              For privacy-specific requests:{" "}
+              <a className={s.link} href="mailto:dpo@cryptoexam.core">dpo@cryptoexam.core</a>.
+              For everything else, see <Link className={s.link} href="/contact">/contact</Link>.
             </p>
           </Article>
         </div>

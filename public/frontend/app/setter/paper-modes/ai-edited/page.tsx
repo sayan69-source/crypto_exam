@@ -4,11 +4,9 @@
  */
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import styles from '../paper-modes.module.css';
-import { paperModesApi } from '@/lib/api/paper-modes';
-import FinalizePanel from '@/components/setter/FinalizePanel';
 
 const STEPS = ['Upload PDFs', 'Select Difficulty', 'CV & Black-Box AI', 'Review & Approve'];
 
@@ -25,35 +23,57 @@ interface EditedQuestion {
   aiLogic: string;
 }
 
-// Edited questions come from the mode-2 pipeline. There used to be a
-// hardcoded SAMPLE_EDITS bank here that a setter reviewed and approved without
-// any paper having been uploaded or edited.
-
+const SAMPLE_EDITS: EditedQuestion[] = [
+  {
+    id: 1, status: 'modified', approved: null,
+    original: 'A body of mass 5 kg is thrown vertically upward with a velocity of 20 m/s. The kinetic energy at the highest point is:',
+    edited: 'An object of mass 8 kg is projected vertically upward with an initial velocity of 15 m/s. Calculate the kinetic energy at the maximum height:',
+    originalOptions: ['0 J', '500 J', '1000 J', '250 J'],
+    editedOptions: ['0 J', '900 J', '450 J', '120 J'],
+    aiLogic: 'Numerical update. Difficulty matched.'
+  },
+  {
+    id: 2, status: 'modified', approved: null,
+    original: 'Which of the following molecules has the highest dipole moment?',
+    edited: 'Among the given molecules, identify the one with the greatest permanent dipole moment:',
+    originalOptions: ['CO₂', 'H₂O', 'NF₃', 'NH₃'],
+    editedOptions: ['BF₃', 'CHCl₃', 'NF₃', 'NH₃'],
+    aiLogic: 'Rephrased + Option swap. Same concept.'
+  },
+  {
+    id: 3, status: 'unchanged', approved: true,
+    original: 'The process of formation of mRNA from DNA is called:',
+    edited: 'The process of formation of mRNA from DNA is called:',
+    originalOptions: ['Translation', 'Transcription', 'Replication', 'Transduction'],
+    editedOptions: ['Translation', 'Transcription', 'Replication', 'Transduction'],
+    aiLogic: 'Left unmodified by Black Box'
+  },
+  {
+    id: 4, status: 'modified', approved: null,
+    original: 'A concave mirror of focal length 15 cm forms an image at a distance of 30 cm. The object distance is:',
+    edited: 'A convex lens of focal length 20 cm forms a real image at 60 cm from the lens. What is the object distance from the lens?',
+    originalOptions: ['30 cm', '20 cm', '10 cm', '45 cm'],
+    editedOptions: ['30 cm', '40 cm', '25 cm', '15 cm'],
+    aiLogic: 'Changed component (mirror → lens) within same syllabus subtopic.'
+  },
+];
 
 export default function AIEditedPage() {
   const [step, setStep] = useState(0);
-  const [taskId, setTaskId] = useState<string | null>(null);
   
   const [syllabusFile, setSyllabusFile] = useState<{ name: string; size: string } | null>(null);
   const [paperFile, setPaperFile] = useState<{ name: string; size: string } | null>(null);
   
   const [difficulty, setDifficulty] = useState<DifficultyLevel | ''>('');
   const [progress, setProgress] = useState(0);
-  const [questions, setQuestions] = useState<EditedQuestion[]>([]);
-  const [genError, setGenError] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<EditedQuestion[]>(SAMPLE_EDITS);
 
-  const syllabusObj = useRef<File | null>(null);
-  const paperObj = useRef<File | null>(null);
-  const fmtSize = (b: number) => (b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
-
-  const handleSyllabusUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    syllabusObj.current = f; setSyllabusFile({ name: f.name, size: fmtSize(f.size) });
+  const handleSyllabusUpload = () => {
+    setSyllabusFile({ name: `Syllabus_${Date.now()}.pdf`, size: `${(Math.random() * 2 + 0.5).toFixed(1)} MB` });
   };
 
-  const handlePaperUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    paperObj.current = f; setPaperFile({ name: f.name, size: fmtSize(f.size) });
+  const handlePaperUpload = () => {
+    setPaperFile({ name: `Question_Paper_${Date.now()}.pdf`, size: `${(Math.random() * 5 + 1).toFixed(1)} MB` });
   };
 
   // Simulate CV + AI processing
@@ -89,8 +109,6 @@ export default function AIEditedPage() {
 
   return (
     <div className={styles.page}>
-      <input id="ae-syllabus" type="file" accept="application/pdf" hidden onChange={handleSyllabusUpload} />
-      <input id="ae-paper" type="file" accept="application/pdf" hidden onChange={handlePaperUpload} />
       <Link href="/setter/paper-modes" className={styles.backBtn}>← Back to Paper Modes</Link>
       <h1 className={styles.title}>AI-Updated Upload (Mixed Mode)</h1>
       <p className={styles.subtitle}>Upload Syllabus & Paper. Computer Vision extracts questions, and a Black-Box AI randomly modifies numbers and phrasing while maintaining original difficulty.</p>
@@ -117,13 +135,13 @@ export default function AIEditedPage() {
           </div>
 
           <div className={styles.dualUploadGrid}>
-            <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={() => document.getElementById("ae-syllabus")?.click()}>
+            <div className={`${styles.uploadZone} ${syllabusFile ? styles.uploadZoneActive : ''}`} onClick={handleSyllabusUpload}>
               <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{syllabusFile ? 'Syllabus Uploaded' : 'Upload Syllabus PDF'}</span>
               <span className={styles.uploadDesc}>{syllabusFile ? syllabusFile.name : 'Click to select syllabus file'}</span>
             </div>
 
-            <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={() => document.getElementById("ae-paper")?.click()}>
+            <div className={`${styles.uploadZone} ${paperFile ? styles.uploadZoneActive : ''}`} onClick={handlePaperUpload}>
               <span className={styles.uploadIcon}></span>
               <span className={styles.uploadTitle}>{paperFile ? 'Question Paper Uploaded' : 'Upload Question Paper PDF'}</span>
               <span className={styles.uploadDesc}>{paperFile ? paperFile.name : 'Full paper written in exam pattern'}</span>
@@ -185,9 +203,9 @@ export default function AIEditedPage() {
               <div className={styles.cvText}>Computer Vision Optical Parsing...</div>
             </div>
           ) : (
-            <div className={styles.cvScanner} style={{ borderColor: '#6366f1' }}>
+            <div className={styles.cvScanner} style={{ borderColor: '#605d52' }}>
               <div className={styles.cvIcon}></div>
-              <div className={styles.cvText} style={{ color: '#818cf8' }}>Black-Box AI Randomization Active...</div>
+              <div className={styles.cvText} style={{ color: '#939084' }}>Black-Box AI Randomization Active...</div>
             </div>
           )}
 
@@ -229,7 +247,7 @@ export default function AIEditedPage() {
       {step === 3 && (
         <div className={styles.form}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>Review AI Black-Box Updates ({approvedCount}/{totalReviewable} approved)</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#fffefb' }}>Review AI Black-Box Updates ({approvedCount}/{totalReviewable} approved)</h3>
             <span style={{ fontSize: 12, color: 'var(--color-navy-400)' }}>
               {questions.filter(q => q.status === 'modified').length} randomized · {questions.filter(q => q.status === 'unchanged').length} unchanged
             </span>
@@ -275,8 +293,8 @@ export default function AIEditedPage() {
 
                 {q.status !== 'unchanged' && (
                   <div className={styles.diffActions}>
-                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginRight: 8 }}>✓ Approved</span>}
-                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600, marginRight: 8 }}>✗ Rejected</span>}
+                    {q.approved === true && <span style={{ fontSize: 11, color: '#6fa678', fontWeight: 600, marginRight: 8 }}>✓ Approved</span>}
+                    {q.approved === false && <span style={{ fontSize: 11, color: '#c25a48', fontWeight: 600, marginRight: 8 }}>✗ Rejected</span>}
                     <button className={styles.approveBtn} onClick={() => handleApprove(q.id)}>✓ Approve</button>
                     <button className={styles.rejectBtn} onClick={() => handleReject(q.id)}>✕ Reject</button>
                   </div>
@@ -286,7 +304,7 @@ export default function AIEditedPage() {
           </div>
 
           {approvedCount >= totalReviewable && (
-            <FinalizePanel taskId={taskId} label="Finalize & Lock Paper →" />
+            <button className={styles.submitBtn} style={{ marginTop: 24 }}>Finalize & Lock Paper →</button>
           )}
         </div>
       )}

@@ -8,7 +8,7 @@
 .pageHero h1 {
   font-size: var(--fs-h1); margin-top: var(--space-md);
   max-width: 760px; line-height: var(--lh-tight);
-  letter-spacing: var(--tracking-tight);
+  letter-spacing: 0;
 }
 .pageHeroLead {
   margin-top: var(--space-lg); font-size: var(--fs-lead);
@@ -54,29 +54,29 @@
 /* Themed variants */
 .calm { background: var(--bg-page); }
 
-.dark { background: var(--bg-darkest); color: #fff; border-bottom-color: rgba(255,255,255,0.06); }
-.dark h2 { color: #fff; }
+.dark { background: var(--bg-darkest); color: #fffefb; border-bottom-color: rgba(255, 254, 251,0.06); }
+.dark h2 { color: #fffefb; }
 .dark p { color: var(--color-navy-200); }
 .dark .roleLabel { color: var(--color-navy-400); }
-.dark .featureItem { border-color: rgba(255,255,255,0.07); }
+.dark .featureItem { border-color: rgba(255, 254, 251,0.07); }
 .dark .featureIcon { color: var(--color-saffron-300); }
-.dark .featureT { color: #fff; }
+.dark .featureT { color: #fffefb; }
 .dark .featureD { color: var(--color-navy-300); }
-.darkChip { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: var(--color-saffron-300); }
+.darkChip { background: rgba(255, 254, 251,0.06); border-color: rgba(255, 254, 251,0.12); color: var(--color-saffron-300); }
 
-.cream { background: #FDF8F2; }
+.cream { background: #f8f4f0; }
 .cream .roleLabel { color: var(--accent-strong); }
 .creamChip { background: var(--color-saffron-100); border-color: var(--color-saffron-200); color: var(--accent-strong); }
 
-.deep { background: var(--bg-dark); color: #fff; border-bottom-color: rgba(255,255,255,0.06); }
-.deep h2 { color: #fff; }
+.deep { background: var(--bg-dark); color: #fffefb; border-bottom-color: rgba(255, 254, 251,0.06); }
+.deep h2 { color: #fffefb; }
 .deep p { color: var(--color-navy-200); }
 .deep .roleLabel { color: var(--color-navy-400); }
-.deep .featureItem { border-color: rgba(255,255,255,0.07); }
-.deep .featureIcon { color: #6fe0a6; }
-.deep .featureT { color: #fff; }
+.deep .featureItem { border-color: rgba(255, 254, 251,0.07); }
+.deep .featureIcon { color: #8fbf93; }
+.deep .featureT { color: #fffefb; }
 .deep .featureD { color: var(--color-navy-300); }
-.deepChip { background: rgba(26,122,76,0.18); border-color: rgba(26,122,76,0.35); color: #6fe0a6; }
+.deepChip { background: rgba(63, 111, 74,0.18); border-color: rgba(63, 111, 74,0.35); color: #8fbf93; }
 
 /* Architecture */
 .archSection { padding-block: var(--space-4xl); }
@@ -107,4 +107,89 @@
 
 @media (max-width: 880px) {
   .roleGrid, .archGrid { grid-template-columns: 1fr; gap: var(--space-xl); }
+}
+
+/* ══════════════════════════════════════════════
+   Relocated from the home page
+   The front door now routes by role; the long-form argument lives here.
+   ══════════════════════════════════════════════ */
+
+/* ── The integrity problem ── */
+.problemGrid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--space-3xl); align-items: start;
+}
+.problemH2 { font-size: var(--fs-h2); margin-top: var(--space-md); }
+.leadCol p {
+  color: var(--text-body); font-size: var(--fs-lead);
+  line-height: var(--lh-relaxed);
+}
+.leadColSpace { margin-top: var(--space-lg); }
+.problemList { display: flex; flex-direction: column; gap: 2px; }
+.problemRow {
+  display: flex; gap: var(--space-md);
+  padding: var(--space-lg) 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.problemRow:first-child { padding-top: 0; }
+.problemRow:last-child { border-bottom: 0; }
+.problemNum {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--accent-text); font-weight: var(--fw-semi);
+  padding-top: 3px;
+}
+.problemRow h4 { font-size: var(--fs-h4); margin-bottom: 4px; }
+.problemRow p { font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-normal); }
+
+/* ── The four guarantees ── */
+.guarSection { background: var(--bg-sunken); }
+.guarGrid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg); margin-top: var(--space-2xl);
+}
+.guarCard { display: flex; flex-direction: column; gap: var(--space-md); }
+.guarTop { display: flex; align-items: center; justify-content: space-between; }
+.guarNum {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--text-faint); letter-spacing: 0.1em;
+}
+.guarCard h3 { font-size: var(--fs-h4); line-height: var(--lh-snug); }
+.guarCard p { font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-normal); }
+.guarTech {
+  margin-top: auto;
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--brand-body);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ── FAQ, rebuilt on native <details> ── */
+.faqSection { background: var(--bg-surface); }
+.faqList { margin-top: var(--space-2xl); border-top: 1px solid var(--border-soft); }
+.faqItem { border-bottom: 1px solid var(--border-soft); }
+.faqQ {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); cursor: pointer;
+  padding: var(--space-lg) 0;
+  font-family: var(--font-sans); font-size: var(--fs-h4);
+  font-weight: var(--fw-semi); color: var(--text-strong);
+  list-style: none;                 /* hide the default disclosure marker */
+}
+.faqQ::-webkit-details-marker { display: none; }
+.faqQ:hover { color: var(--accent-text); }
+.faqQ:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 3px; }
+.faqQ svg {
+  width: 20px; height: 20px; color: var(--text-faint);
+  flex-shrink: 0; transition: transform var(--dur-base) ease;
+}
+.faqItem[open] .faqQ svg { transform: rotate(45deg); color: var(--accent-text); }
+.faqA p {
+  padding-bottom: var(--space-lg); color: var(--text-muted);
+  font-size: var(--fs-body); line-height: var(--lh-relaxed);
+  max-width: 760px;
+}
+
+@media (max-width: 900px) {
+  .problemGrid { grid-template-columns: 1fr; gap: var(--space-2xl); }
+  .guarGrid { grid-template-columns: 1fr; }
 }
