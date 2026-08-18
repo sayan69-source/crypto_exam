@@ -15,13 +15,13 @@
  * authorises the fingerprint, and the applicant activates at a centre station
  * with code + live fingerprint (§9.4). This page cannot mint a working login.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { staffApi, type Centre } from "@/lib/api/staff";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
 
-export default function StaffRegistration() {
+function StaffRegistrationInner() {
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role");
   const initialRole: Role = roleParam === "CENTER_ADMIN" ? "CENTER_ADMIN" : "CENTER_INVIGILATOR";
@@ -165,6 +165,15 @@ export default function StaffRegistration() {
         </p>
       </section>
     </main>
+  );
+}
+
+export default function StaffRegistration() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <StaffRegistrationInner />
+    </Suspense>
   );
 }
 
