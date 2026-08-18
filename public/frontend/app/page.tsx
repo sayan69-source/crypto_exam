@@ -23,7 +23,6 @@ import Link from "next/link";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import WorkflowDiagram from "@/components/marketing/WorkflowDiagram";
-import PipelineDemo from "@/components/marketing/PipelineDemo";
 import CountUp from "@/components/marketing/CountUp";
 import { GROUPS } from "@/lib/navigation";
 import s from "./page.module.css";
@@ -36,10 +35,10 @@ const DOORS = [
     id: "candidate",
     icon: "graduation-cap",
     label: "I am a candidate",
-    tagline: "Enrol, check your terminal, sit the exam, verify your own result.",
+    tagline: "Enrol, check your terminal, sit the exam and raise exam-day issues.",
     access: "Centre terminal",
     hub: "/candidates",
-    picks: ["/candidate-enrolment", "/exam/dashboard", "/exam/system-check", "/exam/audit"],
+    picks: ["/candidate-enrolment", "/exam/dashboard", "/exam/system-check", "/exam/complaint"],
   },
   {
     id: "setter",
@@ -74,8 +73,6 @@ const DOORS = [
 const ALL = GROUPS.flatMap((g) => g.items);
 const lookup = (href: string) => ALL.find((i) => i.href === href);
 
-const VERIFY = GROUPS.find((g) => g.id === "verify")!;
-
 export default function HomePage() {
   return (
     <main className={s.main}>
@@ -89,16 +86,16 @@ export default function HomePage() {
               High-stakes exams that prove <em>their own integrity.</em>
             </h1>
             <p className={s.heroLead}>
-              Papers are sealed before anyone can read them, answers are committed to a public
-              chain, and every claim is checkable by the candidate themselves — without trusting
-              the examining body, the centre, or us.
+              Papers are sealed before anyone can read them, answers are committed with
+              tamper-evident records, and each role gets a focused portal for the work they
+              actually need to do.
             </p>
             <div className={s.heroCta}>
               <Link className="btn btn-accent btn-lg" href="#roles">
                 Find your portal <Icon name="arrow-down" size={16} />
               </Link>
-              <Link className="btn btn-quiet-dark btn-lg" href="/exam/audit">
-                Verify a result
+              <Link className="btn btn-quiet-dark btn-lg" href="/platform">
+                Explore platform
               </Link>
             </div>
             <p className={s.heroTagline}>
@@ -188,40 +185,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══ 3 · NO LOGIN REQUIRED ═══ */}
-      <section className={`section-sm ${s.verifyBand}`}>
-        <div className="wrap">
-          <div className={s.verifyInner}>
-            <div className={s.verifyLead}>
-              <span className="eyebrow on-dark">Open to anyone</span>
-              <h2 className={s.verifyH2}>No account. No API key. No trust required.</h2>
-              <p>
-                The verification layer is deliberately public. Any candidate, journalist or court
-                can check a sealed paper, an answer commitment or a difficulty proof directly
-                against the chain.
-              </p>
-            </div>
-            <ul className={s.verifyGrid}>
-              {VERIFY.items.map((it) => (
-                <li key={it.href + it.title}>
-                  <Link href={it.href} className={s.verifyCard} data-spotlight>
-                    <Icon name={it.icon} size={18} strokeWidth={1.8} />
-                    <span className={s.verifyTitle}>{it.title}</span>
-                    <span className={s.verifyDesc}>{it.desc}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
       {/* ═══ 4 · HOW THE ROLES CONNECT ═══ */}
       <section className={`section ${s.howItWorks}`}>
         <div className="wrap">
           <div className="heading-block reveal">
             <span className="eyebrow">Lifecycle</span>
-            <h2>One sealed path, from authoring to audit.</h2>
+            <h2>One sealed path, from authoring to completion.</h2>
             <p>
               Each stage hands the next a proof it can check. Nobody in the chain — including the
               examining body — can skip a step or forge one.
@@ -230,35 +199,6 @@ export default function HomePage() {
           <div className="reveal">
             <WorkflowDiagram />
           </div>
-        </div>
-      </section>
-
-      {/* ═══ 5 · RUN IT YOURSELF ═══
-           The lifecycle above explains the stages; this lets you drive them.
-           Real WebCrypto, not a mockup — including the tamper control, which
-           is the single most convincing thing on the site. */}
-      <section className={`section ${s.demoSection}`} id="demo">
-        <div className="wrap">
-          <div className="heading-block reveal">
-            <span className="eyebrow">Live demo · runs in your browser</span>
-            <h2>Six questions. Seal them, commit them, then try to tamper.</h2>
-            <p>
-              Nothing here is simulated — this is the same per-question encryption the platform
-              uses in production, running locally on this page. Advance the pipeline, open a
-              question, then hit <strong>tamper</strong> on any of them and watch the terminal
-              refuse to render it.
-            </p>
-          </div>
-
-          <div className={`${s.demoFrame} reveal reveal-scale`}>
-            <PipelineDemo />
-          </div>
-
-          <p className={s.demoMore}>
-            <Link className="btn-link" href="/pipeline">
-              Open the full walkthrough <Icon name="arrow-right" size={15} />
-            </Link>
-          </p>
         </div>
       </section>
 
@@ -280,7 +220,7 @@ export default function HomePage() {
             </div>
             <div>
               <div className={s.statN}><CountUp to={100} /><small>%</small></div>
-              <div className={s.statL}>Of submissions publicly verifiable</div>
+              <div className={s.statL}>Of submissions covered by tamper-evident records</div>
             </div>
           </div>
           <p className={s.statsMore}>
