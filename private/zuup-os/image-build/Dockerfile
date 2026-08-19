@@ -32,6 +32,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # HOST too, because Windows and macOS have none of these either, which is
     # why tools/provision-in-container.sh exists at all.
     wireguard-tools \
+    # -- legacy BIOS boot path: an exam centre runs machines bought across a
+    # decade and many of the older ones have no UEFI at all. syslinux is the
+    # BIOS-side loader; gdisk writes the hybrid MBR that lets ONE image satisfy
+    # both firmwares. Without these the image is UEFI-only and will not start
+    # on that hardware at all.
+    syslinux syslinux-common gdisk \
     # ── unprivileged disk assembly (no loop devices, no mounts) ──────────
     mtools dosfstools fdisk jq \
     # ── QEMU smoke boot (40-qemu-smoke.sh) ───────────────────────────────

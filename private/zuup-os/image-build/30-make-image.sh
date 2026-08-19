@@ -96,7 +96,10 @@ align() { echo $(( ( ($1 + 1048575) / 1048576 ) * 1048576 )); }   # → 1 MiB
 # Floor the ESP at 48 MiB: enough FAT32 clusters to clear the spec minimum and
 # leave room to drop in a per-terminal re-signed UKI at provisioning time.
 ESP_BYTES=$(align $(( $(stat -c%s "$UKI") + 8*1048576 )) )
-(( ESP_BYTES < 48*1048576 )) && ESP_BYTES=$(( 48*1048576 ))
+# The BIOS path needs the kernel and initrd as SEPARATE files beside the UKI
+# (syslinux cannot unpack a UKI), so the floor covers both payloads.
+ESP_MIN=$(( 96*1048576 ))
+(( ESP_BYTES < ESP_MIN )) && ESP_BYTES=$ESP_MIN
 SQ_BYTES=$(align $(stat -c%s "$SQ")); VT_BYTES=$(align $(stat -c%s "$VT"))
 START=1048576
 IMG="$BUILD/zuup-os.img"
@@ -109,6 +112,51 @@ mkfs.fat -F32 -n ZUUPESP "$ESP" >/dev/null
 mmd   -i "$ESP" ::/EFI ::/EFI/BOOT
 mcopy -i "$ESP" "$UKI" ::/EFI/BOOT/BOOTX64.EFI
 
+# ── the BIOS half of a dual-firmware image (§7.1a) ─────────────────────────
+#
+# An exam centre is not a fleet. It runs machines bought across a decade, and a
+# good share of the older ones have no UEFI at all — on those, a UEFI-only image
+# does not fail informatively, it simply never starts. So the same stick carries
+# a legacy loader in the same FAT partition.
+#
+# What BIOS costs, stated plainly: there is no Secure Boot on this path, so
+# nothing verifies the kernel, the initrd or the cmdline. An attacker holding the
+# stick can edit syslinux.cfg. That is why zuup-identity.sh refuses ADMIN_STATION
+# and drops zuup.hq unless it can confirm a Secure Boot verified boot — a
+# BIOS-booted machine is a candidate seat and nothing more, whatever its cmdline
+# claims. dm-verity still protects the rootfs; what is lost is the guarantee that
+# the ROOT HASH itself was not swapped, which is precisely why the capability
+# gate exists.
+if command -v syslinux >/dev/null 2>&1; then
+  echo "[zuup-os] adding the legacy-BIOS loader (syslinux) to the ESP…"
+  mmd -i "$ESP" ::/syslinux
+  mcopy -i "$ESP" "$BUILD/bzImage"                ::/syslinux/vmlinuz
+  mcopy -i "$ESP" "$BUILD/zuup-initramfs.cpio.gz" ::/syslinux/initrd.img
+
+  # The SAME cmdline the UKI carries, so both firmwares boot an identical system.
+  # Read from the file the signer recorded rather than reconstructed here: a
+  # cmdline that differs between the two paths is two different machines.
+  BIOS_CMDLINE="$(cat "${UKI}.cmdline" 2>/dev/null || true)"
+  [[ -n "$BIOS_CMDLINE" ]] || { echo "[zuup-os] FAIL: no recorded cmdline for the BIOS path" >&2; exit 1; }
+
+  cat > "$BUILD/syslinux.cfg" <<SYSCFG
+DEFAULT zuup
+PROMPT 0
+TIMEOUT 10
+LABEL zuup
+  LINUX /syslinux/vmlinuz
+  INITRD /syslinux/initrd.img
+  APPEND ${BIOS_CMDLINE}
+SYSCFG
+  mcopy -i "$ESP" "$BUILD/syslinux.cfg" ::/syslinux/syslinux.cfg
+
+  # Install the FAT bootloader into the filesystem image itself.
+  syslinux --install --directory /syslinux "$ESP"
+else
+  echo "[zuup-os] ⚠ syslinux absent — this image is UEFI-ONLY and will not boot" >&2
+  echo "[zuup-os]   on a legacy-BIOS machine. Rebuild the builder container." >&2
+fi
+
 sfdisk --quiet --label gpt "$IMG" <<EOF
 start=$((START/512)),       size=$((ESP_BYTES/512)), type=U,                                       name="EFI System"
 start=$(((START+ESP_BYTES)/512)),          size=$((SQ_BYTES/512)), type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="zuup-root"
@@ -119,6 +167,45 @@ dd if="$ESP" of="$IMG" bs=1M seek=$((START/1048576))                       conv=
 dd if="$SQ"  of="$IMG" bs=1M seek=$(((START+ESP_BYTES)/1048576))           conv=notrunc status=none
 dd if="$VT"  of="$IMG" bs=1M seek=$(((START+ESP_BYTES+SQ_BYTES)/1048576))  conv=notrunc status=none
 rm -f "$ESP"
+
+# ── hybrid MBR: make ONE image bootable by both firmwares ──────────────────
+#
+# sfdisk wrote a GPT with a PROTECTIVE MBR — a single 0xEE entry whose entire
+# purpose is to stop legacy tools touching the disk. A BIOS looks at that, finds
+# nothing it recognises as bootable, and moves on. UEFI reads the GPT and is
+# unaffected by what the MBR says.
+#
+# So the MBR is rewritten as a HYBRID: slot 1 becomes a real, bootable FAT32
+# entry pointing at the ESP (which is where syslinux now lives), and the 0xEE
+# protective entry moves to slot 2 so GPT-aware tools still see the disk is
+# GPT-managed. The GPT itself is untouched, so the UEFI path is unchanged.
+if command -v syslinux >/dev/null 2>&1; then
+  MBR_BIN="$(ls /usr/lib/syslinux/mbr/mbr.bin /usr/lib/SYSLINUX/mbr.bin 2>/dev/null | head -1 || true)"
+  if [[ -n "$MBR_BIN" ]]; then
+    python3 - "$IMG" "$MBR_BIN" "$((START/512))" "$((ESP_BYTES/512))" <<'HYBRID'
+import sys, struct
+img, mbr_bin, esp_lba, esp_sectors = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+
+def entry(boot, ptype, lba, count):
+    # CHS is 0xFEFFFF ("use LBA") — every firmware that can boot a USB stick
+    # reads LBA, and computing real CHS for a modern disk is meaningless.
+    return struct.pack("<B3sB3sII", boot, b"þÿÿ", ptype, b"þÿÿ", lba, count)
+
+with open(img, "r+b") as f:
+    code = open(mbr_bin, "rb").read()[:440]
+    f.seek(0); f.write(code)                       # boot code only; disk sig at 440 survives
+    f.seek(446)
+    f.write(entry(0x80, 0x0C, esp_lba, esp_sectors))   # bootable FAT32 → the ESP
+    total = f.seek(0, 2) // 512
+    f.seek(446 + 16)
+    f.write(entry(0x00, 0xEE, 1, total - 1))           # protective, so GPT tools still behave
+    f.seek(510); f.write(b"Uª")
+print("[zuup-os] hybrid MBR written (slot1 bootable FAT32, slot2 0xEE protective)")
+HYBRID
+  else
+    echo "[zuup-os] ⚠ syslinux mbr.bin not found — BIOS machines will not boot this image." >&2
+  fi
+fi
 
 # ── 6. a note on the PCR reference (§7.1) ───────────────────────────────────
 #

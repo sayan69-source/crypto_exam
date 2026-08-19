@@ -104,6 +104,51 @@ case "$CAPABILITY" in
     exit 0 ;;
 esac
 
+# ── the cmdline is only trustworthy if something VERIFIED it ────────────────
+#
+# Everything above treats the kernel cmdline as authenticated storage, and on a
+# UEFI machine with Secure Boot on it is: the cmdline lives inside the UKI, the
+# UKI is sbsigned, and firmware refuses to boot an unsigned one. That is what
+# makes "changing a terminal's capability requires the authority's signing key"
+# true.
+#
+# On a legacy BIOS there is no Secure Boot and no signature check at all. The
+# image ships a BIOS path so it can run on the older half of an Indian exam
+# centre — but on that path anyone holding the stick can edit the loader config
+# and write `zuup.capability=ADMIN_STATION zuup.hq=...`. Honouring it would hand
+# them the one station permitted to reach the internet.
+#
+# So the privileged capabilities are gated on a VERIFIED boot rather than on a
+# claimed one. A machine that cannot prove its boot chain gets the role that
+# needs no such proof: a candidate seat, whose trust flows from the invigilator's
+# attested station and the candidate's own credentials, not from its firmware.
+firmware_is_verified() {
+  # No EFI at all → legacy BIOS → nothing verified this cmdline.
+  [[ -d /sys/firmware/efi ]] || return 1
+  # SecureBoot EFI variable: 4 bytes of attributes, then one byte, 1 = enabled.
+  local var
+  var="$(printf '%s' /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c)"
+  [[ -r "$var" ]] || return 1
+  local val
+  val="$(od -An -tu1 -j4 -N1 "$var" 2>/dev/null | tr -dc '0-9')"
+  [[ "$val" == "1" ]]
+}
+
+if firmware_is_verified; then
+  BOOT_TRUST="secureboot"
+else
+  BOOT_TRUST="unverified"
+  if [[ "$CAPABILITY" != "CANDIDATE_SEAT" ]]; then
+    log "boot chain is NOT verified (no UEFI Secure Boot) — refusing the requested ${CAPABILITY} and running as CANDIDATE_SEAT. On this firmware the cmdline is not signed, so a capability read from it proves nothing." warning
+    CAPABILITY="CANDIDATE_SEAT"
+  fi
+  # Belt and braces: even if the capability above were somehow honoured, an
+  # unverified boot must never carry HQ destinations.
+  HQ_LIST=""
+fi
+printf '%s
+' "$BOOT_TRUST" > "$IDENTITY_DIR/boot-trust"
+
 printf '%s\n' "$TERMINAL_ID" > "$IDENTITY_DIR/terminal-id"
 printf '%s\n' "$CAPABILITY"  > "$IDENTITY_DIR/capability"
 [[ -n "$SEAT"   ]] && printf '%s\n' "$SEAT"   > "$IDENTITY_DIR/seat-no"
