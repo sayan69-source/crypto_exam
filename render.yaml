@@ -75,6 +75,8 @@ services:
         value: https://rpc-amoy.polygon.technology
       - key: POLYGON_CHAIN_ID
         value: "80002"
+      - key: CRYPTOEXAM_CONTRACT_ADDRESS
+        value: "0x94dd67355d1A0a1b004F85Ef427ABC342f408b5B"
 
   # ── Next.js Frontend ─────────────────────────────────────────────────────
   - type: web
