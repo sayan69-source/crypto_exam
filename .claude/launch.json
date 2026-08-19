@@ -4,36 +4,13 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "autoPort": true,
-      "cwd": "public/frontend"
-    },
-    {
-      "name": "centre-admin",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "centre-admin"],
-      "port": 3002
-    },
-    {
-      "name": "exam-terminal",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3003"],
-      "port": 3003,
-      "cwd": "private/exam-terminal"
-    },
-    {
-      "name": "system-admin",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "system-admin"],
-      "port": 3004
-    },
-    {
-      "name": "kiosk-static",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "3010"],
-      "port": 3010,
-      "cwd": "private/zuup-os/security"
+      "runtimeArgs": [
+        "--prefix",
+        "public/frontend",
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }

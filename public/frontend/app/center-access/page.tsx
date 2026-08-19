@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
@@ -14,8 +13,6 @@ export const metadata: Metadata = {
 export default function CenterAccessPage() {
   return (
     <main>
-      <Navbar />
-
       {/* ── Editorial hero ───────────────────────────────── */}
       <section className={s.hero}>
         <div className="wrap">
@@ -32,13 +29,13 @@ export default function CenterAccessPage() {
           <div className={s.heroPills}>
             <span className={`pill ${s.pillSaffron}`}><span className="dot" style={{ background: "var(--accent-strong)" }} /> Centre-computer only</span>
             <span className={`pill ${s.pillNavy}`}><span className="dot" style={{ background: "var(--color-navy-700)" }} /> OS-level lockdown</span>
-            <span className={`pill ${s.pillGreen}`}><span className="dot" style={{ background: "#3a9b6e" }} /> Time-bound activation</span>
+            <span className={`pill ${s.pillGreen}`}><span className="dot" style={{ background: "#4f7f57" }} /> Time-bound activation</span>
           </div>
         </div>
       </section>
 
       {/* ── What & for whom ──────────────────────────────── */}
-      <section className="section">
+      <section className="section reveal reveal-rise">
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">What they are · who uses them</span>
@@ -79,7 +76,7 @@ export default function CenterAccessPage() {
       </section>
 
       {/* ── Why isolated ─────────────────────────────────── */}
-      <section className={s.whyBand}>
+      <section className={`${s.whyBand} reveal reveal-left`}>
         <div className="wrap">
           <div className={s.whyGrid}>
             <div>
@@ -115,7 +112,7 @@ export default function CenterAccessPage() {
       </section>
 
       {/* ── How to access ────────────────────────────────── */}
-      <section className="section">
+      <section className="section reveal reveal-scale">
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">How access is granted</span>
@@ -144,26 +141,14 @@ export default function CenterAccessPage() {
       </section>
 
       {/* ── Pointers ─────────────────────────────────────── */}
-      <section className={`section-sm ${s.pointers}`}>
+      <section className={`section-sm ${s.pointers} reveal reveal-right`}>
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">What you can do from here</span>
             <h2>You are not locked out — only locked in.</h2>
-            <p>The portals are private, but the integrity of every examination is public.</p>
+            <p>The portals are private; access is planned with the examining body and the centre.</p>
           </div>
           <div className={s.pointGrid}>
-            <Link className={`card card-hover ${s.point}`} href="/about#transparency">
-              <span className="icon-chip"><Icon name="scale" size={18} strokeWidth={1.7} /></span>
-              <h3>Public transparency record</h3>
-              <p>See exactly what is public, what is private, and how anyone can independently verify an examination.</p>
-              <span className={s.pointLink}>Open transparency report <Icon name="arrow-right" size={14} /></span>
-            </Link>
-            <Link className={`card card-hover ${s.point}`} href="/exam/audit">
-              <span className="icon-chip"><Icon name="search-check" size={18} strokeWidth={1.7} /></span>
-              <h3>Public audit portal</h3>
-              <p>Verify any past examination on-chain — no account, no API key required.</p>
-              <span className={s.pointLink}>Open audit portal <Icon name="arrow-right" size={14} /></span>
-            </Link>
             <Link className={`card card-hover ${s.point}`} href="/contact">
               <span className="icon-chip"><Icon name="mail" size={18} strokeWidth={1.7} /></span>
               <h3>Examining body? Talk to us.</h3>

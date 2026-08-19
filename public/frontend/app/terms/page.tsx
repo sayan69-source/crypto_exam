@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "../legal.module.css";
@@ -16,8 +15,6 @@ const LAST_UPDATED = "2026-06-09";
 export default function TermsPage() {
   return (
     <main>
-      <Navbar />
-
       <section className={s.hero}>
         <div className="wrap">
           <span className="eyebrow">Terms</span>
@@ -33,7 +30,7 @@ export default function TermsPage() {
         </div>
       </section>
 
-      <section className={s.bodySection}>
+      <section className={`${s.bodySection} reveal reveal-rise`}>
         <div className="wrap-narrow">
           <div className={s.callout}>
             <span className="icon-chip"><Icon name="scale" size={18} strokeWidth={1.7} /></span>

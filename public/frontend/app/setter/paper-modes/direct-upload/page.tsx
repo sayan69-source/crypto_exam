@@ -218,7 +218,7 @@ export default function DirectUploadPage() {
           </div>
 
           {parseError && (
-            <div className={styles.infoBanner} style={{ borderColor: '#ef4444' }}>
+            <div className={styles.infoBanner} style={{ borderColor: '#b3341c' }}>
               <span className={styles.infoBannerIcon}></span>
               <span className={styles.infoBannerText}>Parsing failed: {parseError}</span>
             </div>

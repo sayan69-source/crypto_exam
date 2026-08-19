@@ -10,7 +10,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Navbar from '@/components/marketing/Navbar';
 import Footer from '@/components/marketing/Footer';
 import Icon from '@/components/marketing/LucideIcon';
 import {
@@ -136,7 +135,6 @@ export default function PipelineDemoPage() {
 
   return (
     <main>
-      <Navbar />
 
       <section className={s.hero}>
         <div className="wrap">

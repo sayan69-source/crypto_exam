@@ -1,0 +1,93 @@
+## CryptoExam Core — Render Blueprint
+## Usage: Render → New → Blueprint → select this repo.
+## Render reads this file and creates:
+##   cryptoexam-db        — managed Postgres 16
+##   cryptoexam-backend   — FastAPI API (Docker, Dockerfile.render)
+##   cryptoexam-frontend  — Next.js 16 (Docker, Dockerfile.render)
+##
+## IMPORTANT: After first deploy, confirm the frontend URL Render assigns
+##   (usually https://cryptoexam-frontend.onrender.com) and update
+##   CORS_ALLOW_ORIGINS on the backend if it differs.
+##
+## Login: admin@cryptoexam.dev / the SEED_ADMIN_PASSWORD you set at deploy
+## OTP:   DEBUG=true → the OTP is returned in the API response and shown in
+##        the login UI automatically (no Twilio SMS gateway needed).
+
+databases:
+  - name: cryptoexam-db
+    plan: free
+    databaseName: cryptoexam
+    user: ce
+
+services:
+  # ── FastAPI Backend ──────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-backend
+    plan: free
+    runtime: docker
+    dockerfilePath: ./public/backend/Dockerfile.render
+    dockerContext: ./public/backend
+    envVars:
+      # ── Database ──
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cryptoexam-db
+          property: connectionString
+
+      # ── Auth (RS256 JWT) ──────────────────────────────────────────────────
+      # sync:false — Render prompts for these at Blueprint creation. A key
+      # committed here would be public the moment the repo is cloned, so it is
+      # not a secret at all. Leave BOTH blank and the backend mints an
+      # ephemeral pair per boot (sessions then break on restart — fine for a
+      # demo, not for production). Generate a pair with:
+      #   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048       #     -out jwt_private.pem && openssl rsa -pubout -in jwt_private.pem
+      # then paste each PEM with literal 
+ between lines.
+      - key: JWT_PRIVATE_KEY_PEM
+        sync: false
+      - key: JWT_PUBLIC_KEY_PEM
+        sync: false
+
+      # ── Admin seed credentials ────────────────────────────────────────────
+      - key: SEED_ADMIN_EMAIL
+        value: admin@cryptoexam.dev
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_ADMIN_PHONE
+        value: "+919000000000"
+
+      # ── App behaviour ─────────────────────────────────────────────────────
+      - key: DEBUG
+        value: "true"          # Shows dev OTP in API response — no Twilio needed
+      - key: SEED_ON_START
+        value: "true"          # Seeds the DB on first boot, no-ops afterwards
+
+      # ── CORS (set to the frontend URL Render assigns) ─────────────────────
+      - key: CORS_ALLOW_ORIGINS
+        value: https://cryptoexam-frontend.onrender.com
+
+      # ── Cryptography ──────────────────────────────────────────────────────
+      - key: DRAND_CHAIN_HASH
+        value: "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
+
+      # ── Blockchain (Polygon Amoy testnet — public RPC, no key needed) ─────
+      - key: POLYGON_RPC_URL
+        value: https://rpc-amoy.polygon.technology
+      - key: POLYGON_CHAIN_ID
+        value: "80002"
+
+  # ── Next.js Frontend ─────────────────────────────────────────────────────
+  - type: web
+    name: cryptoexam-frontend
+    plan: free
+    runtime: docker
+    dockerfilePath: ./public/frontend/Dockerfile.render
+    dockerContext: ./public/frontend
+    dockerBuildArgs:
+      # NEXT_PUBLIC_* are baked into the client bundle at build time.
+      # Must point to the live backend URL before the frontend build starts.
+      NEXT_PUBLIC_API_URL: https://cryptoexam-backend.onrender.com/api/v1
+      NEXT_PUBLIC_USE_MOCK: "false"
+    envVars:
+      - key: NODE_ENV
+        value: production

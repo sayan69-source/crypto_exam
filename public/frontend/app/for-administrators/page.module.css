@@ -1,28 +1,28 @@
 /* Administrator role landing — public */
 
 .hero {
-  background: var(--bg-darkest); color: #fff;
+  background: var(--bg-darkest); color: #fffefb;
   padding-block: clamp(80px, 11vw, 130px) clamp(56px, 8vw, 96px);
   position: relative; overflow: hidden;
 }
 .hero::before {
   content: ""; position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    linear-gradient(rgba(255, 254, 251,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 254, 251,0.025) 1px, transparent 1px);
   background-size: 56px 56px;
-  mask-image: radial-gradient(800px 500px at 50% 0%, #000, transparent 80%);
+  mask-image: radial-gradient(800px 500px at 50% 0%, #201515, transparent 80%);
   pointer-events: none;
 }
 .hero > * { position: relative; }
 .h1 {
   font-size: var(--fs-h1); max-width: 820px;
   margin-top: var(--space-md); line-height: var(--lh-tight);
-  letter-spacing: var(--tracking-tight); color: #fff;
+  letter-spacing: 0; color: #fffefb;
 }
 .h1 em {
-  font-family: var(--font-display); font-style: italic;
-  color: var(--color-saffron-400); font-weight: var(--fw-regular);
+  font-family: var(--font-display); font-style: normal;
+  color: var(--color-saffron-400); font-weight: 500;
 }
 .lead {
   margin-top: var(--space-lg); font-size: var(--fs-lead);
@@ -43,7 +43,7 @@
 .card p { margin-top: 10px; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-normal); }
 
 .bandCream {
-  background: linear-gradient(135deg, var(--color-saffron-100) 0%, #FDF8F2 100%);
+  background: linear-gradient(135deg, var(--color-saffron-100) 0%, #f8f4f0 100%);
   border-block: 1px solid var(--color-saffron-200);
   padding-block: var(--space-4xl);
 }
@@ -63,7 +63,7 @@
 .checks li {
   display: flex; gap: 10px; align-items: flex-start;
   padding: var(--space-md) var(--space-lg);
-  background: #fff; border: 1px solid var(--color-saffron-200);
+  background: #fffefb; border: 1px solid var(--color-saffron-200);
   border-radius: var(--radius-md);
   font-size: var(--fs-sm); color: var(--text-body);
 }

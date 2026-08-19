@@ -59,13 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (loading) return;
 
     // Public marketing/informational pages — open to everyone, no login required.
-    // /exam stays public because /exam/page.tsx is the existing public candidate portal
-    // (under CandidateLayout). /setter and /admin are NOT public landings any more — the
-    // public role explainers live at /for-setters and /for-administrators so they don't
-    // collide with the authenticated SetterLayout/AdminLayout chrome.
+    // The four ROLE HUBS (/candidates, /setters, /invigilators, /administration)
+    // are public by design: you should be able to see what a role can do before
+    // you have credentials for it. They sit on their own routes rather than at
+    // /setter, /admin … because those namespaces are wrapped in authenticated
+    // portal chrome by their layout.tsx.
     const publicRoutes = [
       '/', '/about', '/platform', '/contact', '/privacy', '/terms',
-      '/for-setters', '/for-administrators', '/center-access', '/pipeline',
+      '/candidates', '/setters', '/invigilators', '/administration',
+      '/center-access', '/explore',
       '/exam',
       '/login', '/setter/login', '/setter/register', '/admin/login', '/invigilator/login', '/invigilator/register',
       // Tier-0. Enrolment is IP-gated and login needs a fingerprint, so these
@@ -82,33 +84,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ];
     const isPublicRoute = publicRoutes.some(r => pathname === r) || pathname.startsWith('/exam/paper-info');
 
+    // Segment-aware: a bare startsWith('/setter') also swallows '/setters',
+    // which would bounce the public Setters hub straight to the login screen.
+    const inArea = (area: string) => pathname === area || pathname.startsWith(area + '/');
+
     if (!session && !isPublicRoute) {
       // Not logged in — redirect to the correct login portal
-      if (pathname.startsWith('/setter')) {
+      if (inArea('/setter')) {
         router.replace('/setter/login');
-      } else if (pathname.startsWith('/admin')) {
+      } else if (inArea('/admin')) {
         router.replace('/admin/login');
-      } else if (pathname.startsWith('/sysadmin')) {
+      } else if (inArea('/sysadmin')) {
         router.replace('/sysadmin/login');
-      } else if (pathname.startsWith('/invigilator')) {
+      } else if (inArea('/invigilator')) {
         router.replace('/invigilator/login');
       } else {
         router.replace('/login');
       }
     } else if (session) {
       // Role-based protection — wrong role for the area
-      if (pathname.startsWith('/setter') && pathname !== '/setter/login' && session.role !== 'setter') {
+      if (inArea('/setter') && pathname !== '/setter/login' && session.role !== 'setter') {
         router.replace('/setter/login');
-      } else if (pathname.startsWith('/admin') && pathname !== '/admin/login' && session.role !== 'admin') {
+      } else if (inArea('/admin') && pathname !== '/admin/login' && session.role !== 'admin') {
         router.replace('/admin/login');
       } else if (
-        pathname.startsWith('/sysadmin') &&
+        inArea('/sysadmin') &&
         pathname !== '/sysadmin/login' &&
         pathname !== '/sysadmin/register' &&
         session.role !== 'sysadmin'
       ) {
         router.replace('/sysadmin/login');
-      } else if (pathname.startsWith('/invigilator') && pathname !== '/invigilator/login' && session.role !== 'invigilator') {
+      } else if (inArea('/invigilator') && pathname !== '/invigilator/login' && session.role !== 'invigilator') {
         router.replace('/invigilator/login');
       } else if (pathname.startsWith('/exam/session') && session.role !== 'candidate') {
         router.replace('/login');

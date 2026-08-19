@@ -74,36 +74,36 @@ export default function T0BroadcastDemo() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#080E1E', color: '#D8DEF4', fontFamily: 'var(--font-sans)', padding: 32 }}>
+    <main style={{ minHeight: '100vh', background: '#150e0e', color: '#ddd8cc', fontFamily: 'var(--font-sans)', padding: 32 }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, color: '#fff' }}>§27 — T₀ Broadcast & Client-Side Decryption</h1>
-        <p style={{ color: '#6B84D4', marginTop: 4 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, color: '#fffefb' }}>§27 — T₀ Broadcast & Client-Side Decryption</h1>
+        <p style={{ color: '#939084', marginTop: 4 }}>
           Pre-position + broadcast pattern for 4 lakh concurrent examinees. The paper never travels at exam time — only a 512-byte key does.
         </p>
 
-        <button onClick={run} style={{ marginTop: 16, padding: '14px 24px', background: '#2942A6', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 15 }}>
+        <button onClick={run} style={{ marginTop: 16, padding: '14px 24px', background: '#605d52', color: '#fffefb', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 15 }}>
           ▶ Run T₀ delivery simulation
         </button>
 
-        <div style={{ marginTop: 24, background: '#0D1526', border: '1px solid #1A2D5A', borderRadius: 12, padding: 18, fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.9 }}>
-          {log.length === 0 ? <span style={{ color: '#3D5CBE' }}>Click run to execute the real Web Crypto + IndexedDB pipeline…</span>
+        <div style={{ marginTop: 24, background: '#1a1010', border: '1px solid #2b211c', borderRadius: 12, padding: 18, fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.9 }}>
+          {log.length === 0 ? <span style={{ color: '#939084' }}>Click run to execute the real Web Crypto + IndexedDB pipeline…</span>
             : log.map((l, i) => (
-              <div key={i} style={{ color: l.ok === true ? '#34d399' : l.ok === false ? '#f87171' : '#A8B9EA' }}>{l.t}</div>
+              <div key={i} style={{ color: l.ok === true ? '#6fa678' : l.ok === false ? '#c25a48' : '#c5c0b1' }}>{l.t}</div>
             ))}
         </div>
 
         {paper && (
-          <div style={{ marginTop: 20, background: '#0D1526', border: '1px solid #138808', borderRadius: 12, padding: 18 }}>
-            <h3 style={{ color: '#34d399', margin: '0 0 10px' }}>Decrypted Paper (client-side)</h3>
+          <div style={{ marginTop: 20, background: '#1a1010', border: '1px solid #138808', borderRadius: 12, padding: 18 }}>
+            <h3 style={{ color: '#6fa678', margin: '0 0 10px' }}>Decrypted Paper (client-side)</h3>
             {(paper.questions as { text: string }[]).map((q, i) => (
-              <div key={i} style={{ fontSize: 14, padding: '6px 0', borderBottom: '1px solid #132040' }}>Q{i + 1}. {q.text}</div>
+              <div key={i} style={{ fontSize: 14, padding: '6px 0', borderBottom: '1px solid #201515' }}>Q{i + 1}. {q.text}</div>
             ))}
           </div>
         )}
 
         {sync && (
-          <div style={{ marginTop: 16, fontSize: 13, color: '#A8B9EA' }}>
-            Answer sync — pending: <b style={{ color: sync.pending ? '#fbbf24' : '#34d399' }}>{sync.pending}</b>{' · '}
+          <div style={{ marginTop: 16, fontSize: 13, color: '#c5c0b1' }}>
+            Answer sync — pending: <b style={{ color: sync.pending ? '#d9a441' : '#6fa678' }}>{sync.pending}</b>{' · '}
             {sync.online ? 'online' : 'offline (queued locally, will retry)'}
           </div>
         )}

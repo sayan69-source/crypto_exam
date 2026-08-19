@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
@@ -74,8 +73,6 @@ export default function ContactPage() {
 
   return (
     <main>
-      <Navbar />
-
       <section className={s.contact}>
         <div className="wrap">
           <div className={s.contactGrid}>
@@ -239,7 +236,7 @@ export default function ContactPage() {
       </section>
 
       {/* ===== SHORT FAQ ===== */}
-      <section className={s.contactFaq}>
+      <section className={`${s.contactFaq} reveal reveal-rise`}>
         <div className="wrap">
           <div className={s.faqGrid}>
             <div>

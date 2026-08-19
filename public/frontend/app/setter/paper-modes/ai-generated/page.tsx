@@ -176,23 +176,23 @@ export default function AIGeneratedPage() {
           <h3 style={{ fontSize: 14, color: 'var(--color-navy-200)', marginTop: 16 }}>Difficulty Distribution Target</h3>
           <div className={styles.row}>
             <div className={styles.field}>
-              <label style={{ color: '#4ade80' }}>Easy (%)</label>
+              <label style={{ color: '#6fa678' }}>Easy (%)</label>
               <input type="number" className={styles.input} value={paperConfig.difficultyDistribution.easy} onChange={e => setPaperConfig(p => ({ ...p, difficultyDistribution: { ...p.difficultyDistribution, easy: +e.target.value } }))} />
             </div>
             <div className={styles.field}>
-              <label style={{ color: '#fbbf24' }}>Medium (%)</label>
+              <label style={{ color: '#d9a441' }}>Medium (%)</label>
               <input type="number" className={styles.input} value={paperConfig.difficultyDistribution.medium} onChange={e => setPaperConfig(p => ({ ...p, difficultyDistribution: { ...p.difficultyDistribution, medium: +e.target.value } }))} />
             </div>
             <div className={styles.field}>
-              <label style={{ color: '#f87171' }}>Hard (%)</label>
+              <label style={{ color: '#c25a48' }}>Hard (%)</label>
               <input type="number" className={styles.input} value={paperConfig.difficultyDistribution.hard} onChange={e => setPaperConfig(p => ({ ...p, difficultyDistribution: { ...p.difficultyDistribution, hard: +e.target.value } }))} />
             </div>
           </div>
 
           {paperConfig.difficultyDistribution.easy + paperConfig.difficultyDistribution.medium + paperConfig.difficultyDistribution.hard !== 100 && (
-            <div className={styles.infoBanner} style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.2)' }}>
+            <div className={styles.infoBanner} style={{ background: 'rgba(194, 90, 72,0.08)', borderColor: 'rgba(194, 90, 72,0.2)' }}>
               <span className={styles.infoBannerIcon}></span>
-              <span className={styles.infoBannerText} style={{ color: '#f87171' }}>
+              <span className={styles.infoBannerText} style={{ color: '#c25a48' }}>
                 Difficulty distribution must sum to 100%. Current: {paperConfig.difficultyDistribution.easy + paperConfig.difficultyDistribution.medium + paperConfig.difficultyDistribution.hard}%
               </span>
             </div>
@@ -213,9 +213,9 @@ export default function AIGeneratedPage() {
               <div className={styles.cvText}>Computer Vision Style Analysis...</div>
             </div>
           ) : (
-            <div className={styles.cvScanner} style={{ borderColor: '#10b981' }}>
+            <div className={styles.cvScanner} style={{ borderColor: '#3f6f4a' }}>
               <div className={styles.cvIcon} style={{ animation: 'none' }}></div>
-              <div className={styles.cvText} style={{ color: '#34d399' }}>AI Generating New Questions...</div>
+              <div className={styles.cvText} style={{ color: '#6fa678' }}>AI Generating New Questions...</div>
             </div>
           )}
 
@@ -254,11 +254,11 @@ export default function AIGeneratedPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 8 }}>
             {[
-              { label: 'Style Match', value: `${Math.min(99, Math.floor(progress))} %`, color: '#ec4899' },
-              { label: 'Questions Generated', value: Math.floor((progress / 100) * paperConfig.totalQuestions), color: '#4ade80' },
-              { label: 'Sets Prepared', value: progress >= 96 ? paperConfig.setsCount : 0, color: '#fbbf24' },
+              { label: 'Style Match', value: `${Math.min(99, Math.floor(progress))} %`, color: '#9b2226' },
+              { label: 'Questions Generated', value: Math.floor((progress / 100) * paperConfig.totalQuestions), color: '#6fa678' },
+              { label: 'Sets Prepared', value: progress >= 96 ? paperConfig.setsCount : 0, color: '#d9a441' },
             ].map(stat => (
-              <div key={stat.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-navy-700)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+              <div key={stat.label} style={{ background: 'rgba(255, 254, 251,0.03)', border: '1px solid var(--color-navy-700)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
                 <p style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: stat.color, margin: 0 }}>{stat.value}</p>
                 <p style={{ fontSize: 11, color: 'var(--color-navy-400)', margin: 0 }}>{stat.label}</p>
               </div>
@@ -271,7 +271,7 @@ export default function AIGeneratedPage() {
       {step === 3 && (
         <div className={styles.form}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#fffefb' }}>
               Review Generated Paper ({approvedCount}/{questions.length} approved)
             </h3>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -293,8 +293,8 @@ export default function AIGeneratedPage() {
               { label: 'Avg IRT (b)', value: (questions.reduce((s, q) => s + q.irt_b, 0) / questions.length).toFixed(2) },
               { label: 'Bloom\'s Range', value: `L${Math.min(...questions.map(q => q.blooms))}–L${Math.max(...questions.map(q => q.blooms))}` },
             ].map(stat => (
-              <div key={stat.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-navy-700)', borderRadius: 12, padding: 14, textAlign: 'center' }}>
-                <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'white', margin: 0 }}>{stat.value}</p>
+              <div key={stat.label} style={{ background: 'rgba(255, 254, 251,0.03)', border: '1px solid var(--color-navy-700)', borderRadius: 12, padding: 14, textAlign: 'center' }}>
+                <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#fffefb', margin: 0 }}>{stat.value}</p>
                 <p style={{ fontSize: 11, color: 'var(--color-navy-400)', margin: 0 }}>{stat.label}</p>
               </div>
             ))}
@@ -303,18 +303,18 @@ export default function AIGeneratedPage() {
           {/* Generated Questions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {questions.map(q => (
-              <div key={q.id} style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${q.approved === true ? 'rgba(74,222,128,0.3)' : q.approved === false ? 'rgba(248,113,113,0.3)' : 'var(--color-navy-700)'}`, borderRadius: 12 }}>
+              <div key={q.id} style={{ padding: '14px 18px', background: 'rgba(255, 254, 251,0.03)', border: `1px solid ${q.approved === true ? 'rgba(111, 166, 120,0.3)' : q.approved === false ? 'rgba(194, 90, 72,0.3)' : 'var(--color-navy-700)'}`, borderRadius: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-navy-400)', fontFamily: 'var(--font-mono)' }}>Q{q.id}</span>
-                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>{q.subject}</span>
-                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>{q.topic}</span>
-                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>L{q.blooms}</span>
-                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255,255,255,0.06)', color: 'var(--color-navy-300)' }}>b={q.irt_b}</span>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255, 254, 251,0.06)', color: 'var(--color-navy-300)' }}>{q.subject}</span>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255, 254, 251,0.06)', color: 'var(--color-navy-300)' }}>{q.topic}</span>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255, 254, 251,0.06)', color: 'var(--color-navy-300)' }}>L{q.blooms}</span>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 9999, background: 'rgba(255, 254, 251,0.06)', color: 'var(--color-navy-300)' }}>b={q.irt_b}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    {q.approved === true && <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>✓</span>}
-                    {q.approved === false && <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600 }}>✗</span>}
+                    {q.approved === true && <span style={{ fontSize: 11, color: '#6fa678', fontWeight: 600 }}>✓</span>}
+                    {q.approved === false && <span style={{ fontSize: 11, color: '#c25a48', fontWeight: 600 }}>✗</span>}
                     <button className={styles.approveBtn} onClick={() => handleApprove(q.id)}>✓</button>
                     <button className={styles.rejectBtn} onClick={() => handleReject(q.id)}>✕</button>
                   </div>
@@ -322,7 +322,7 @@ export default function AIGeneratedPage() {
                 <p style={{ fontSize: 13, color: 'var(--color-navy-200)', lineHeight: 1.6, margin: 0, marginBottom: 8 }}>{q.text}</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
                   {q.options.map((opt, i) => (
-                    <span key={i} style={{ fontSize: 12, color: 'var(--color-navy-400)', padding: '3px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>({String.fromCharCode(65 + i)}) {opt}</span>
+                    <span key={i} style={{ fontSize: 12, color: 'var(--color-navy-400)', padding: '3px 8px', background: 'rgba(255, 254, 251,0.02)', borderRadius: 6 }}>({String.fromCharCode(65 + i)}) {opt}</span>
                   ))}
                 </div>
               </div>

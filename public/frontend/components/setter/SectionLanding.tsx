@@ -24,13 +24,13 @@ export interface LandingExam {
 }
 
 const PILL: Record<string, { bg: string; color: string }> = {
-  LIVE: { bg: '#ECFDF5', color: '#065F46' },
-  LOCKED: { bg: 'var(--color-navy-50, #EFF1FA)', color: 'var(--color-navy-600, #213573)' },
-  COMPLETED: { bg: '#ECFDF5', color: '#065F46' },
-  DRAFT: { bg: 'var(--color-navy-50, #EFF1FA)', color: 'var(--color-navy-400, #5B6478)' },
-  GENERATING: { bg: '#FFFBEB', color: '#92400E' },
-  PROOF_PENDING: { bg: '#FFFBEB', color: '#92400E' },
-  DISTRIBUTED: { bg: '#EFF6FF', color: '#1E40AF' },
+  LIVE: { bg: '#eef3ea', color: '#2f5438' },
+  LOCKED: { bg: 'var(--color-navy-50, #f8f4f0)', color: 'var(--color-navy-600, #3d332c)' },
+  COMPLETED: { bg: '#eef3ea', color: '#2f5438' },
+  DRAFT: { bg: 'var(--color-navy-50, #f8f4f0)', color: 'var(--color-navy-400, #605d52)' },
+  GENERATING: { bg: '#fdf6e8', color: '#7d5610' },
+  PROOF_PENDING: { bg: '#fdf6e8', color: '#7d5610' },
+  DISTRIBUTED: { bg: '#f2ede5', color: '#4a3f34' },
 };
 
 interface SectionLandingProps {

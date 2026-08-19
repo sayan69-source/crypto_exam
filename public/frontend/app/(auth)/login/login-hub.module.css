@@ -1,0 +1,161 @@
+/* /login — the unified four-role sign-in switcher */
+
+.main {
+  min-height: calc(100vh - 61px);
+  background: var(--brand-canvas-soft);
+  padding-block: var(--space-3xl) var(--space-4xl);
+}
+
+/* One column width for the whole page: heading, switcher, and card all align. */
+.shell {
+  width: min(560px, calc(100vw - 2 * var(--gutter)));
+  margin-inline: auto;
+}
+
+.head { text-align: center; }
+.h1 {
+  margin-top: var(--space-md);
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  font-weight: 500; line-height: 1.06; letter-spacing: 0;
+  color: var(--brand-ink);
+}
+.sub {
+  margin: var(--space-md) auto 0;
+  max-width: 46ch;
+  font-size: var(--fs-body); line-height: 1.6; color: var(--brand-body);
+}
+
+/* ── Role switcher ── */
+.switcher {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-xs);
+  margin-top: var(--space-2xl);
+  padding: var(--space-xs);
+  background: var(--brand-canvas);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+.roleBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: var(--space-md) 6px;
+  background: none; border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--fs-sm); font-weight: 500;
+  color: var(--brand-body);
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.roleBtn svg { color: var(--brand-body-mid); transition: color var(--dur-fast) ease; }
+.roleBtn:hover { background: var(--brand-canvas-soft); color: var(--brand-ink); }
+.roleBtn:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.roleOn {
+  background: var(--brand-ink); border-color: var(--brand-ink);
+  color: var(--brand-on-primary); font-weight: 600;
+}
+.roleOn svg { color: var(--brand-primary); }
+.roleOn:hover { background: var(--brand-ink); color: var(--brand-on-primary); }
+
+/* What this role will be asked for — stated before they start. */
+.credential {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: var(--space-lg);
+  font-size: var(--fs-sm); color: var(--brand-body); text-align: center;
+}
+.credential svg { color: var(--accent-text); flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════
+   THE LOGIN RECTANGLE
+   All four roles render inside this one card. The forms were written as
+   standalone pages with their own card chrome — three shared a 440px cream
+   card, while the invigilator's was 760px wide, transparent and square. That
+   chrome is neutralised below so the card belongs to the page, not the form,
+   and the rectangle stays identical as you switch roles.
+   ══════════════════════════════════════════════ */
+.panel {
+  margin-top: var(--space-lg);
+  min-height: 560px;
+  padding: var(--space-2xl);
+  background: var(--brand-canvas);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The forms' own page wrappers: full-height, centring, page background. */
+.panel :global([class*="__page"]),
+.panel :global([class*="__loginPage"]),
+.panel :global([class*="__wrap"]) {
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: none !important;
+  display: block !important;
+  place-items: initial !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* The forms' own card chrome — the page now owns it. */
+.panel :global([class*="__card"]),
+.panel :global([class*="__loginCard"]),
+.panel :global([class*="__panel"]) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Decorative page backdrops the standalone forms painted behind themselves. */
+.panel :global([class*="__patternBg"]),
+.panel :global([class*="__bg"]),
+.panel :global([class*="__glow"]),
+.panel :global([class*="__grid"]) { display: none !important; }
+
+/* Each form carried its own lockup — logo, product name, tagline, role badge.
+   The page above already says which portal you are in and what it will ask
+   for, so repeating it inside the card is duplication, and it is what made
+   the four cards different heights. */
+.panel :global([class*="__logoArea"]),
+.panel :global([class*="__roleBadge"]),
+.panel :global([class*="__tagline"]),
+.panel :global([class*="__loginHead"]) { display: none !important; }
+
+/* ── Invigilator parity ──
+   That form came from its own stylesheet and rendered a taller 56px button
+   and slightly looser fields than the other three. Pull it onto the same
+   metrics so all four cards read as one component. */
+.panel :global([class*="__fullBtn"]) {
+  min-height: 46px !important;
+  height: 46px !important;
+  padding: 0 var(--space-xl) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-md) !important;
+}
+.panel :global([class*="__stepBody"]) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-lg) !important;
+}
+.panel :global([class*="__field"]) { margin: 0 !important; }
+.panel :global(input) { font-size: 14px !important; padding: 12px 14px !important; }
+
+/* The candidate's language switcher stays — 11 Indian languages is a product
+   feature, not page furniture. The fixed card height absorbs it. */
+.panel :global([class*="__langSelector"]) {
+  margin: 0 0 var(--space-lg) !important;
+  justify-content: flex-start !important;
+}
+
+@media (max-width: 620px) {
+  .switcher { grid-template-columns: repeat(2, 1fr); }
+  .panel { padding: var(--space-xl); min-height: 0; }
+}

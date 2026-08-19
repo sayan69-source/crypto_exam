@@ -99,10 +99,31 @@ const lines = (src) => src.split(/\r?\n/);
     // The shared <Button> spreads {...props}, so a handler passes through it.
     if (file.endsWith(join("components", "ui", "Button.tsx"))) continue;
     const src = stripComments(readFileSync(file, "utf8"), "ts");
-    const re = /<button\b([\s\S]*?)>([\s\S]*?)<\/button>/g;
+    // The attribute list cannot be sliced with a lazy /.*?>/ — an arrow handler
+    // such as onMouseEnter={() => setActive(i)} contains a '>' that ends the
+    // slice early, hiding a real onClick that comes after it. Scan for the
+    // tag's own '>' with brace and quote depth tracked instead.
+    const tagEnd = (from) => {
+      let depth = 0, quote = null;
+      for (let i = from; i < src.length; i++) {
+        const c = src[i];
+        if (quote) { if (c === quote && src.charCodeAt(i - 1) !== 92) quote = null; continue; }
+        if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+        if (c === '{') depth++;
+        else if (c === '}') depth--;
+        else if (c === '>' && depth === 0) return i;
+      }
+      return -1;
+    };
+    const re = /<button\b/g;
     let m;
     while ((m = re.exec(src))) {
-      const [attrs, inner] = [m[1], m[2]];
+      const end = tagEnd(m.index + 7);
+      if (end === -1) continue;
+      const close = src.indexOf('</button>', end);
+      if (close === -1) continue;
+      re.lastIndex = close;
+      const [attrs, inner] = [src.slice(m.index + 7, end), src.slice(end + 1, close)];
       if (/onClick|type=["{']?submit/.test(attrs)) continue;
       // A button wrapped in <Link> navigates — that is a real action.
       if (/<Link\b[^>]*>\s*$/.test(src.slice(Math.max(0, m.index - 120), m.index))) continue;
