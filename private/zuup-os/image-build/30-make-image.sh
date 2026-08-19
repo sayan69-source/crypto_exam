@@ -187,19 +187,25 @@ import sys, struct
 img, mbr_bin, esp_lba, esp_sectors = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 
 def entry(boot, ptype, lba, count):
-    # CHS is 0xFEFFFF ("use LBA") — every firmware that can boot a USB stick
-    # reads LBA, and computing real CHS for a modern disk is meaningless.
-    return struct.pack("<B3sB3sII", boot, b"þÿÿ", ptype, b"þÿÿ", lba, count)
+    # CHS is 0xFEFFFF, the "ignore this, use LBA" sentinel: every firmware that
+    # can boot a USB stick reads LBA, and real CHS for a modern disk is fiction.
+    #
+    # Built numerically rather than as a bytes literal. The escape form had to
+    # survive a heredoc, a shell and a Python parser intact and it did not -- it
+    # reached the file as UTF-8 and the build died on "bytes can only contain
+    # ASCII literal characters". bytes([...]) has nothing left to escape.
+    chs = bytes([0xFE, 0xFF, 0xFF])
+    return struct.pack("<B3sB3sII", boot, chs, ptype, chs, lba, count)
 
 with open(img, "r+b") as f:
     code = open(mbr_bin, "rb").read()[:440]
     f.seek(0); f.write(code)                       # boot code only; disk sig at 440 survives
     f.seek(446)
-    f.write(entry(0x80, 0x0C, esp_lba, esp_sectors))   # bootable FAT32 → the ESP
+    f.write(entry(0x80, 0x0C, esp_lba, esp_sectors))   # bootable FAT32 -> the ESP
     total = f.seek(0, 2) // 512
     f.seek(446 + 16)
     f.write(entry(0x00, 0xEE, 1, total - 1))           # protective, so GPT tools still behave
-    f.seek(510); f.write(b"Uª")
+    f.seek(510); f.write(bytes([0x55, 0xAA]))
 print("[zuup-os] hybrid MBR written (slot1 bootable FAT32, slot2 0xEE protective)")
 HYBRID
   else
