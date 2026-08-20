@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field, EmailStr, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Enums (mirror DB) ──
