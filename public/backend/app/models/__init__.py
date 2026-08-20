@@ -136,6 +136,9 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     email = Column(String(255), unique=True, nullable=True)
+    email_normalized = Column(String(255), unique=True, nullable=True)
+    email_verified = Column(Boolean, default=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
     phone = Column(String(15), nullable=True)
     role = Column(Enum(UserRole, name="user_role", create_type=True), nullable=False)
     full_name = Column(String(255), nullable=False)
@@ -609,3 +612,17 @@ class OtpChallenge(Base):
     attempts = Column(Integer, default=0)
     delivery = Column(String(20), default="sms")   # sms | dev
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EmailVerificationChallenge(Base):
+    """Email ownership verification challenge."""
+    __tablename__ = "email_verification_challenges"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    email = Column(String(255), nullable=False, index=True)
+    challenge_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    attempts = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+

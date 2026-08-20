@@ -9,29 +9,7 @@ export const metadata: Metadata = {
   description: "The platform — four interfaces, one cryptographic backbone.",
 };
 
-/* ─── FAQ (relocated from the home page) ─── */
-const FAQS = [
-  {
-    q: "Do I have to trust CryptoExam Core?",
-    a: "No. That is the point. Every guarantee is backed by a proof anchored to a public blockchain. You can verify any examination yourself on a block explorer, without an account and without trusting us, the examining body, or the centre.",
-  },
-  {
-    q: "How can a paper stay sealed until the exam begins?",
-    a: "The paper is encrypted at authoring time. Its decryption key is derived from a public randomness beacon and is only available at the scheduled start time, T₀. Custody of the master key is split across independent parties using Shamir’s Secret Sharing, so no individual can open it early.",
-  },
-  {
-    q: 'What does "machine-verifiable difficulty" mean?',
-    a: "Setters declare a target difficulty distribution for each paper. A zero-knowledge proof demonstrates the paper meets that distribution without revealing the questions — so fairness across paper variants can be checked publicly, before anyone sits the exam.",
-  },
-  {
-    q: "Is the platform compliant with Indian data law?",
-    a: "Yes. CryptoExam Core is built to comply with the Digital Personal Data Protection Act, 2023. Biometric data is processed on-device and never leaves the candidate’s hardware in raw form.",
-  },
-  {
-    q: "Which languages are supported?",
-    a: "The candidate interface supports 11 Indian languages with native script rendering, including Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati and Odia.",
-  },
-];
+
 
 /* ─── Feature list helper ─── */
 function Feature({ icon, title, desc, variant }: { icon: string; title: string; desc: string; variant?: string }) {
@@ -306,30 +284,7 @@ export default function PlatformPage() {
         </div>
       </section>
 
-      {/* ===== FAQ =====
-           Relocated from home. Rebuilt on native <details>/<summary>: the
-           original used a JS max-height toggle, which would have forced this
-           whole page into a client component. The native element is keyboard
-           accessible and expandable with JS disabled. */}
-      <section className={`section ${s.faqSection} reveal reveal-rise`} id="faq">
-        <div className="wrap-narrow">
-          <div className="heading-block center">
-            <span className="eyebrow">Questions</span>
-            <h2>What people ask first.</h2>
-          </div>
-          <div className={s.faqList}>
-            {FAQS.map((f, i) => (
-              <details className={s.faqItem} key={f.q} open={i === 0}>
-                <summary className={s.faqQ}>
-                  <span>{f.q}</span>
-                  <Icon name="plus" size={20} />
-                </summary>
-                <div className={s.faqA}><p>{f.a}</p></div>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       <Footer />
     </main>
