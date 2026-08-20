@@ -189,15 +189,36 @@ class FaceEngineCV:
         return self._embed(best[0], best[1])
 
     def enrol(self, frames=None) -> str:
-        """`enroll()` as the daemon consumes it: sha256 hex, or "" if nothing
-        was captured. Both face engines expose this identical surface so
-        zuup-biometricd never has to know which one is behind it."""
-        import hashlib
+        """
+        `enroll()` as the daemon consumes it: the EMBEDDING as float32 hex, or
+        "" if nothing was captured.
 
+        This returned `sha256(embedding)` and could therefore never match
+        anything. `verify()` twelve lines above does
+        `np.frombuffer(enrolled_embedding, dtype="float32")` and then a cosine —
+        so a 32-byte digest was read back as EIGHT floats, compared against the
+        live capture's 128, and `_cosine` returns 0.0 the moment the sizes
+        differ. Every face check scored exactly 0.0, for every candidate,
+        including the genuine one. Fail-closed, so nothing errored and nothing
+        logged: it read as "biometrics are strict" rather than "biometrics are
+        broken".
+
+        A hash cannot be cosine-compared. Hashing destroys precisely the
+        geometry the comparison needs — that is what a hash is for. The
+        fingerprint path in zuup-biometricd.py already says this in its own
+        docstring ("the TEMPLATE travels, not a hash of it ... a digest here
+        would enrol something that can never match"); the face path had the
+        identical bug that comment warns about.
+
+        What travels is therefore the vector. See the DPDP note in the daemon's
+        enrolment handler: a system that matches faces must store something
+        matchable, and the honest move is to say so rather than to keep a
+        privacy claim true by keeping the feature broken.
+        """
         embedding = self.enroll(frames)
         if embedding is None or getattr(embedding, "size", 0) == 0:
             return ""
-        return hashlib.sha256(embedding.astype("float32").tobytes()).hexdigest()
+        return embedding.astype("float32").tobytes().hex()
 
     def _capture_burst(self):
         cv2 = self._cv2

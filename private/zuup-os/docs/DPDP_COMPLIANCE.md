@@ -12,7 +12,7 @@ where that mechanism lives.
 | **Security safeguards (S.8)** | AES-256-GCM envelope; RAM-only terminal state; no plaintext on terminals; HSM-held keys | `exam-terminal/lib/answer-seal.ts`, `edge-server/src/lib/envelope.ts`, `rootfs/overlay.fstab` |
 | **Minors (S.9)** | Parental consent for candidates < 18 | public backend enrolment |
 | **Data principal rights (S.16)** | Access / correction / erasure endpoints; `dpdp_audit_log` | public backend |
-| **Biometrics** | Never stored raw — only face embedding hash + fingerprint template; capture buffers zeroised | `biometric/README.md`, `/run/biometric` tmpfs |
+| **Biometrics** | The photograph and camera frames are never stored or transmitted — held in memory, zeroised on every path out of the check. What IS retained is a derived embedding for face and a minutiae template for fingerprint, because matching requires something to match against; neither can be turned back into an image. Comparison happens on the terminal, never centrally. | `biometric/README.md`, `/run/biometric` tmpfs, `face_engine_cv.py::enrol` |
 | **No PII on chain** | Only roots/counts/hashes anchored | `vault.ts` `assertNoPii`, `CryptoExamCore.anchorCentreAnswerRoot` |
 | **Retention** | Ciphertext-at-centre auto-expires after sync; policy-bound purge of exam records | `answer_ledger.sync_state`; export marks SYNCED |
 

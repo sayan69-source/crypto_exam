@@ -84,6 +84,15 @@ jobs:
         working-directory: public/backend
         run: pytest -q
 
+      # The terminal's biometric daemon is Python too, and nothing ran it. That
+      # is how `enrol()` came to return sha256(embedding) while `verify()`
+      # compared 128 floats: every face check scored 0.0, for every candidate,
+      # and fail-closed meant it looked like strictness rather than a break.
+      # It needs only numpy — no camera, no OpenCV — because what is under test
+      # is the representation contract between the two halves.
+      - name: pytest (terminal biometric daemon)
+        run: pytest -q private/zuup-os/biometric
+
   # ── Public web app ────────────────────────────────────────────────────────
   frontend:
     name: frontend (typecheck + build)

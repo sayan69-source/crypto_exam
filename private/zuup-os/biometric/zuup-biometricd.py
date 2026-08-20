@@ -259,7 +259,7 @@ class FaceEngine:
         return {"score": self._cosine(embedding, enrolled_embedding), "liveness": liveness, "faces": faces}
 
     def enrol(self) -> str:
-        """One live capture, as the sha256 of its embedding (§9.2 step 3).
+        """One live capture, as the EMBEDDING itself (§9.2 step 3).
 
         Same liveness and single-face gates as verification: an enrolment taken
         from a photograph is a credential for whoever holds the photograph.
@@ -277,7 +277,13 @@ class FaceEngine:
             _zeroise(frame)
         if faces != 1 or liveness < LIVENESS_FLOOR or not embedding:
             return ""
-        return hashlib.sha256(embedding).hexdigest()
+        # The embedding, NOT sha256 of it. `verify()` above compares with
+        # `_cosine`, which does `np.frombuffer(..., dtype="float32")` on both
+        # sides and returns 0.0 the moment the sizes differ — so a 32-byte
+        # digest enrolled here scored 0.0 against every live capture forever,
+        # including the genuine candidate's. The fingerprint engine below already
+        # documents exactly this trap; the face path had fallen into it.
+        return embedding.hex()
 
     # ── internals ───────────────────────────────────────────────────────────
     def _infer(self, frame: bytearray) -> tuple[int, bytes, float]:
