@@ -58,7 +58,7 @@ async def request_email_verification(req: EmailVerifyRequest, db: AsyncSession =
     return {
         "challenge_id": challenge.id,
         "message": "Verification code sent.",
-        "dev_code": code if get_settings().ENV != "production" else None
+        "dev_code": code if get_settings().DEBUG else None
     }
 
 @router.post("/confirm", summary="Confirm email verification OTP")

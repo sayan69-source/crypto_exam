@@ -163,7 +163,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    enrollments = relationship("Enrollment", back_populates="candidate")
+    enrollments = relationship("Enrollment", back_populates="candidate", foreign_keys="[Enrollment.candidate_id]")
     exams_set = relationship("Exam", back_populates="setter")
 
 
@@ -360,7 +360,7 @@ class Enrollment(Base):
     )
 
     # Relationships
-    candidate = relationship("User", back_populates="enrollments")
+    candidate = relationship("User", back_populates="enrollments", foreign_keys=[candidate_id])
     exam = relationship("Exam", back_populates="enrollments")
     center = relationship("Center", back_populates="enrollments")
     session = relationship("Session", back_populates="enrollment", uselist=False)
