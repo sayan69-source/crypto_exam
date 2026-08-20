@@ -96,8 +96,8 @@ export default function InvigilatorLoginForm() {
       // First try server-side lookup
       let enr = await invigilatorApi.getEnrollment(staffId);
       
-      // Fallback to local enrollment if we are in dev/mock mode
-      if (!enr) {
+      // Fallback to local enrollment ONLY in development mode
+      if (!enr && process.env.NODE_ENV === 'development') {
         enr = getEnrollment(staffId);
       }
 
