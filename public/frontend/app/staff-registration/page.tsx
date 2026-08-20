@@ -141,7 +141,9 @@ function StaffRegistration() {
             <option value="">{exams ? "— choose the examination —" : "loading exams…"}</option>
             {(exams ?? []).map((x) => (
               <option key={x.id} value={x.id}>
-                {x.name}{x.year ? ` (${x.year})` : ""}
+                {/* Most exam names already carry the year, so appending it
+                    unconditionally read "CUET UG 2026 … (2026)". */}
+                {x.year && !x.name.includes(String(x.year)) ? `${x.name} (${x.year})` : x.name}
               </option>
             ))}
           </select>

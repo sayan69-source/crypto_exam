@@ -68,6 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       '/', '/about', '/platform', '/contact', '/privacy', '/terms',
       '/candidates', '/setters', '/invigilators', '/administration',
       '/center-access', '/explore',
+      // Marketing/explainer routes. Every one of these is linked from the
+      // public header, so omitting them here bounced a logged-out visitor to
+      // /login the moment they clicked the nav — the page rendered fine and
+      // was unreachable. /pipeline is the public sealed-question demo.
+      '/faq', '/for-setters', '/for-administrators', '/pipeline',
       '/exam',
       '/login', '/setter/login', '/setter/register', '/admin/login', '/invigilator/login', '/invigilator/register',
       // Tier-0. Enrolment is IP-gated and login needs a fingerprint, so these

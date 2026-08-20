@@ -4,7 +4,7 @@
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-export interface EnrolExam { id: string; name: string; organisation: string; scheduled_at: string | null }
+export interface EnrolExam { id: string; name: string; organisation: string; year: number | null; scheduled_at: string | null }
 export interface Organisation { name: string; key: string }
 export interface ExamLocationOption { id: string; name: string; city: string | null; state: string | null; address: string | null }
 export interface ExamSubjectOption { id: string; name: string; code: string | null; compulsory: boolean }

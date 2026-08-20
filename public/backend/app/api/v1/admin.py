@@ -556,30 +556,40 @@ async def approve_candidate(
     Sets approval_status=APPROVED, stamps approved_by/approved_at.
     Writes an AdminAuditLog entry (same pattern as emergency_pause/emergency_abort).
     """
-    enrollment = (await db.execute(
+    # A candidate sitting more than one exam has one Enrollment row per exam,
+    # so this must not assume a single row — `scalar_one_or_none()` here raised
+    # MultipleResultsFound (a 500) for every candidate with a second enrolment,
+    # which the seeded roster gives all of them. The roster is one row per
+    # candidate (`group_by(User.id)`), and the decision being recorded is about
+    # the person, so it applies to all of their enrolments.
+    enrollments = (await db.execute(
         select(Enrollment).where(Enrollment.candidate_id == candidate_id)
-    )).scalar_one_or_none()
-    if not enrollment:
+    )).scalars().all()
+    if not enrollments:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_CANDIDATE")
-    if enrollment.approval_status == CandidateApprovalStatus.APPROVED:
+    if all(e.approval_status == CandidateApprovalStatus.APPROVED for e in enrollments):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already approved")
 
     now = datetime.now(timezone.utc)
-    enrollment.approval_status = CandidateApprovalStatus.APPROVED
-    enrollment.approved_by = current_user["user_id"]
-    enrollment.approved_at = now
-    enrollment.rejected_at = None
-    enrollment.rejection_reason = None
+    for enrollment in enrollments:
+        enrollment.approval_status = CandidateApprovalStatus.APPROVED
+        enrollment.approved_by = current_user["user_id"]
+        enrollment.approved_at = now
+        enrollment.rejected_at = None
+        enrollment.rejection_reason = None
 
     db.add(AdminAuditLog(
         admin_id=current_user["user_id"],
         action="CANDIDATE_APPROVED",
-        target_type="enrollment",
-        target_id=str(enrollment.id),
+        target_type="candidate",
+        target_id=str(candidate_id),
         ip_address=req.client.host if req.client else None,
     ))
     await db.commit()
-    logger.info("candidate approved: enrollment=%s by admin=%s", enrollment.id, current_user["user_id"])
+    logger.info(
+        "candidate approved: candidate=%s enrolments=%d by admin=%s",
+        candidate_id, len(enrollments), current_user["user_id"],
+    )
     return {"ok": True, "approvalStatus": "APPROVED", "approvedAt": now.isoformat()}
 
 
@@ -598,30 +608,36 @@ async def reject_candidate(
     if not body.rejection_reason or not body.rejection_reason.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rejection_reason is required")
 
-    enrollment = (await db.execute(
+    # Same one-row-per-exam problem as approve, above.
+    enrollments = (await db.execute(
         select(Enrollment).where(Enrollment.candidate_id == candidate_id)
-    )).scalar_one_or_none()
-    if not enrollment:
+    )).scalars().all()
+    if not enrollments:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_CANDIDATE")
-    if enrollment.approval_status == CandidateApprovalStatus.REJECTED:
+    if all(e.approval_status == CandidateApprovalStatus.REJECTED for e in enrollments):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already rejected")
 
     now = datetime.now(timezone.utc)
-    enrollment.approval_status = CandidateApprovalStatus.REJECTED
-    enrollment.approved_by = current_user["user_id"]
-    enrollment.rejected_at = now
-    enrollment.rejection_reason = body.rejection_reason.strip()
+    reason = body.rejection_reason.strip()
+    for enrollment in enrollments:
+        enrollment.approval_status = CandidateApprovalStatus.REJECTED
+        enrollment.approved_by = current_user["user_id"]
+        enrollment.rejected_at = now
+        enrollment.rejection_reason = reason
 
     db.add(AdminAuditLog(
         admin_id=current_user["user_id"],
         action="CANDIDATE_REJECTED",
-        target_type="enrollment",
-        target_id=str(enrollment.id),
-        reason=body.rejection_reason.strip(),
+        target_type="candidate",
+        target_id=str(candidate_id),
+        reason=reason,
         ip_address=req.client.host if req.client else None,
     ))
     await db.commit()
-    logger.info("candidate rejected: enrollment=%s reason=%s", enrollment.id, body.rejection_reason)
+    logger.info(
+        "candidate rejected: candidate=%s enrolments=%d reason=%s",
+        candidate_id, len(enrollments), reason,
+    )
     return {"ok": True, "approvalStatus": "REJECTED", "rejectedAt": now.isoformat()}
 
 

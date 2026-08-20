@@ -188,7 +188,14 @@ export default function CandidateEnrolment() {
           <option value="">
             {!org ? "— choose the organisation first —" : exams ? "— choose your exam —" : "loading…"}
           </option>
-          {(exams ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          {/* The year disambiguates cycles of the same exam — a name alone
+              cannot tell "NEET UG 2026" from the 2027 sitting. Appended only
+              when the name does not already carry it. */}
+          {(exams ?? []).map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.year && !x.name.includes(String(x.year)) ? `${x.name} (${x.year})` : x.name}
+            </option>
+          ))}
         </select>
 
         {optionsError && <p role="alert" style={{ ...errp, marginTop: 10 }}>{optionsError}</p>}

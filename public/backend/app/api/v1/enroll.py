@@ -184,6 +184,7 @@ async def open_exams(
                 "id": e.id,
                 "name": e.name,
                 "organisation": o.organisation,
+                "year": e.year,
                 "scheduled_at": e.scheduled_at.isoformat() if e.scheduled_at else None,
             }
             for o, e in rows

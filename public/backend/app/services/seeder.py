@@ -32,8 +32,10 @@ from app.models import (
     Enrollment, EnrollmentStatus, CandidateApprovalStatus, ConnectivityTier,
     Session, Anomaly, AnomalyType,
     BiometricEnrollment, CandidateVerification, VerificationResultEnum,
+    ExamOffering, ExamLocation, ExamSubject,
 )
 from app.services.auth import hash_password
+from app.services.exam_registration import REGISTERABLE_EXAM_STATES, normalise
 
 
 def _synthetic_embedding(seed: str, dim: int = 256) -> list[float]:
@@ -128,11 +130,15 @@ async def seed_database(db: AsyncSession) -> dict:
     questions_count = await _seed_questions(db, exams)
     summary["questions"] = questions_count
 
-    # ── 6. Enrollments ──
+    # ── 6. Public registration offerings ──
+    offerings = await _seed_exam_offerings(db, exams, centers)
+    summary["exam_offerings"] = len(offerings)
+
+    # ── 7. Enrollments ──
     enrollments = await _seed_enrollments(db, users, exams, centers)
     summary["enrollments"] = len(enrollments)
 
-    # ── 7. § 29 Invigilator + biometric enrollments ──
+    # ── 8. § 29 Invigilator + biometric enrollments ──
     bio = await _seed_invigilator_biometrics(db, users, centers, enrollments)
     summary["biometric_enrollments"] = bio
 
@@ -598,6 +604,92 @@ async def _seed_invigilator_biometrics(
 
     logger.info(f"Created 1 invigilator + {count} biometric enrollments")
     return count
+
+
+# Which conducting body each seeded exam belongs to, spelled the way a
+# candidate would recognise it. `ExamBody` is an internal enum ("NTA"); the
+# registration form asks a human who is conducting their exam.
+_BODY_NAMES = {
+    ExamBody.NTA: "National Testing Agency",
+    ExamBody.UPSC: "Union Public Service Commission",
+    ExamBody.SSC: "Staff Selection Commission",
+    ExamBody.IBPS: "Institute of Banking Personnel Selection",
+    ExamBody.STATE_PSC: "State Public Service Commission",
+    ExamBody.CBSE: "Central Board of Secondary Education",
+    ExamBody.CUSTOM: "CryptoExam Core",
+}
+
+
+async def _seed_exam_offerings(
+    db: AsyncSession,
+    exams: list[Exam],
+    centers: list[Center],
+) -> list[ExamOffering]:
+    """
+    Make the seeded exams publicly registerable.
+
+    `/enroll/organisations` and `/enroll/exams` read `ExamOffering`, not `Exam`
+    — registration is deliberately driven by the approved, public face of an
+    exam so an unapproved paper is never offered to anybody. Nothing seeded
+    that table, so on a freshly seeded database both endpoints returned empty
+    and the candidate-enrolment form had nothing to select: the first dropdown
+    was blank, so the exam and centre selects below it never populated. The
+    page rendered correctly and was impossible to use.
+
+    Only exams in an enrollable state get an offering. A LIVE or COMPLETED
+    paper is intentionally absent — registration for a sitting already under
+    way is closed, and the form saying so is the correct behaviour.
+    """
+    offerings: list[ExamOffering] = []
+    now = datetime.now(timezone.utc)
+
+    for exam in exams:
+        if exam.status not in REGISTERABLE_EXAM_STATES:
+            continue
+
+        organisation = _BODY_NAMES.get(exam.exam_body, "CryptoExam Core")
+        offering = ExamOffering(
+            id=str(uuid4()),
+            exam_id=exam.id,
+            organisation=organisation,
+            organisation_norm=normalise(organisation),
+            exam_name_norm=normalise(exam.name),
+            is_active=True,
+            registration_opens_at=now - timedelta(days=30),
+            registration_closes_at=exam.scheduled_at,
+        )
+        db.add(offering)
+        offerings.append(offering)
+
+        # Locations: real seeded centres, so a chosen location resolves to a
+        # commissioned centre rather than a place-name with nothing behind it.
+        for order, center in enumerate(centers[:6]):
+            db.add(ExamLocation(
+                id=str(uuid4()),
+                offering_id=offering.id,
+                name=center.name,
+                city=center.city,
+                state=center.state,
+                address=center.address,
+                capacity=center.capacity,
+                display_order=order,
+                center_id=center.id,
+            ))
+
+        # Subjects come from the exam's own taxonomy, so the choice offered at
+        # registration is the paper's actual structure.
+        subjects = (exam.subject_taxonomy or {}).get("subjects", [])
+        for order, subject in enumerate(subjects):
+            db.add(ExamSubject(
+                id=str(uuid4()),
+                offering_id=offering.id,
+                name=subject.get("name", f"Subject {order + 1}"),
+                is_compulsory=True,
+                display_order=order,
+            ))
+
+    logger.info(f"Created {len(offerings)} exam offerings (registerable exams)")
+    return offerings
 
 
 async def _seed_enrollments(
