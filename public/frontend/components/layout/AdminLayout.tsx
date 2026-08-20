@@ -49,9 +49,6 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
   const { session } = useAuth();
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
   const [clockTime, setClockTime] = useState(new Date());
   const [live, setLive] = useState<number | null>(null);
   const [healthy, setHealthy] = useState<boolean | null>(null);
