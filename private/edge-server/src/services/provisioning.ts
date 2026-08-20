@@ -68,6 +68,23 @@ export interface ProvisioningBundle {
    * like the terminal registry, it had no path in until now: only the demo seed
    * ever wrote this table, so a real deployment had nothing to serve.
    */
+  /**
+   * The paper's SHAPE for each exam (services/exam_pattern.ExamPattern).
+   *
+   * The public side began sending these and this interface did not name them,
+   * so they were silently dropped — and a terminal with the questions but not
+   * the pattern can only assume four-option MCQ, which renders a numeric-entry
+   * section as multiple choice rather than failing visibly.
+   *
+   * Carries no secret: a pattern states that there are twenty questions worth
+   * +4/-1, never what any of them asks.
+   */
+  exam_patterns?: {
+    exam_id: string;
+    pattern: unknown;
+    total_questions?: number;
+    duration_minutes?: number;
+  }[];
   question_bundles?: {
     exam_id: string;
     /** 32-byte Merkle root, hex — the value committed on-chain. */
@@ -88,7 +105,7 @@ export interface ProvisioningBundle {
 
 export interface IngestCounts {
   centres: number; exams: number; candidates: number; staff: number;
-  terminals: number; bundles: number;
+  terminals: number; bundles: number; patterns: number;
 }
 
 const hx = (h?: string | null): Buffer | null => (h ? Buffer.from(h, "hex") : null);
@@ -103,7 +120,7 @@ export async function ingestBundle(
   b: ProvisioningBundle,
 ): Promise<IngestCounts> {
   const counts: IngestCounts = {
-    centres: 0, exams: 0, candidates: 0, staff: 0, terminals: 0, bundles: 0,
+    centres: 0, exams: 0, candidates: 0, staff: 0, terminals: 0, bundles: 0, patterns: 0,
   };
   const client = await pool.connect();
   try {
@@ -183,6 +200,17 @@ export async function ingestBundle(
         ],
       );
       counts.terminals++;
+    }
+
+    for (const p of b.exam_patterns ?? []) {
+      // The exam row already exists from the `exams` loop above; this only adds
+      // its shape. UPDATE rather than upsert so a pattern for an exam this
+      // centre is not running cannot conjure an exam row.
+      await client.query(
+        `UPDATE exams SET pattern = $2, total_questions = $3 WHERE id = $1`,
+        [p.exam_id, JSON.stringify(p.pattern), p.total_questions ?? null],
+      );
+      counts.patterns++;
     }
 
     for (const q of b.question_bundles ?? []) {

@@ -1418,7 +1418,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!binding || binding.examId !== examId) return deny(reply, 403, "SEAT_NOT_BOUND_TO_EXAM");
     const bundle = await repo.getQuestionBundle(pool, examId);
     if (!bundle) return deny(reply, 404, "NO_BUNDLE_STAGED");
-    return { questionsRoot: bundle.questionsRoot, bundleCid: bundle.bundleCid, chainTx: bundle.chainTx, bundle: bundle.bundle };
+    // The pattern travels WITH the paper. A terminal holding questions it does
+    // not know how to present would fall back to assuming four-option MCQ,
+    // which renders a numeric-entry section as multiple choice — a working-
+    // looking exam that marks the wrong thing. Null here is the terminal's
+    // signal to refuse rather than guess.
+    return {
+      questionsRoot: bundle.questionsRoot, bundleCid: bundle.bundleCid,
+      chainTx: bundle.chainTx, bundle: bundle.bundle, pattern: bundle.pattern,
+    };
   });
 
   // §10.7 — release the T₀ beacon. Returns 425 (locked) until t0_at, so the

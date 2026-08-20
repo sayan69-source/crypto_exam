@@ -54,6 +54,23 @@ router = APIRouter()
 
 _DOB = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 FACE_DIM = 128                 # face-api.js / FaceNet descriptor length
+
+# WHICH network produced the descriptor — not merely how long it is.
+#
+# The terminal embeds with SFace (face_engine_cv.py); this page embeds with
+# face-api.js. Both emit 128 float32, so the bytes line up perfectly and a
+# cosine between them runs without error and returns a number — an
+# ARBITRARY one, because the two embedding spaces are unrelated. Matching
+# dimensionality is a coincidence, not compatibility.
+#
+# That is a worse failure than a size mismatch: a size mismatch scores a hard
+# 0.0 and every candidate is refused, which is at least visible. This scores
+# something plausible and low, which reads as "the face didn't match" for the
+# genuine candidate and cannot be told apart from a real rejection.
+#
+# So the model identity travels with the descriptor and the terminal refuses
+# anything it did not produce itself, rather than scoring it.
+FACE_MODEL = "face-api.js/faceRecognitionNet@1.0-128d"
 FACE_MATCH_THRESHOLD = 0.5     # Euclidean distance for "same person" (exam-grade)
 
 

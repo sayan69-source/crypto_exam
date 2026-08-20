@@ -28,13 +28,12 @@ from app.database import get_db
 from app.models import (
     User, UserRole, Exam, ExamStatus, Question,
     ShamirShard as ShamirShardModel,
-    SealedQuestionBundle,
-)
+    SealedQuestionBundle, SealedBundleKeying,)
 from app.services.auth import require_role
 
 # crypto/ lives at backend/crypto — make it importable like the other routers do
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-from crypto.question_sealing import seal_exam_questions, open_question  # noqa: E402
+from crypto.question_sealing import derive_master_seed, seal_exam_questions, open_question  # noqa: E402
 from crypto.shamir import ShamirPaperGuardian  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -134,10 +133,29 @@ async def seal_questions(
         # NB: correct_option is deliberately NOT included — grading stays server-side.
     } for q in rows]
 
-    # 1. SEAL — master seed is transient; only its shard hashes persist.
-    master_seed = os.urandom(32)
+    # 1. SEAL.
+    #
+    # The master seed is DERIVED, not random. It was `os.urandom(32)`, which
+    # sealed papers no centre could ever open: the Edge and the terminal both
+    # compute `HKDF(beacon, hkdfSalt, "cryptoexam:"+examId)` (question-seal.ts),
+    # so a randomly-chosen seed shares nothing with what they derive. The Python
+    # and TypeScript derivations are byte-identical given the same inputs
+    # (verified against a fixed vector), so this gives them the same inputs
+    # instead of changing either.
+    #
+    # You cannot seal under a key that does not exist yet, so the scheme is
+    # "seal now, release the opener at T0": the beacon is minted here, the paper
+    # is sealed under what it derives, and the beacon itself is withheld from the
+    # provisioning bundle until T0 has passed. Ciphertext can therefore sit on a
+    # centre's Edge for a week and stay inert.
+    t0_beacon = os.urandom(32)
+    hkdf_salt = os.urandom(16)
+    master_seed = derive_master_seed(t0_beacon, hkdf_salt, str(exam_id))
     bundle = seal_exam_questions(questions, master_seed, str(exam_id))
-    shards = ShamirPaperGuardian.split(master_seed, n=exam.shamir_shard_count or 5, k=exam.shamir_threshold or 3)
+    # Shamir guards the BEACON, not the derived seed. A centre with no
+    # connectivity window reconstructs the beacon from on-site shards and
+    # re-derives the seed exactly as the online path would (§30 PATH B).
+    shards = ShamirPaperGuardian.split(t0_beacon, n=exam.shamir_shard_count or 5, k=exam.shamir_threshold or 3)
     bundle_dict = bundle.to_dict()
 
     # 2. PUBLISH — push the opaque (keyless) bundle to a public content store.
@@ -189,6 +207,20 @@ async def seal_questions(
 
     for s in shards:
         db.add(ShamirShardModel(exam_id=exam_id, shard_index=s.index, shard_hash=s.hash))
+
+    # The keying row. Without it the ciphertext above is permanently unopenable:
+    # the salt is needed to derive the seed and the beacon is the only thing that
+    # releases it. Replaced on a re-seal so it can never describe an older paper.
+    existing_key = (await db.execute(
+        select(SealedBundleKeying).where(SealedBundleKeying.exam_id == exam_id)
+    )).scalar_one_or_none()
+    if existing_key:
+        await db.delete(existing_key)
+        await db.flush()
+    db.add(SealedBundleKeying(
+        exam_id=str(exam_id), hkdf_salt=hkdf_salt, t0_beacon=t0_beacon,
+        t0_at=exam.scheduled_at, drand_round=exam.drand_round,
+    ))
 
     logger.info("Sealed exam=%s questions=%d root=%s cid=%s tx=%s",
                 str(exam_id)[:8], bundle.count, bundle.questions_root[:14],

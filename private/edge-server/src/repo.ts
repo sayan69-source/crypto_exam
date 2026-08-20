@@ -815,15 +815,29 @@ export interface QuestionBundle {
   bundleCid: string | null;
   chainTx: string | null;
   bundle: unknown;       // the keyless SealedBundle JSON
+  /**
+   * The paper's SHAPE (ExamPattern). NULL when the pattern never arrived, and
+   * the terminal must refuse rather than assume four-option MCQ — guessing
+   * renders a numeric-entry section as multiple choice, which looks like a
+   * working exam and marks the wrong thing.
+   */
+  pattern: unknown | null;
   drandRound: number;
   hkdfSalt: string;      // hex (public)
 }
 
 /** Serve the sealed, keyless bundle + its root. Safe before T₀ — no keys here. */
 export async function getQuestionBundle(q: Q, examId: string): Promise<QuestionBundle | null> {
+  // Joined to the exam so the paper and its SHAPE arrive together. The terminal
+  // cannot render a numeric-entry section without the pattern, and fetching the
+  // two separately invites the state where it holds questions it does not know
+  // how to present — so they travel in one answer or not at all.
   const res = await q.query(
-    `SELECT questions_root, bundle_cid, chain_tx, bundle_json, drand_round, hkdf_salt
-       FROM exam_question_bundle WHERE exam_id = $1`,
+    `SELECT b.questions_root, b.bundle_cid, b.chain_tx, b.bundle_json, b.drand_round,
+            b.hkdf_salt, e.pattern
+       FROM exam_question_bundle b
+       JOIN exams e ON e.id = b.exam_id
+      WHERE b.exam_id = $1`,
     [examId],
   );
   if (!res.rowCount) return null;
@@ -834,6 +848,7 @@ export async function getQuestionBundle(q: Q, examId: string): Promise<QuestionB
     bundleCid: r.bundle_cid ?? null,
     chainTx: r.chain_tx ?? null,
     bundle: r.bundle_json,
+    pattern: (r.pattern as unknown) ?? null,
     drandRound: Number(r.drand_round),
     hkdfSalt: toHex(bytes(r.hkdf_salt)),
   };

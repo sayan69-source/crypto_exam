@@ -810,6 +810,46 @@ class ExamForm(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class SealedBundleKeying(Base):
+    """
+    How a sealed paper is OPENED at T0, and not one moment earlier.
+
+    `SealedQuestionBundle` stores the ciphertext. This stores what is needed to
+    derive the key for it — and is the row that was missing, which is why a
+    sealed paper could never be opened at a centre.
+
+    The two halves of the platform had drifted onto incompatible schemes:
+
+        delivery.py       master_seed = os.urandom(32), Shamir-split
+        question-seal.ts  masterSeed  = HKDF(beacon, hkdfSalt, "cryptoexam:"+examId)
+
+    Both are "seal now, release the opener at T0" — you cannot seal under a key
+    that does not exist yet — but they used different key material, so a terminal
+    could never have opened a paper the website sealed. The Python and TypeScript
+    derivations are byte-identical when given the same inputs (verified), so the
+    fix is to give them the same inputs rather than to change either.
+
+    `t0_beacon` is the opener. It is withheld from the provisioning bundle until
+    T0 has passed: the ciphertext can sit on a centre's Edge for a week and
+    remain inert, because the value that unlocks it is still on the other side of
+    the air gap. `hkdf_salt` and `t0_at` travel with the bundle from the start —
+    neither reveals anything on its own.
+    """
+
+    __tablename__ = "sealed_bundle_keying"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"),
+                     nullable=False, unique=True, index=True)
+    # Public. Ships with the ciphertext; useless without the beacon.
+    hkdf_salt = Column(LargeBinary, nullable=False)
+    # THE secret. Released only once t0_at has passed.
+    t0_beacon = Column(LargeBinary, nullable=False)
+    t0_at = Column(DateTime(timezone=True), nullable=False)
+    drand_round = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
 class ExamPatternRow(Base):
     """
     The stored shape of one exam's paper (services/exam_pattern.ExamPattern).
