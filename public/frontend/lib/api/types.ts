@@ -368,3 +368,16 @@ export interface OtpChallengeResponse {
   ttl_seconds: number;
   dev_code?: string; // only present in dev (no SMS gateway configured)
 }
+
+export interface EmailOtpChallengeResponse {
+  challenge_id: string;
+  expires_in: number;
+  resend_after: number;
+  dev_code?: string;
+}
+
+export interface EmailOtpVerifyResponse {
+  verified: boolean;
+  verification_token: string;
+  expires_in: number;
+}

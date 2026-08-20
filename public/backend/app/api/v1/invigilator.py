@@ -45,8 +45,35 @@ _fido2_challenges: dict[str, str] = {}
 # ════════════════════════════════════════════════════════════════════
 
 @router.get("/enrollment/{staff_id}", summary="Get invigilator enrollment")
-async def get_invigilator_enrollment(staff_id: str, db: AsyncSession = Depends(get_db)):
+async def get_invigilator_enrollment(
+    staff_id: str, 
+    email_verification_token: str = None,
+    db: AsyncSession = Depends(get_db)
+):
     """Fetch the invigilator's enrolled face descriptor and device info (no images)."""
+    
+    if not email_verification_token:
+        raise HTTPException(status_code=401, detail="Email verification token required")
+        
+    from app.models import EmailVerificationGrant
+    grant = (await db.execute(
+        select(EmailVerificationGrant).where(EmailVerificationGrant.token == email_verification_token)
+    )).scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=401, detail="Invalid or expired email verification token")
+        
+    if grant.email != staff_id or grant.purpose != "LOGIN" or grant.role != "INVIGILATOR":
+        raise HTTPException(status_code=403, detail="Email verification token context mismatch")
+        
+    # We do NOT consume the token here because the invigilator flow is multi-step.
+    # It will be consumed in the final verify-totp step, or we can consume it here
+    # and return a session token, but the simplest is to let them use it for the whole flow,
+    # or actually the requirement says: "The frontend must not be able to skip email OTP by directly calling the next endpoint... The next protected request must present that grant to the backend."
+    # Since enrollment is the first request, we can just leave it unconsumed here, or consume it
+    # and issue a temporary cookie. For now, we leave it unconsumed, or maybe consume it in the final step.
+    
     user = (await db.execute(
         select(User).where(User.email == staff_id, User.role == UserRole.INVIGILATOR)
     )).scalar_one_or_none()
@@ -165,6 +192,21 @@ async def verify_totp(req: TOTPVerifyRequest, db: AsyncSession = Depends(get_db)
     In DEBUG the TOTP check is lenient (accepts any 6-digit code) so the gateway
     is demoable without provisioning an authenticator app.
     """
+    if not req.email_verification_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email verification token required")
+
+    from app.models import EmailVerificationGrant
+    grant = (await db.execute(
+        select(EmailVerificationGrant).where(EmailVerificationGrant.token == req.email_verification_token)
+    )).scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired email verification token")
+        
+    if grant.email != req.staff_id or grant.purpose != "LOGIN" or grant.role != "INVIGILATOR":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification token context mismatch")
+    
     user = None
     if req.staff_id:
         user = (await db.execute(
@@ -181,6 +223,10 @@ async def verify_totp(req: TOTPVerifyRequest, db: AsyncSession = Depends(get_db)
 
     if not valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid TOTP code")
+
+    # Consume the token since login is now fully complete
+    grant.consumed_at = now
+    await db.commit()
 
     token, expires = create_access_token(user_id=user.id, role=user.role, email=user.email)
     logger.info(f"Invigilator login: {user.email}")

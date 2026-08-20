@@ -614,15 +614,32 @@ class OtpChallenge(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
-class EmailVerificationChallenge(Base):
-    """Email ownership verification challenge."""
-    __tablename__ = "email_verification_challenges"
+class EmailOtpChallenge(Base):
+    """Real server-side email OTP verification challenge."""
+    __tablename__ = "email_otp_challenges"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     email = Column(String(255), nullable=False, index=True)
-    challenge_hash = Column(String(64), nullable=False)
+    purpose = Column(String(20), nullable=False) # LOGIN | CONTACT
+    role = Column(String(20), nullable=True)     # INVIGILATOR | SETTER | ADMIN | null
+    code_hash = Column(String(64), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     attempts = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    request_ip = Column(String(45), nullable=True)
+
+
+class EmailVerificationGrant(Base):
+    """Short-lived, single-use email verification grant/token."""
+    __tablename__ = "email_verification_grants"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    token = Column(String(64), nullable=False, unique=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    purpose = Column(String(20), nullable=False)
+    role = Column(String(20), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 

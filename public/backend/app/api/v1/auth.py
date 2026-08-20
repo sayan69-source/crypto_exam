@@ -100,6 +100,9 @@ async def login(
                    "Please provide consent through the registration flow.",
         )
 
+    from datetime import timezone
+    from app.models import EmailVerificationGrant
+
     # Role-specific authentication
     if user.role == UserRole.CANDIDATE:
         # Candidates have NO online login by design. They enrol (face) on the
@@ -111,6 +114,27 @@ async def login(
         )
 
     else:
+        # Setter/Admin: verify email verification grant first
+        if not getattr(request, "email_verification_token", None):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email verification token required",
+            )
+            
+        grant = (await db.execute(
+            select(EmailVerificationGrant).where(EmailVerificationGrant.token == request.email_verification_token)
+        )).scalar_one_or_none()
+        
+        now = datetime.now(timezone.utc)
+        if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired email verification token")
+            
+        if grant.email != user.email or grant.purpose != "LOGIN" or grant.role != user.role.value:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification token context mismatch")
+            
+        grant.consumed_at = now
+        await db.commit()
+
         # Setter/Admin: verify password
         if not request.password or not user.password_hash:
             raise HTTPException(

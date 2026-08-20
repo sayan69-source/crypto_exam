@@ -152,8 +152,9 @@ async function tryBackend<T>(path: string, init?: RequestInit): Promise<T | null
 // ── Public API ─────────────────────────────────────────────────────────
 
 export const invigilatorApi = {
-  async getEnrollment(staff_id: string): Promise<any> {
-    const real = await tryBackend<any>(`/invigilator/enrollment/${encodeURIComponent(staff_id)}`);
+  async getEnrollment(staff_id: string, email_verification_token?: string): Promise<any> {
+    const q = email_verification_token ? `?email_verification_token=${encodeURIComponent(email_verification_token)}` : '';
+    const real = await tryBackend<any>(`/invigilator/enrollment/${encodeURIComponent(staff_id)}${q}`);
     if (real) return real;
     return null;
   },
@@ -204,9 +205,9 @@ export const invigilatorApi = {
   },
 
   /** Layer 1 — TOTP final factor, returns a session token. */
-  async verifyTOTP(code: string, staff_id?: string): Promise<{ access_token: string } | null> {
+  async verifyTOTP(code: string, staff_id?: string, email_verification_token?: string): Promise<{ access_token: string } | null> {
     const real = await tryBackend<{ access_token: string }>('/invigilator/verify-totp', {
-      method: 'POST', body: JSON.stringify({ code, staff_id }),
+      method: 'POST', body: JSON.stringify({ code, staff_id, email_verification_token }),
     });
     if (real) return real;
     if (code.length === 6) return delay({ access_token: `mock_invig_${Date.now()}` });
