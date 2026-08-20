@@ -552,7 +552,7 @@ class StaffRegistrationRequest(Base):
     center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     center_name = Column(String(255), nullable=True)       # denormalised for display
     full_name = Column(String(255), nullable=False)
-    face_embedding_hash = Column(String(64), nullable=False)
+    face_embedding_hash = Column(LargeBinary, nullable=False)  # packed 128-float descriptor, not a hash
     status = Column(Enum(StaffApprovalStatus, name="staff_approval_status", create_type=True), default=StaffApprovalStatus.PENDING)
     fingerprint_authorised = Column(Boolean, default=False)
     activation_code_hash = Column(String(64), nullable=True)   # SHA-256 of the issued code (cleartext never stored)
