@@ -126,9 +126,14 @@ export function signBio(key: KeyObject, fields: BioFields): { envelope: object; 
 
 export function signEnrol(
   key: KeyObject,
-  fields: { terminalId: string; nonce: string; faceEmbeddingHash: string; fingerprintTemplate: string },
+  fields: {
+    terminalId: string; nonce: string; faceEmbeddingHash: string; fingerprintTemplate: string;
+    /** Defaults to the plain ENROL constant; a candidate enrolment binds the roll. */
+    subject?: string;
+  },
 ): { envelope: object; sig: string } {
-  const envelope = { ...fields, subject: "ENROL", capturedAt: Date.now() };
+  const { subject = "ENROL", ...rest } = fields;
+  const envelope = { ...rest, subject, capturedAt: Date.now() };
   return {
     envelope,
     sig: toHex(new Uint8Array(cryptoSign(null, Buffer.from(utf8.encode(canonicalJson(envelope))), key))),

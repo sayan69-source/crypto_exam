@@ -500,6 +500,15 @@ class Handler(BaseHTTPRequestHandler):
             }))
 
         if self.path == "/attest/enrol":
+            # The subject binds the capture to WHO it is of. It defaulted to the
+            # bare constant "ENROL", which proves a finger was read and not whose
+            # — so a signed capture could be replayed to enrol one person's
+            # finger against another's roll. The caller passes
+            # "enrol:candidate:<roll>" for a candidate; staff enrolment keeps the
+            # constant and is unchanged.
+            subject = body.get("subject") or "ENROL"
+            if not isinstance(subject, str) or len(subject) > 128:
+                return self._json(400, {"ok": False, "reason": "BAD_SUBJECT"})
             face_hash = FACE.enrol()
             template = FP.enrol()
             if not face_hash or not template:
@@ -508,7 +517,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(503, {"ok": False, "reason": "CAPTURE_UNAVAILABLE"})
             return self._json(200, SIGNER.envelope({
                 "nonce": nonce,
-                "subject": "ENROL",
+                "subject": subject,
                 "faceEmbeddingHash": face_hash,
                 "fingerprintTemplate": template,
             }))

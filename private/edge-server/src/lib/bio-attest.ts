@@ -190,6 +190,16 @@ export const LOGIN_SUBJECT = "LOGIN";
 /** The subject string for a first-time biometric enrolment (§9.2 step 3). */
 export const ENROL_SUBJECT = "ENROL";
 /**
+ * The subject for enrolling ONE candidate's fingerprint at the centre (§9.5).
+ *
+ * Bound to the roll for the same reason `checkinSubject` is: a signed capture
+ * carrying only the constant "ENROL" is a capture of *somebody*, and an
+ * invigilator holding one could replay it to enrol their own finger against any
+ * candidate on the roster. Binding the subject means a capture proves whose
+ * finger it is, not merely that a finger was read.
+ */
+export const candidateEnrolSubject = (roll: string): string => `enrol:candidate:${roll}`;
+/**
  * The subject for the fingerprint re-supplied at activation (§9.2 step 7).
  *
  * Bound to the request id so a capture taken for one applicant cannot activate
@@ -245,7 +255,10 @@ function templateBytes(hexValue: unknown): Uint8Array | null {
 
 export function verifyEnrolEnvelope(
   signed: SignedEnrol | null | undefined,
-  exp: Omit<BioExpectation, "subject">,
+  // `subject` is optional and defaults to the plain ENROL constant, so existing
+  // staff enrolment is unchanged; a caller enrolling one named person passes the
+  // bound subject instead.
+  exp: Omit<BioExpectation, "subject"> & { subject?: string },
 ): EnrolVerdict {
   const deny = (failures: string[]): EnrolVerdict => ({
     ok: false, failures, faceEmbeddingHash: null, fingerprintTemplate: null,
@@ -270,7 +283,7 @@ export function verifyEnrolEnvelope(
   }
   if (env.terminalId !== exp.terminalId) failures.push("BIOMETRIC_TERMINAL_MISMATCH");
   if (typeof env.nonce !== "string" || env.nonce !== exp.nonce) failures.push("BIOMETRIC_NONCE_MISMATCH");
-  if (env.subject !== ENROL_SUBJECT) failures.push("BIOMETRIC_SUBJECT_MISMATCH");
+  if (env.subject !== (exp.subject ?? ENROL_SUBJECT)) failures.push("BIOMETRIC_SUBJECT_MISMATCH");
 
   const age = exp.now - env.capturedAt;
   if (!Number.isFinite(env.capturedAt) || age > (exp.maxAgeMs ?? DEFAULT_MAX_AGE_MS) || age < -1_000) {

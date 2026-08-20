@@ -18,6 +18,7 @@ import { verifyToken, issueToken, DEFAULT_IDLE_MS, type TokenClaims } from "./li
 import { evaluateMatchAll, DEFAULT_POLICY } from "./lib/match-all.ts";
 import { verifyQuote } from "./lib/tpm-quote.ts";
 import {
+  candidateEnrolSubject,
   verifyBioEnvelope,
   verifyEnrolEnvelope,
   checkinSubject,
@@ -1186,6 +1187,78 @@ export function buildApp(deps: AppDeps): FastifyInstance {
    * so the identity check that stands between a proxy candidate and a seat was
    * a pair of literals in a React component.
    */
+  /**
+   * §9.5 — enrol ONE candidate's fingerprint, in person, at the centre.
+   *
+   * The missing step that made the whole exam-day flow unrunnable. Registration
+   * happens in a browser, which cannot read a fingerprint reader, so a candidate
+   * arrives with a face descriptor and no finger. Check-in requires BOTH above
+   * threshold, so an empty template scored 0.0 and every candidate was refused
+   * at the desk — permanently, with a BIOMETRIC_MISMATCH that looked like the
+   * wrong person rather than a missing enrolment.
+   *
+   * Same evidence the rest of §8.4 demands, for the same reasons: an invigilator
+   * session, a one-shot nonce this Edge issued to THAT station, and an envelope
+   * signed by that station's own daemon key. The subject is bound to the roll,
+   * so a signed capture cannot be replayed to enrol a different candidate.
+   *
+   * Deliberately NOT a fallback for a failed check-in. It is a separate act with
+   * its own audit line, and it refuses a candidate who already has a finger on
+   * file — otherwise it becomes the substitution attack the biometric exists to
+   * prevent, performed with the tool meant to prevent it.
+   */
+  app.post("/api/candidate/enrol-finger", async (req, reply) => {
+    const claims = await requireInvigilator(req);
+    if (!claims) return deny(reply, 403, "FORBIDDEN");
+    const b = req.body as { examId?: string; roll?: string; enrol?: SignedEnrol; challengeNonce?: string };
+    if (!b?.examId || !b?.roll) return deny(reply, 400, "MISSING_FIELDS");
+
+    const station = claims.tid;
+    if (consumeChallenge(b.challengeNonce, station) === null) {
+      return deny(reply, 401, "CHALLENGE_INVALID");
+    }
+
+    const verdict = verifyEnrolEnvelope(b.enrol, {
+      bioPubkeyPem: await repo.terminalBioPubkey(pool, station),
+      terminalId: station,
+      nonce: b.challengeNonce!,
+      subject: candidateEnrolSubject(b.roll),
+      now: now(),
+    });
+    if (!verdict.ok || !verdict.fingerprintTemplate) {
+      await withTx(pool, (c) =>
+        appendAudit(c, {
+          centerId: claims.centre, actorId: claims.sub,
+          action: "CANDIDATE_FINGER_ENROL_DENIED", target: b.roll!,
+          details: { failures: verdict.failures },
+        }),
+      );
+      return reply.code(401).send({ ok: false, reason: "ENROLMENT_ATTESTATION_INVALID", failures: verdict.failures });
+    }
+
+    const out = await withTx(pool, async (c) => {
+      const r = await repo.enrolCandidateFingerprint(c, {
+        centerId: claims.centre!, examId: b.examId!, roll: b.roll!,
+        template: verdict.fingerprintTemplate!,
+      });
+      await appendAudit(c, {
+        centerId: claims.centre, actorId: claims.sub,
+        action: r.ok ? "CANDIDATE_FINGER_ENROLLED" : "CANDIDATE_FINGER_ENROL_REFUSED",
+        target: b.roll!, details: r.ok ? null : { reason: r.reason },
+      });
+      return r;
+    });
+
+    if (!out.ok) {
+      // 404 for a roll this centre does not hold; 409 for one already enrolled —
+      // different problems with different remedies, and an invigilator at a desk
+      // needs to know which.
+      const code = out.reason === "ROLL_NOT_ON_ROSTER" ? 404 : 409;
+      return reply.code(code).send({ ok: false, reason: out.reason });
+    }
+    return { ok: true, roll: b.roll, enrolled: true };
+  });
+
   app.post("/api/candidate/checkin", async (req, reply) => {
     const claims = await requireInvigilator(req);
     if (!claims) return deny(reply, 403, "FORBIDDEN");

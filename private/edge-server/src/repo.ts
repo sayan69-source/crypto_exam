@@ -353,6 +353,52 @@ export async function staffEnrolmentForStation(
   };
 }
 
+/**
+ * Enrol ONE candidate's fingerprint at the centre, once and only once (§9.5).
+ *
+ * The registration portal captures a face descriptor and nothing else — a
+ * browser cannot read a fingerprint reader — so provisioning ships candidates
+ * with `fingerprint_template` NULL and the design says the finger is "enrolled
+ * in person at the seat". Nothing did that. `candidateEnrolment` therefore
+ * returned an empty template, the daemon scored 0.0 against it, check-in
+ * required `fpScore >= 0.6`, and every candidate in the estate was refused at
+ * the desk. The exam could not start.
+ *
+ * ONCE-ONLY, and that is the security property rather than tidiness. If this
+ * overwrote, an invigilator could enrol their own finger against a candidate's
+ * roll and then "verify" that candidate all day — the substitution attack the
+ * biometric exists to stop, performed with the tool meant to prevent it. A
+ * second attempt affects no row and the caller is told the candidate is already
+ * enrolled, which routes a genuine re-enrolment (a bandaged finger, a bad first
+ * capture) to a supervisor rather than doing it silently.
+ *
+ * Returns false when the roll is not on THIS centre's roster for THIS exam, so
+ * a neighbouring centre's candidate cannot be enrolled here.
+ */
+export async function enrolCandidateFingerprint(
+  client: pg.PoolClient,
+  input: { centerId: string; examId: string; roll: string; template: Uint8Array },
+): Promise<{ ok: boolean; reason?: "ROLL_NOT_ON_ROSTER" | "ALREADY_ENROLLED" }> {
+  const found = await client.query(
+    `SELECT u.id, u.fingerprint_template
+       FROM enrollments e JOIN users u ON u.id = e.candidate_id
+      WHERE e.center_id = $1 AND e.exam_id = $2 AND e.roll_number = $3
+      FOR UPDATE OF u`,
+    [input.centerId, input.examId, input.roll],
+  );
+  if (!found.rowCount) return { ok: false, reason: "ROLL_NOT_ON_ROSTER" };
+
+  const existing = found.rows[0].fingerprint_template as Buffer | null;
+  // A zero-length template is "never enrolled", not "enrolled with nothing".
+  if (existing && existing.length > 0) return { ok: false, reason: "ALREADY_ENROLLED" };
+
+  await client.query(
+    `UPDATE users SET fingerprint_template = $2 WHERE id = $1`,
+    [found.rows[0].id, Buffer.from(input.template)],
+  );
+  return { ok: true };
+}
+
 export async function candidateEnrolment(
   q: Q,
   centerId: string,
