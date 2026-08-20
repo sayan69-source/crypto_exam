@@ -17,9 +17,8 @@ GET  /api/v1/staff/centres   — real centre directory (id/name/state) from the 
 POST /api/v1/staff/register  — store a real PENDING request → {requestId, status}
 """
 
-import hashlib
 import logging
-import re
+import struct
 import uuid
 from typing import Any
 
@@ -34,14 +33,21 @@ from app.models import Center, StaffRegistrationRequest, StaffApprovalStatus
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_HEX64 = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
+FACE_DIM = 128  # face-api.js / FaceNet descriptor length — same as candidate enrolment
+
+
+def _pack_descriptor(vec: list[float]) -> bytes:
+    return struct.pack(f"<{FACE_DIM}f", *vec)
 
 
 class StaffRegistration(BaseModel):
     role: str = Field(pattern="^(CENTER_ADMIN|CENTER_INVIGILATOR)$")
     centerId: str
     fullName: str = Field(min_length=2, max_length=255)
-    faceEmbeddingHash: str
+    faceDescriptor: list[float] = Field(
+        min_length=FACE_DIM, max_length=FACE_DIM,
+        description="128-float face-recognition descriptor (real capture, not a hash)",
+    )
 
 
 @router.get("/centres")
@@ -62,11 +68,6 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Persist a real PENDING centre-staff registration."""
-    if not _HEX64.match(body.faceEmbeddingHash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="FACE_CAPTURE_REQUIRED"
-        )
-
     centre = (
         await db.execute(select(Center).where(Center.id == body.centerId))
     ).scalar_one_or_none()
@@ -79,7 +80,7 @@ async def register(
         center_id=centre.id,
         center_name=centre.name,
         full_name=body.fullName.strip(),
-        face_embedding_hash=body.faceEmbeddingHash.lower(),
+        face_embedding_hash=_pack_descriptor(body.faceDescriptor),
         status=StaffApprovalStatus.PENDING,
         approver_role="SYSTEM_ADMIN" if body.role == "CENTER_ADMIN" else "CENTER_ADMIN",
     )

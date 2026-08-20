@@ -18,6 +18,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { staffApi, type Centre } from "@/lib/api/staff";
+import { loadFaceApi, detectFace } from "@/lib/biometric/face-real";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
 
@@ -30,7 +31,7 @@ function StaffRegistrationInner() {
   const [relayDown, setRelayDown] = useState(false);
   const [centerId, setCenterId] = useState("");
   const [fullName, setFullName] = useState("");
-  const [faceHash, setFaceHash] = useState<string | null>(null);
+  const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ requestId: string; approver: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,7 @@ function StaffRegistrationInner() {
     setBusy(true);
     setError(null);
     try {
-      const j = await staffApi.register({ role, centerId, fullName, faceEmbeddingHash: faceHash! });
+      const j = await staffApi.register({ role, centerId, fullName, faceDescriptor: faceDescriptor! });
       setResult({ requestId: j.requestId, approver: j.approver });
     } catch (e) {
       setError((e as Error).message);
@@ -138,7 +139,7 @@ function StaffRegistrationInner() {
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} placeholder="e.g. Neha Rao" />
 
         <label style={label}>Face capture</label>
-        <FaceCapture onHash={setFaceHash} />
+        <FaceCapture onDescriptor={setFaceDescriptor} />
 
         {error && (
           <p role="alert" style={{ color: "#8f2418", fontSize: 13, marginTop: 12 }}>
@@ -147,11 +148,11 @@ function StaffRegistrationInner() {
         )}
 
         <button
-          disabled={busy || !centerId || !fullName.trim() || !faceHash || relayDown}
+          disabled={busy || !centerId || !fullName.trim() || !faceDescriptor || relayDown}
           onClick={submit}
           style={{
             width: "100%", marginTop: 18, padding: 14, borderRadius: 10, border: "none",
-            background: busy || !centerId || !fullName.trim() || !faceHash ? "#939084" : "#4a3f34",
+            background: busy || !centerId || !fullName.trim() || !faceDescriptor ? "#939084" : "#4a3f34",
             color: "#fffefb", fontWeight: 600, fontSize: 15, cursor: "pointer",
           }}
         >
@@ -179,11 +180,11 @@ export default function StaffRegistration() {
 
 /** Webcam capture → SHA-256 digest of the frame (the enrolment embedding-hash
  * stand-in). The raw image never leaves the browser. */
-function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
+function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [state, setState] = useState<"idle" | "live" | "captured" | "denied">("idle");
-  const [hash, setHash] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "live" | "captured" | "denied" | "no_face">("idle");
+  const [distancePreview, setDistancePreview] = useState<string | null>(null);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -193,6 +194,8 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
 
   async function start() {
     try {
+      setState("loading");
+      await loadFaceApi(); // fetch the face-api models before opening the camera
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -202,24 +205,21 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
       setState("live");
     } catch {
       setState("denied");
-      onHash(null);
+      onDescriptor(null);
     }
   }
 
   async function capture() {
     const v = videoRef.current;
     if (!v) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = v.videoWidth || 640;
-    canvas.height = v.videoHeight || 480;
-    canvas.getContext("2d")!.drawImage(v, 0, 0);
-    const blob: Blob = await new Promise((res, rej) =>
-      canvas.toBlob((b) => (b ? res(b) : rej(new Error("capture"))), "image/png"),
-    );
-    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-    setHash(hex);
-    onHash(hex);
+    const result = await detectFace(v);
+    if (!result) {
+      setState("no_face");
+      onDescriptor(null);
+      return;
+    }
+    setDistancePreview(`detector confidence ${(result.detectionScore * 100).toFixed(0)}%`);
+    onDescriptor(result.descriptor);
     setState("captured");
     stop();
   }
@@ -229,9 +229,18 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
       {state === "idle" && (
         <button onClick={start} style={ghostBtn}>Enable camera for face capture</button>
       )}
+      {state === "loading" && (
+        <p style={{ fontSize: 13, margin: 0 }}>Loading face model…</p>
+      )}
       {state === "denied" && (
         <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
           Camera unavailable or denied — face capture is required to register.
+          <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
+        </p>
+      )}
+      {state === "no_face" && (
+        <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
+          No face detected — make sure your face is centred and well-lit, then try again.
           <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
         </p>
       )}
@@ -246,9 +255,9 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
           Capture face
         </button>
       )}
-      {state === "captured" && hash && (
+      {state === "captured" && distancePreview && (
         <p style={{ ...mono, fontSize: 12, margin: 0, color: "#2f5438" }}>
-          ✓ face captured · digest {hash.slice(0, 16)}… (image stayed on this device)
+          ✓ face captured · {distancePreview} (image never left this device — only the descriptor is sent)
         </p>
       )}
     </div>

@@ -21,7 +21,7 @@ export const staffApi = {
     return json.centres ?? [];
   },
 
-  async register(body: { role: string; centerId: string; fullName: string; faceEmbeddingHash: string }): Promise<RegisterResult> {
+  async register(body: { role: string; centerId: string; fullName: string; faceDescriptor: number[] }): Promise<RegisterResult> {
     const res = await fetch(`${API_BASE}/staff/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
