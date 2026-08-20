@@ -15,14 +15,8 @@ const nextConfig: NextConfig = {
   // Dockerfile.render finds nothing and the container never serves. The
   // frontend traces no files outside this directory — and the Docker build
   // context IS this directory — so the correct root is here.
-  turbopack: {
-    root: path.resolve(__dirname),
-  },
   outputFileTracingRoot: path.resolve(__dirname),
 
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
