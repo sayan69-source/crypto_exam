@@ -4,7 +4,7 @@
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-export interface EnrolExam { id: string; name: string; body: string | null; scheduled_at: string | null }
+export interface EnrolExam { id: string; name: string; body: string | null; scheduled_at: string | null; year: number | null }
 
 export const enrollApi = {
   async exams(): Promise<EnrolExam[]> {
@@ -13,7 +13,7 @@ export const enrollApi = {
     return (await res.json()).exams ?? [];
   },
 
-  async enrol(body: { fullName: string; dateOfBirth: string; examId: string; centerId: string; faceDescriptor: number[] }) {
+  async enrol(body: { fullName: string; dateOfBirth: string; examId: string; centerId: string; email?: string; faceDescriptor: number[] }) {
     const res = await fetch(`${API_BASE}/enroll/candidate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

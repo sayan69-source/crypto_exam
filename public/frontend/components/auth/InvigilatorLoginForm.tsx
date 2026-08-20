@@ -86,17 +86,32 @@ export default function InvigilatorLoginForm() {
   }
 
   // ── creds ───────────────────────────────────────────────────────────
-  function startCreds(e: React.FormEvent) {
+  async function startCreds(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(staffId)) { setError('Enter a valid staff email.'); return; }
-    const enr = getEnrollment(staffId);
-    if (!enr) {
-      setError('No enrollment found for this email on this device. Please register your biometrics first.');
-      return;
+    
+    setBusy(true);
+    try {
+      // First try server-side lookup
+      let enr = await invigilatorApi.getEnrollment(staffId);
+      
+      // Fallback to local enrollment if we are in dev/mock mode
+      if (!enr) {
+        enr = getEnrollment(staffId);
+      }
+
+      if (!enr) {
+        setError('No enrollment found for this email. Please register your biometrics first.');
+        return;
+      }
+      setEnrollment(enr);
+      setStep('geofence');
+    } catch (err) {
+      setError('Failed to lookup enrollment. Check your connection.');
+    } finally {
+      setBusy(false);
     }
-    setEnrollment(enr);
-    setStep('geofence');
   }
 
   // ── geofence (hard-coded centre) + live IP capture ──────────────────

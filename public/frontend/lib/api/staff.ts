@@ -6,6 +6,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v
 
 export interface Centre { centerId: string; name: string; state: string | null }
 
+export interface StaffExam { id: string; name: string; body: string | null; scheduled_at: string | null; year: number | null }
+
 export interface RegisterResult {
   ok: boolean;
   requestId: string;
@@ -21,7 +23,15 @@ export const staffApi = {
     return json.centres ?? [];
   },
 
-  async register(body: { role: string; centerId: string; fullName: string; faceDescriptor: number[] }): Promise<RegisterResult> {
+  // Problem 5: exam directory for staff registration form
+  async exams(): Promise<StaffExam[]> {
+    const res = await fetch(`${API_BASE}/staff/exams`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`staff exams ${res.status}`);
+    const json = await res.json();
+    return json.exams ?? [];
+  },
+
+  async register(body: { role: string; centerId: string; fullName: string; faceDescriptor: number[]; examId?: string }): Promise<RegisterResult> {
     const res = await fetch(`${API_BASE}/staff/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

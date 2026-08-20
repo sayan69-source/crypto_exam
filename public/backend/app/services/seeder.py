@@ -29,7 +29,7 @@ from sqlalchemy import select
 from app.models import (
     User, UserRole, Exam, ExamStatus, ExamBody, ExamType,
     Question, QuestionSource, Center, HardwareNode, NodeStatus,
-    Enrollment, EnrollmentStatus, ConnectivityTier,
+    Enrollment, EnrollmentStatus, CandidateApprovalStatus, ConnectivityTier,
     Session, Anomaly, AnomalyType,
     BiometricEnrollment, CandidateVerification, VerificationResultEnum,
 )
@@ -397,6 +397,7 @@ async def _seed_exams(db: AsyncSession, users: list[User]) -> list[Exam]:
             exam_body=ed["body"],
             exam_type=ed["type"],
             duration_minutes=ed["duration"],
+            year=2026,  # Problem 3: exam cycle year
             scheduled_at=ed["scheduled"],
             status=ed["status"],
             setter_id=setters[i % len(setters)].id,
@@ -594,6 +595,7 @@ async def _seed_enrollments(
     """Enroll candidates in exams with center assignments."""
     enrollments = []
     candidates = [u for u in users if u.role == UserRole.CANDIDATE]
+    now = datetime.now(timezone.utc)
 
     for exam in exams:
         if exam.status == ExamStatus.DRAFT:
@@ -608,6 +610,11 @@ async def _seed_enrollments(
                 set_label=chr(65 + i % 4),  # A, B, C, D
                 roll_number=f"{exam.exam_body.value}-2026-{candidate.state[:3].upper()}-{i+1:07d}",
                 status=EnrollmentStatus.ENROLLED,
+                # Problem 3: registration year + audit timestamp
+                registration_year=exam.year or 2026,
+                enrolled_at=now,
+                # Problem 2: default approval status
+                approval_status=CandidateApprovalStatus.PENDING,
             )
             db.add(enrollment)
             enrollments.append(enrollment)

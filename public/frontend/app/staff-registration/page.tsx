@@ -17,8 +17,7 @@
  */
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { staffApi, type Centre } from "@/lib/api/staff";
-import { loadFaceApi, detectFace } from "@/lib/biometric/face-real";
+import { staffApi, type Centre, type StaffExam } from "@/lib/api/staff";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
 
@@ -28,8 +27,10 @@ function StaffRegistrationInner() {
   const initialRole: Role = roleParam === "CENTER_ADMIN" ? "CENTER_ADMIN" : "CENTER_INVIGILATOR";
   const [role, setRole] = useState<Role>(initialRole);
   const [centres, setCentres] = useState<Centre[] | null>(null);
+  const [exams, setExams] = useState<StaffExam[] | null>(null);
   const [relayDown, setRelayDown] = useState(false);
   const [centerId, setCenterId] = useState("");
+  const [examId, setExamId] = useState("");
   const [fullName, setFullName] = useState("");
   const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,8 +38,8 @@ function StaffRegistrationInner() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    staffApi.centres()
-      .then((c) => setCentres(c))
+    Promise.all([staffApi.centres(), staffApi.exams()])
+      .then(([c, e]) => { setCentres(c); setExams(e); })
       .catch(() => setRelayDown(true));
   }, []);
 
@@ -46,7 +47,7 @@ function StaffRegistrationInner() {
     setBusy(true);
     setError(null);
     try {
-      const j = await staffApi.register({ role, centerId, fullName, faceDescriptor: faceDescriptor! });
+      const j = await staffApi.register({ role, centerId, fullName, faceDescriptor: faceDescriptor!, examId: examId || undefined });
       setResult({ requestId: j.requestId, approver: j.approver });
     } catch (e) {
       setError((e as Error).message);
@@ -118,6 +119,20 @@ function StaffRegistrationInner() {
           ))}
         </div>
 
+        <label style={label}>Examination (which exam will you be staffing)</label>
+        {relayDown ? (
+          <p style={{ color: "#8f2418", fontSize: 13 }}>Exam list unavailable — try again later.</p>
+        ) : (
+          <select value={examId} onChange={(e) => setExamId(e.target.value)} style={field}>
+            <option value="">{exams ? "— choose the examination —" : "loading exams…"}</option>
+            {(exams ?? []).map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}{x.year ? ` (${x.year})` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+
         <label style={label}>Examination centre</label>
         {relayDown ? (
           <p style={{ color: "#8f2418", fontSize: 13 }}>
@@ -178,13 +193,14 @@ export default function StaffRegistration() {
   );
 }
 
-/** Webcam capture → SHA-256 digest of the frame (the enrolment embedding-hash
- * stand-in). The raw image never leaves the browser. */
+import { loadFaceApi, detectFace } from "@/lib/biometric/face-real";
+
+/** Webcam capture → 128-float face descriptor. The raw image never leaves the browser. */
 function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "live" | "captured" | "denied" | "no_face">("idle");
-  const [distancePreview, setDistancePreview] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "live" | "captured" | "denied">("idle");
+  const [descriptor, setDescriptor] = useState<number[] | null>(null);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -193,10 +209,10 @@ function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => v
   useEffect(() => stop, [stop]);
 
   async function start() {
+    setState("loading");
     try {
-      setState("loading");
-      await loadFaceApi(); // fetch the face-api models before opening the camera
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      await loadFaceApi();
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -212,13 +228,15 @@ function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => v
   async function capture() {
     const v = videoRef.current;
     if (!v) return;
+    
+    // face-api.js can process the video element directly
     const result = await detectFace(v);
     if (!result) {
-      setState("no_face");
-      onDescriptor(null);
+      alert("No face detected. Please ensure good lighting and look at the camera.");
       return;
     }
-    setDistancePreview(`detector confidence ${(result.detectionScore * 100).toFixed(0)}%`);
+    
+    setDescriptor(result.descriptor);
     onDescriptor(result.descriptor);
     setState("captured");
     stop();
@@ -230,17 +248,13 @@ function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => v
         <button onClick={start} style={ghostBtn}>Enable camera for face capture</button>
       )}
       {state === "loading" && (
-        <p style={{ fontSize: 13, margin: 0 }}>Loading face model…</p>
+        <p style={{ fontSize: 13, color: "var(--color-navy-500)", margin: 0 }}>
+          Loading camera and face models…
+        </p>
       )}
       {state === "denied" && (
         <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
           Camera unavailable or denied — face capture is required to register.
-          <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
-        </p>
-      )}
-      {state === "no_face" && (
-        <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
-          No face detected — make sure your face is centred and well-lit, then try again.
           <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
         </p>
       )}
@@ -255,9 +269,9 @@ function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => v
           Capture face
         </button>
       )}
-      {state === "captured" && distancePreview && (
+      {state === "captured" && descriptor && (
         <p style={{ ...mono, fontSize: 12, margin: 0, color: "#2f5438" }}>
-          ✓ face captured · {distancePreview} (image never left this device — only the descriptor is sent)
+          ✓ face captured · descriptor (128d) ready (image stayed on this device)
         </p>
       )}
     </div>

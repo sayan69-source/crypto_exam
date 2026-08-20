@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_FROM_NUMBER: str = ""
 
+    # ── Email (Problem 0.5 — shared EmailService) ──
+    # Leave blank in dev: the service then returns the composed message in the
+    # API response (delivery="dev"), mirroring the SMS OTP dev-mode pattern.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+    SMTP_FROM: str = ""   # Defaults to SMTP_USER when blank
+
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
     POLYGON_CHAIN_ID: int = 80002

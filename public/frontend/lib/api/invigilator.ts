@@ -152,6 +152,12 @@ async function tryBackend<T>(path: string, init?: RequestInit): Promise<T | null
 // ── Public API ─────────────────────────────────────────────────────────
 
 export const invigilatorApi = {
+  async getEnrollment(staff_id: string): Promise<any> {
+    const real = await tryBackend<any>(`/invigilator/enrollment/${encodeURIComponent(staff_id)}`);
+    if (real) return real;
+    return null;
+  },
+
   /** Layer 1 — geofence: device must be within ±200 m of the centre. */
   async verifyGeofence(coords: { latitude: number; longitude: number; accuracy?: number; center_id?: string }): Promise<GeofenceResult> {
     const real = await tryBackend<GeofenceResult>('/invigilator/verify-geofence', {

@@ -27,8 +27,9 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, UserRole, Center, Exam, Enrollment, EnrollmentStatus
+from app.models import User, UserRole, Center, Exam, Enrollment, EnrollmentStatus, CandidateApprovalStatus
 from app.services.auth import hash_password
+from app.services.email import send_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -57,6 +58,7 @@ class CandidateEnrolment(BaseModel):
     dateOfBirth: str = Field(description="YYYY-MM-DD")
     examId: str
     centerId: str
+    email: str = Field(default="", description="Candidate email for enrolment confirmation")
     faceDescriptor: list[float] = Field(min_length=FACE_DIM, max_length=FACE_DIM,
                                         description="128-float face-recognition descriptor")
 
@@ -73,7 +75,8 @@ async def open_exams(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     return {
         "exams": [
             {"id": e.id, "name": e.name, "body": e.exam_body.value if e.exam_body else None,
-             "scheduled_at": e.scheduled_at.isoformat() if e.scheduled_at else None}
+             "scheduled_at": e.scheduled_at.isoformat() if e.scheduled_at else None,
+             "year": e.year}  # Problem 3
             for e in rows
         ]
     }
@@ -130,17 +133,51 @@ async def enrol_candidate(
         center_id=centre.id,
         roll_number=roll,
         status=EnrollmentStatus.ENROLLED,
+        # Problem 3: registration year + audit timestamp
+        registration_year=exam.year or datetime.now(timezone.utc).year,
+        enrolled_at=datetime.now(timezone.utc),
+        # Problem 1: store candidate email
+        email=body.email.strip() if body.email else None,
+        # Problem 2: default approval status
+        approval_status=CandidateApprovalStatus.PENDING,
     ))
     await db.commit()
 
+    # Problem 1: send enrolment confirmation email (dev-mode if SMTP not configured)
+    email_result = None
+    if body.email and body.email.strip():
+        email_body = (
+            f"Dear {body.fullName.strip()},\n\n"
+            f"Your enrolment for {exam.name} has been recorded.\n\n"
+            f"Roll Number: {roll}\n"
+            f"Centre: {centre.name}{', ' + centre.state if centre.state else ''}\n"
+            f"Registration Year: {exam.year or datetime.now(timezone.utc).year}\n\n"
+            f"On exam day, you will be verified by face + fingerprint at your centre.\n"
+            f"There is no online login — your identity is verified biometrically, offline, at the exam terminal.\n\n"
+            f"Keep this roll number safe.\n\n"
+            f"CryptoExam Core"
+        )
+        email_result = await send_email(
+            to=body.email.strip(),
+            subject=f"Enrolment Confirmation — {exam.name}",
+            body=email_body,
+        )
+
     logger.info("candidate enrolled: %s roll=%s centre=%s", candidate.full_name, roll, centre.name)
-    return {
+    response: dict[str, Any] = {
         "ok": True,
         "rollNumber": roll,
         "centre": centre.name,
         "exam": exam.name,
+        "registrationYear": exam.year or datetime.now(timezone.utc).year,
         "note": "No online login. You will be verified by face + fingerprint at your centre on exam day.",
     }
+    if email_result and email_result.delivery == "dev" and email_result.dev_preview:
+        response["emailDevPreview"] = email_result.dev_preview
+        response["emailDelivery"] = "dev"
+    elif email_result:
+        response["emailDelivery"] = email_result.delivery
+    return response
 
 
 @router.post("/verify-face")
