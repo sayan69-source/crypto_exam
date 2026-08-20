@@ -104,6 +104,18 @@ class Settings(BaseSettings):
     # Mode 1 question "generation" without an LLM emits one grammatical frame
     # per topic whose correct answer is always "A", tagged ai_generated=True.
     ALLOW_TEMPLATE_QUESTIONS: bool = False
+    # The §54-55 key ceremony is meant to run inside an AWS Nitro enclave, so
+    # that HQ itself cannot read a paper it is holding. Without one,
+    # nitro_enclave.py boots a SimulatedNitroEnclave: the "attestation document"
+    # is self-signed by the same process it attests, and PCR0 is a hash of the
+    # source file rather than a measurement of anything.
+    #
+    # It was reachable unauthenticated on the deployment, so
+    # /api/v1/ceremony/health publicly answered {"enclave":"simulated"} — which
+    # is at once a demo surface in production and an invitation to ask what else
+    # is simulated. The ceremony routes now refuse unless this is set, and no
+    # production environment sets it.
+    ALLOW_SIMULATED_ENCLAVE: bool = False
 
     # ── AI / LLM ──
     LLM_BASE_URL: str = "http://localhost:11434/v1"
