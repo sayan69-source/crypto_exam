@@ -33,6 +33,7 @@ export default function CandidateEnrolment() {
 
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
+  const [email, setEmail] = useState("");
   const [org, setOrg] = useState("");
   const [examId, setExamId] = useState("");
   const [prefs, setPrefs] = useState<string[]>([]);       // ordered location ids
@@ -93,6 +94,7 @@ export default function CandidateEnrolment() {
       const j = await enrollApi.enrol({
         fullName, dateOfBirth: dob, examId,
         locationPreferences: prefs, subjectIds: subjects,
+        email: email.trim() || undefined,
         faceDescriptor: faceDescriptor!,
       });
       setResult(j);
@@ -105,7 +107,18 @@ export default function CandidateEnrolment() {
         <section style={card}>
           <h1 style={h1}>You&apos;re enrolled ✓</h1>
           <p style={{ ...mono, margin: "14px 0", fontSize: 15 }}>Roll number&nbsp;&nbsp;{result.rollNumber}</p>
-          <p style={muted}>{result.exam} · {result.organisation}</p>
+          <p style={muted}>{result.exam} · {result.organisation}{result.registrationYear ? ` · ${result.registrationYear}` : ""}</p>
+          
+          {result.emailDevPreview && (
+            <div style={{ marginTop: 14, padding: 12, background: "#fffbe8", border: "1px solid #d4b800", borderRadius: 8, fontSize: 12 }}>
+              <strong>🛠 Dev-mode email preview</strong> (no SMTP configured — in production this would be sent to your email):
+              <pre style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 11 }}>{result.emailDevPreview}</pre>
+            </div>
+          )}
+          {result.emailDelivery === "smtp" && (
+            <p style={{ fontSize: 12, color: "#2f5438", marginTop: 8 }}>✓ Confirmation email sent.</p>
+          )}
+
           <dl style={{ fontSize: 14, margin: "16px 0", display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px" }}>
             <dt style={muted}>Location</dt>
             <dd style={{ margin: 0 }}>
@@ -149,6 +162,9 @@ export default function CandidateEnrolment() {
 
         <label style={label}>Full name (as on your government ID)</label>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} placeholder="e.g. Aarav Sharma" />
+
+        <label style={label}>Email address</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={field} placeholder="For your enrolment confirmation" />
 
         <label style={label}>Date of birth</label>
         <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={field} />

@@ -23,12 +23,14 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import (
-    User, UserRole, Exam, ExamStatus, Session, Enrollment,
-    DPDPAuditLog, HardwareNode, Center,
+    User, UserRole, Exam, ExamStatus, Session, Enrollment, EnrollmentStatus,
+    DPDPAuditLog, AdminAuditLog, HardwareNode, Center,
     StaffRegistrationRequest, StaffApprovalStatus,
+    CandidateApprovalStatus,
 )
 from app.services.auth import require_role
 from app.services.health import system_health
+from app.services.email import send_email
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +348,8 @@ def _generate_code() -> str:
     return "-".join(groups)
 
 
+from sqlalchemy.orm import joinedload
+
 def _approval_view(r: StaffRegistrationRequest) -> dict:
     return {
         "requestId": r.id,
@@ -353,6 +357,8 @@ def _approval_view(r: StaffRegistrationRequest) -> dict:
         "role": r.role,
         "centreName": r.center_name,
         "centreIdHash": hashlib.sha256((r.center_id or "").encode()).hexdigest()[:16],
+        "examName": r.exam.name if r.exam else None,
+        "examYear": r.exam.year if r.exam else None,
         "status": r.status.value,
         "fingerprintAuthorised": bool(r.fingerprint_authorised),
         "createdAt": r.created_at.isoformat() if r.created_at else None,
@@ -406,7 +412,7 @@ async def list_staff_approvals(
     current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """List real centre-staff registration requests (default: pending Centre Admins)."""
-    q = select(StaffRegistrationRequest).where(StaffRegistrationRequest.role == role)
+    q = select(StaffRegistrationRequest).options(joinedload(StaffRegistrationRequest.exam)).where(StaffRegistrationRequest.role == role)
     if not include_resolved:
         q = q.where(StaffRegistrationRequest.status == StaffApprovalStatus.PENDING)
     q = q.order_by(StaffRegistrationRequest.created_at.desc())
@@ -513,9 +519,110 @@ async def list_candidates(
         "total": total,
         "page": page,
         "per_page": per_page,
-        "demoCount": sum(1 for i in items if i["isDemo"]),
-        "items": items,
+        "demoCount": sum(1 for (u, e, c) in rows if e and e.roll_number and e.roll_number.startswith("DEMO")),
+        "items": [
+            {
+                "id": u.id,
+                "name": u.full_name,
+                "email": e.email if e else None,
+                "state": u.state,
+                "rollNumber": e.roll_number if e else None,
+                "setLabel": e.set_label if e else None,
+                "enrollmentStatus": (e.status.value if e and e.status else None),
+                "approvalStatus": (e.approval_status.value if e and e.approval_status else None),
+                "registrationYear": (e.registration_year if e else None),
+                "enrolledAt": (e.enrolled_at.isoformat() if e and e.enrolled_at else None),
+                "centreName": c.name if c else None,
+                "isActive": bool(u.is_active),
+            }
+            for (u, e, c) in rows
+        ],
     }
+
+
+class CandidateApprovalAction(BaseModel):
+    rejection_reason: str | None = None  # Required for reject
+
+
+@router.post("/candidates/{candidate_id}/approve", summary="Approve a candidate enrolment")
+async def approve_candidate(
+    candidate_id: str,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    Problem 2: Approve a pending candidate enrolment.
+    Sets approval_status=APPROVED, stamps approved_by/approved_at.
+    Writes an AdminAuditLog entry (same pattern as emergency_pause/emergency_abort).
+    """
+    enrollment = (await db.execute(
+        select(Enrollment).where(Enrollment.candidate_id == candidate_id)
+    )).scalar_one_or_none()
+    if not enrollment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_CANDIDATE")
+    if enrollment.approval_status == CandidateApprovalStatus.APPROVED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already approved")
+
+    now = datetime.now(timezone.utc)
+    enrollment.approval_status = CandidateApprovalStatus.APPROVED
+    enrollment.approved_by = current_user["user_id"]
+    enrollment.approved_at = now
+    enrollment.rejected_at = None
+    enrollment.rejection_reason = None
+
+    db.add(AdminAuditLog(
+        admin_id=current_user["user_id"],
+        action="CANDIDATE_APPROVED",
+        target_type="enrollment",
+        target_id=str(enrollment.id),
+        ip_address=req.client.host if req.client else None,
+    ))
+    await db.commit()
+    logger.info("candidate approved: enrollment=%s by admin=%s", enrollment.id, current_user["user_id"])
+    return {"ok": True, "approvalStatus": "APPROVED", "approvedAt": now.isoformat()}
+
+
+@router.post("/candidates/{candidate_id}/reject", summary="Reject a candidate enrolment")
+async def reject_candidate(
+    candidate_id: str,
+    body: CandidateApprovalAction,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    Problem 2: Reject a pending candidate enrolment.
+    Requires a rejection_reason. Stamps rejected_at, writes AdminAuditLog.
+    """
+    if not body.rejection_reason or not body.rejection_reason.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rejection_reason is required")
+
+    enrollment = (await db.execute(
+        select(Enrollment).where(Enrollment.candidate_id == candidate_id)
+    )).scalar_one_or_none()
+    if not enrollment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_CANDIDATE")
+    if enrollment.approval_status == CandidateApprovalStatus.REJECTED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already rejected")
+
+    now = datetime.now(timezone.utc)
+    enrollment.approval_status = CandidateApprovalStatus.REJECTED
+    enrollment.approved_by = current_user["user_id"]
+    enrollment.rejected_at = now
+    enrollment.rejection_reason = body.rejection_reason.strip()
+
+    db.add(AdminAuditLog(
+        admin_id=current_user["user_id"],
+        action="CANDIDATE_REJECTED",
+        target_type="enrollment",
+        target_id=str(enrollment.id),
+        reason=body.rejection_reason.strip(),
+        ip_address=req.client.host if req.client else None,
+    ))
+    await db.commit()
+    logger.info("candidate rejected: enrollment=%s reason=%s", enrollment.id, body.rejection_reason)
+    return {"ok": True, "approvalStatus": "REJECTED", "rejectedAt": now.isoformat()}
 
 
 @router.get("/centers", summary="Exam centres with live node health")

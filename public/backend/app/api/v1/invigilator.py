@@ -45,6 +45,33 @@ _fido2_challenges: dict[str, str] = {}
 # Layer 1 — Invigilator self-authentication
 # ════════════════════════════════════════════════════════════════════
 
+@router.get("/enrollment/{staff_id}", summary="Get invigilator enrollment")
+async def get_invigilator_enrollment(staff_id: str, db: AsyncSession = Depends(get_db)):
+    """Fetch the invigilator's enrolled face descriptor and device info (no images)."""
+    user = (await db.execute(
+        select(User).where(User.email == staff_id, User.role == UserRole.INVIGILATOR)
+    )).scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Invigilator not found.")
+        
+    enrollment = (await db.execute(
+        select(BiometricEnrollment).where(BiometricEnrollment.user_id == user.id)
+    )).scalar_one_or_none()
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="No enrollment found for this invigilator.")
+        
+    return {
+        "staffId": user.email,
+        "fullName": user.name,
+        "faceDescriptor": enrollment.face_embedding,
+        "fingerprint": {"credentialId": enrollment.webauthn_credential_id} if enrollment.webauthn_credential_id else None,
+        "ip": "enrolled-ip", # we don't store ip in BiometricEnrollment model, so mock it for frontend display
+    }
+
+
+
 @router.post("/verify-geofence", response_model=GeofenceResponse, summary="Geofence check")
 async def verify_geofence(req: GeofenceRequest, db: AsyncSession = Depends(get_db)):
     """Confirm the invigilator's device is within ±200 m of the assigned centre."""

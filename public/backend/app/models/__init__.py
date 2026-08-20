@@ -129,6 +129,14 @@ class EnrollmentStatus(str, enum.Enum):
     DISQUALIFIED = "DISQUALIFIED"
 
 
+class CandidateApprovalStatus(str, enum.Enum):
+    """Admin approval workflow for candidate enrolments.
+    Intentionally separate from EnrollmentStatus (which tracks exam-day state)."""
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class ConnectivityTier(str, enum.Enum):
     TIER_1_METRO = "TIER_1_METRO"
     TIER_2_4G = "TIER_2_4G"
@@ -172,7 +180,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    enrollments = relationship("Enrollment", back_populates="candidate")
+    enrollments = relationship("Enrollment", foreign_keys="[Enrollment.candidate_id]", back_populates="candidate")
     exams_set = relationship("Exam", back_populates="setter")
 
 
@@ -188,6 +196,7 @@ class Exam(Base):
     subject_taxonomy = Column(JSON, nullable=False)
     exam_type = Column(Enum(ExamType, name="exam_type", create_type=True), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=True)  # Problem 3: exam cycle year e.g. 2026
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     status = Column(Enum(ExamStatus, name="exam_status", create_type=True), nullable=False, default=ExamStatus.DRAFT)
     setter_id = Column(GUID, ForeignKey("users.id"), nullable=True)
@@ -345,12 +354,31 @@ class Enrollment(Base):
     roll_number = Column(String(50), nullable=True)
     status = Column(Enum(EnrollmentStatus, name="enrollment_status", create_type=True), default=EnrollmentStatus.ENROLLED)
 
+    # Problem 3: registration year + audit timestamp
+    registration_year = Column(Integer, nullable=True)   # Confirmed/authoritative registration year
+    enrolled_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)  # Audit timestamp
+
+    # Problem 1: candidate email for confirmation notice
+    email = Column(String(255), nullable=True)
+
+    # Problem 2: admin-approval workflow (separate from EnrollmentStatus which is exam-day state)
+    approval_status = Column(
+        Enum(CandidateApprovalStatus, name="candidate_approval_status", create_type=True),
+        default=CandidateApprovalStatus.PENDING,
+        nullable=False,
+    )
+    approved_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
     __table_args__ = (
         UniqueConstraint("candidate_id", "exam_id", name="uq_enrollment_candidate_exam"),
     )
 
     # Relationships
-    candidate = relationship("User", back_populates="enrollments")
+    candidate = relationship("User", foreign_keys=[candidate_id], back_populates="enrollments")
+    approver = relationship("User", foreign_keys=[approved_by])
     exam = relationship("Exam", back_populates="enrollments")
     center = relationship("Center", back_populates="enrollments")
     session = relationship("Session", back_populates="enrollment", uselist=False)
@@ -572,7 +600,8 @@ class StaffRegistrationRequest(Base):
     center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     center_name = Column(String(255), nullable=True)       # denormalised for display
     full_name = Column(String(255), nullable=False)
-    face_embedding_hash = Column(LargeBinary, nullable=False)  # packed 128-float descriptor, not a hash
+    face_descriptor = Column(JSON, nullable=False)  # 128-float list
+    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)  # Problem 5
     status = Column(Enum(StaffApprovalStatus, name="staff_approval_status", create_type=True), default=StaffApprovalStatus.PENDING)
     fingerprint_authorised = Column(Boolean, default=False)
     activation_code_hash = Column(String(64), nullable=True)   # SHA-256 of the issued code (cleartext never stored)
@@ -583,6 +612,7 @@ class StaffRegistrationRequest(Base):
 
     # Relationships
     center = relationship("Center")
+    exam = relationship("Exam")
 
 
 class OtpChallenge(Base):

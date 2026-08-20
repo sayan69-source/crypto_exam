@@ -30,8 +30,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import (
     CandidateChoice, Center, Enrollment, EnrollmentStatus, Exam, ExamLocation,
-    ExamOffering, ExamStatus, ExamSubject, User, UserRole,
+    ExamOffering, ExamStatus, ExamSubject, User, UserRole, CandidateApprovalStatus,
 )
+from app.services.auth import hash_password
+from app.services.email import send_email
 from app.services.exam_registration import (
     LocationChoiceError, SubjectChoiceError, allot_location, normalise,
     offering_is_open, public_offering, validate_subject_choice,
@@ -47,7 +49,6 @@ ENROLLABLE_STATES = (
     ExamStatus.LOCKED,
     ExamStatus.DISTRIBUTED,
 )
-from app.services.auth import hash_password
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -100,6 +101,7 @@ class CandidateEnrolment(BaseModel):
     # The OPTIONAL subjects the candidate picked. Compulsory ones are added
     # server-side; sending them back would only create a way to get it wrong.
     subjectIds: list[str] = Field(default_factory=list)
+    email: str = Field(default="", description="Candidate email for enrolment confirmation")
     faceDescriptor: list[float] = Field(min_length=FACE_DIM, max_length=FACE_DIM,
                                         description="128-float face-recognition descriptor")
 
@@ -347,6 +349,10 @@ async def enrol_candidate(
         center_id=centre.id if centre else None,
         roll_number=roll,
         status=EnrollmentStatus.ENROLLED,
+        registration_year=exam.scheduled_at.year if exam.scheduled_at else datetime.now(timezone.utc).year,
+        enrolled_at=datetime.now(timezone.utc),
+        email=body.email.strip() if body.email else None,
+        approval_status=CandidateApprovalStatus.PENDING,
     )
     db.add(enrolment)
 
@@ -369,7 +375,7 @@ async def enrol_candidate(
         candidate.full_name, roll, location.name, rank + 1, centre.name if centre else "unassigned",
     )
     chosen = {s.id: s.name for s in offering.subjects}
-    return {
+    response = {
         "ok": True,
         "rollNumber": roll,
         "exam": exam.name,
@@ -383,8 +389,37 @@ async def enrol_candidate(
         # Null until a centre is commissioned for the location. Saying so beats
         # implying a centre that does not exist yet.
         "centre": centre.name if centre else None,
+        "registrationYear": exam.scheduled_at.year if exam.scheduled_at else datetime.now(timezone.utc).year,
         "note": "No online login. You will be verified by face + fingerprint at your centre on exam day.",
     }
+    
+    # Problem 1: send enrolment confirmation email (dev-mode if SMTP not configured)
+    email_result = None
+    if body.email and body.email.strip():
+        email_body = (
+            f"Dear {body.fullName.strip()},\n\n"
+            f"Your enrolment for {exam.name} has been recorded.\n\n"
+            f"Roll Number: {roll}\n"
+            f"Centre: {centre.name if centre else 'Unassigned'}\n"
+            f"Registration Year: {exam.scheduled_at.year if exam.scheduled_at else datetime.now(timezone.utc).year}\n\n"
+            f"On exam day, you will be verified by face + fingerprint at your centre.\n"
+            f"There is no online login — your identity is verified biometrically, offline, at the exam terminal.\n\n"
+            f"Keep this roll number safe.\n\n"
+            f"CryptoExam Core"
+        )
+        email_result = await send_email(
+            to=body.email.strip(),
+            subject=f"Enrolment Confirmation — {exam.name}",
+            body=email_body,
+        )
+        
+    if email_result and email_result.delivery == "dev" and email_result.dev_preview:
+        response["emailDevPreview"] = email_result.dev_preview
+        response["emailDelivery"] = "dev"
+    elif email_result:
+        response["emailDelivery"] = email_result.delivery
+        
+    return response
 
 
 def _subject_message(offering: ExamOffering) -> str:

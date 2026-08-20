@@ -95,6 +95,9 @@ export default function CentreAdminApprovalsPage() {
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 16, color: 'var(--color-navy-900)', fontWeight: 600 }}>{r.applicantName}</span>
                 <span style={{ fontSize: 13, color: 'var(--color-navy-600)' }}>centre {r.centreName}</span>
+                {r.examName && (
+                  <span style={{ fontSize: 13, color: 'var(--color-navy-600)' }}>exam {r.examName}{r.examYear ? ` (${r.examYear})` : ''}</span>
+                )}
                 <code style={{ fontSize: 11, color: 'var(--color-navy-400)', background: 'none', padding: 0 }}>
                   id-hash {r.centreIdHash}
                 </code>

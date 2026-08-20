@@ -31,6 +31,7 @@ import asyncio
 import logging
 import smtplib
 import ssl
+from dataclasses import dataclass
 from email.message import EmailMessage
 
 from app.config import get_settings
@@ -189,3 +190,46 @@ without this code, and nobody else has been sent it.
         raise RuntimeError(f"EMAIL_SEND_FAILED: {exc}") from exc
     logger.info("setter invitation sent to %s", mask_email(to))
     return True
+
+
+@dataclass
+class EmailResult:
+    """Result of an email send attempt."""
+    delivery: str          # "smtp" | "dev"
+    subject: str
+    body: str
+    to: str
+    dev_preview: str | None = None
+
+async def send_email(to: str, subject: str, body: str) -> EmailResult:
+    """
+    Send an email via SMTP (if configured) or return dev-mode preview.
+    """
+    if email_configured():
+        s = get_settings()
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = s.SMTP_FROM or s.SMTP_USER
+        msg["To"] = to
+        msg.set_content(body)
+        
+        try:
+            await asyncio.to_thread(_send_blocking, msg)
+            logger.info("Email sent to %s subject=%r", mask_email(to), subject)
+            return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
+        except Exception as exc:
+            logger.warning(
+                "SMTP send failed to %s: %s — falling back to dev-mode preview",
+                mask_email(to), exc,
+            )
+            # Soft failure: don't crash the calling endpoint; surface as dev-mode
+            preview = f"[SMTP-FAILED] To: {to}\nSubject: {subject}\n\n{body}"
+            return EmailResult(delivery="dev", subject=subject, body=body, to=to, dev_preview=preview)
+
+    # Dev-mode: no gateway configured
+    logger.info(
+        "EMAIL dev-mode (no SMTP): would send to %s subject=%r",
+        mask_email(to), subject,
+    )
+    preview = f"[DEV-MODE] To: {to}\nSubject: {subject}\n\n{body}"
+    return EmailResult(delivery="dev", subject=subject, body=body, to=to, dev_preview=preview)

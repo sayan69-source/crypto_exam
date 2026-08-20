@@ -82,6 +82,8 @@ export interface StaffApproval {
   role: string;
   centreName: string | null;
   centreIdHash: string;
+  examName: string | null;
+  examYear: number | null;
   status: string;
   fingerprintAuthorised: boolean;
   createdAt: string | null;
@@ -151,10 +153,14 @@ export interface DpdpResponse {
 export interface AdminCandidate {
   id: string;
   name: string;
+  email: string | null;
   state: string | null;
   rollNumber: string | null;
   setLabel: string | null;
   enrollmentStatus: string | null;
+  approvalStatus: string | null;     // Problem 2: PENDING | APPROVED | REJECTED
+  registrationYear: number | null;   // Problem 3
+  enrolledAt: string | null;         // Problem 3
   centreName: string | null;
   isActive: boolean;
   isDemo?: boolean;
@@ -218,6 +224,23 @@ export interface EnquiriesResponse {
   items: Enquiry[];
 }
 
+async function postWithBody<T>(path: string, body: unknown): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.detail || b.message || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export const adminApi = {
   dashboard: () => get<AdminDashboard>('/admin/dashboard'),
   nodes: () => get<AdminNodesResponse>('/admin/nodes'),
@@ -245,4 +268,9 @@ export const adminApi = {
       `/admin/enquiries/${id}`,
       { status, internal_note: internalNote ?? null },
     ),
+  // Problem 2: candidate approval
+  approveCandidate: (candidateId: string) =>
+    post<{ ok: boolean; approvalStatus: string; approvedAt: string }>(`/admin/candidates/${candidateId}/approve`),
+  rejectCandidate: (candidateId: string, rejectionReason: string) =>
+    postWithBody<{ ok: boolean; approvalStatus: string; rejectedAt: string }>(`/admin/candidates/${candidateId}/reject`, { rejection_reason: rejectionReason }),
 };

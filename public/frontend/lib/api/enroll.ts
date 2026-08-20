@@ -64,6 +64,7 @@ export const enrollApi = {
     locationPreferences: string[];
     /** Only the OPTIONAL subjects; compulsory ones are added server-side. */
     subjectIds: string[];
+    email?: string;
     faceDescriptor: number[];
   }) {
     const res = await fetch(`${API_BASE}/enroll/candidate`, {
@@ -77,6 +78,7 @@ export const enrollApi = {
       ok: boolean; rollNumber: string; exam: string; organisation: string;
       location: string; locationChoiceRank: number; subjects: string[];
       centre: string | null; note: string;
+      registrationYear?: number; emailDelivery?: string; emailDevPreview?: string;
     };
   },
 

@@ -216,7 +216,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters
+from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters, contact
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 from app.database import commit_before_response
@@ -265,5 +265,6 @@ app.include_router(provisioning.router, prefix="/api/v1/provisioning", tags=["HQ
 app.include_router(enroll.router, prefix="/api/v1/enroll", tags=["Candidate Enrolment (public; no web login)"])
 app.include_router(exam_requests.router, prefix="/api/v1/exam-requests", tags=["Exam Requests (organisation → dual approval → active exam)"])
 app.include_router(exam_setters.router, prefix="/api/v1/exam-setters", tags=["Exam Setters (nominate → tier-0 approve → email-verified)"])
+app.include_router(contact.router, prefix="/api/v1/contact", tags=["Contact Form (public)"])
 
 
