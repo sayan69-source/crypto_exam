@@ -41,9 +41,16 @@ async def lifespan(app: FastAPI):
     logger.info(f"  Polygon:   Chain {settings.POLYGON_CHAIN_ID}")
     logger.info("=" * 60)
 
-    # Create tables (dev only — production uses Alembic migrations)
+    # Create tables, then add any columns that were appended to models after
+    # those tables were first created. create_all does the former and never the
+    # latter, so on a persistent database (Render's Postgres survives deploys)
+    # a new column is missing at runtime rather than merely unpopulated.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        from app.services.schema_sync import sync_missing_columns
+        added = await conn.run_sync(sync_missing_columns)
+    if added:
+        logger.info(f"Schema sync added {len(added)} column(s): {', '.join(added)}")
     logger.info("Database tables ensured")
 
     # § 27 — start the exam broadcast service (Redis pub/sub or local fan-out)
@@ -216,7 +223,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters, contact
+from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters, contact, email_verify
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 from app.database import commit_before_response
@@ -243,6 +250,7 @@ app.include_router(sysadmin_auth.router, prefix="/api/v1/sysadmin", tags=["Syste
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
+app.include_router(email_verify.router, prefix="/api/v1/auth/email/verify", tags=["Email Verification"])
 app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"])
 app.include_router(delivery.router, prefix="/api/v1/delivery", tags=["Sealed Question Delivery (§10.7)"])
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])

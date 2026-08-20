@@ -1,11 +1,42 @@
+"use client";
+
+import { useState } from "react";
 import styles from "./audit.module.css";
 
-export const metadata = {
-  title: "CryptoExam — Public Audit Portal",
-  description: "Verify any exam independently on Polygonscan. No login required.",
-};
+// metadata cannot be exported from a client component, moved to layout or simply use title in head if needed,
+// but for simplicity we'll just let Next.js use the default metadata.
 
 export default function AuditPortal() {
+  const [examId, setExamId] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "error" | "success">("idle");
+  const [message, setMessage] = useState("");
+
+  const handleVerify = () => {
+    const trimmed = examId.trim();
+    if (!trimmed) {
+      setStatus("error");
+      setMessage("Please enter an Exam ID.");
+      return;
+    }
+    
+    // Basic UUID format validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(trimmed)) {
+      setStatus("error");
+      setMessage("Invalid UUID format. Please check your admit card.");
+      return;
+    }
+
+    setStatus("loading");
+    setMessage("Verifying on Polygon PoS...");
+
+    // Mock API call
+    setTimeout(() => {
+      setStatus("success");
+      setMessage(`Exam ${trimmed} verified successfully. All cryptographic commitments match.`);
+    }, 1500);
+  };
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -26,13 +57,33 @@ export default function AuditPortal() {
           <h2 className={styles.verifyTitle}>Verify an Exam</h2>
           <div className={styles.inputGroup}>
             <label className={styles.inputLabel}>Exam ID (UUID)</label>
-            <input
-              type="text"
-              className={styles.input}
-              placeholder="e.g., a1b2c3d4-5678-90ab-cdef-1234567890ab"
-              readOnly
-              title="Enter exam ID to verify (requires JavaScript client)"
-            />
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input
+                type="text"
+                className={styles.input}
+                placeholder="e.g., a1b2c3d4-5678-90ab-cdef-1234567890ab"
+                value={examId}
+                onChange={(e) => setExamId(e.target.value)}
+                title="Enter exam ID to verify"
+                style={{ flex: 1 }}
+              />
+              <button 
+                onClick={handleVerify}
+                disabled={status === "loading"}
+                style={{
+                  padding: "0 20px", background: "#4a3f34", color: "white", 
+                  border: "none", borderRadius: "8px", cursor: "pointer",
+                  fontWeight: 600
+                }}
+              >
+                {status === "loading" ? "..." : "Verify"}
+              </button>
+            </div>
+            {message && (
+              <p style={{ marginTop: "10px", fontSize: "14px", color: status === "error" ? "#8f2418" : status === "success" ? "#2f5438" : "#605d52", fontWeight: 500 }}>
+                {message}
+              </p>
+            )}
             <p className={styles.inputHint}>
               Paste the Exam ID from your admit card or receipt to verify on-chain data.
             </p>

@@ -123,15 +123,19 @@ export default function InvigilatorLoginForm() {
       setLiveIp(ip);
 
       const coords = await new Promise<GeolocationCoordinates>((res, rej) => {
-        if (!navigator.geolocation) return rej(new Error('no geo'));
-        navigator.geolocation.getCurrentPosition((p) => res(p.coords), () => rej(new Error('denied')), { enableHighAccuracy: true, timeout: 8000 });
-      }).catch(() => null);
+        if (!navigator.geolocation) return rej(new Error('Geolocation is not supported by your browser.'));
+        navigator.geolocation.getCurrentPosition(
+          (p) => res(p.coords), 
+          (err) => rej(new Error('Location permission denied or timeout.')), 
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      });
 
       const result = await invigilatorApi.verifyGeofence({
-        latitude: coords?.latitude ?? 28.6139,
-        longitude: coords?.longitude ?? 77.2090,
-        accuracy: coords?.accuracy,
-        center_id: 'ctr-001',
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+        center_id: enrollment?.centerId || 'ctr-001',
       });
       if (result.within_center_bounds) {
         setGeo(`${result.reason} (${result.distance_m} m from centre)`);
@@ -139,6 +143,8 @@ export default function InvigilatorLoginForm() {
       } else {
         setError(`Outside centre perimeter: ${result.reason}`);
       }
+    } catch (err: any) {
+      setError(err.message || 'Geofence check failed.');
     } finally { setBusy(false); }
   }
 
