@@ -6,17 +6,47 @@ import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 export default function ContactPage() {
   const formRef = useRef<HTMLFormElement>(null);
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [devPreview, setDevPreview] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formRef.current?.checkValidity()) {
       formRef.current?.reportValidity();
       return;
     }
-    setSent(true);
+    const data = new FormData(formRef.current!);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch(`${API_BASE}/contact/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: data.get('first'),
+          lastName: data.get('last'),
+          email: data.get('email'),
+          organisation: data.get('org'),
+          role: data.get('role'),
+          scale: data.get('scale'),
+          message: data.get('message'),
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.detail || `Submission failed (${res.status})`);
+      if (j.ackEmailDevPreview) setDevPreview(j.ackEmailDevPreview);
+      setSent(true);
+    } catch (err) {
+      setSubmitError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -144,18 +174,29 @@ export default function ContactPage() {
                       <span className="dot" style={{ background: "var(--color-success)" }} />
                       Encrypted in transit · TLS 1.3
                     </span>
-                    <button className="btn btn-primary btn-lg" type="submit">
-                      Send enquiry <Icon name="arrow-right" size={16} />
+                    <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>
+                      {submitting ? 'Sending…' : <span>Send enquiry <Icon name="arrow-right" size={16} /></span>}
                     </button>
                   </div>
+                  {submitError && (
+                    <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 8 }}>
+                      ⚠ {submitError}
+                    </p>
+                  )}
                 </form>
               )}
 
               {sent && (
                 <div className={`${s.sentState} ${s.sentStateShow}`}>
                   <Icon name="check-circle-2" size={40} />
-                  <h3>Thank you — your enquiry is on its way.</h3>
+                  <h3>Thank you — your enquiry has been sent.</h3>
                   <p>A member of the programme team will be in touch within two working days.</p>
+                  {devPreview && (
+                    <details style={{ marginTop: 12, fontSize: 12, textAlign: 'left' }}>
+                      <summary style={{ cursor: 'pointer', color: '#605d52' }}>📧 Dev-mode email preview (SMTP not configured)</summary>
+                      <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', background: '#f8f4f0', padding: 12, borderRadius: 8, fontSize: 11 }}>{devPreview}</pre>
+                    </details>
+                  )}
                 </div>
               )}
             </div>

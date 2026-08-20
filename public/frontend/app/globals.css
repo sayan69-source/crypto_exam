@@ -1149,3 +1149,10 @@ body.is-scrolled .nav-inner { height: 56px; }
   .hdr-name, .hdr-session { display: none; }
   .hdr-cta span, .hdr-cta { padding-inline: 12px; }
 }
+
+/* Problem 6 — Mobile nav: hamburger + hide dropdown groups on small screens */
+@media (max-width: 640px) {
+  .hdr-hamburger { display: flex !important; }
+  .hdr-nav { display: none; }  /* Replaced by mobile drawer */
+}
+

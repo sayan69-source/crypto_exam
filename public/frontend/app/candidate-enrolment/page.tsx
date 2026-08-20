@@ -19,11 +19,12 @@ export default function CandidateEnrolment() {
   const [down, setDown] = useState(false);
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
+  const [email, setEmail] = useState("");
   const [examId, setExamId] = useState("");
   const [centerId, setCenterId] = useState("");
   const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ rollNumber: string; centre: string; exam: string } | null>(null);
+  const [result, setResult] = useState<{ rollNumber: string; centre: string; exam: string; registrationYear?: number; emailDevPreview?: string; emailDelivery?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,8 +36,8 @@ export default function CandidateEnrolment() {
   async function submit() {
     setBusy(true); setError(null);
     try {
-      const j = await enrollApi.enrol({ fullName, dateOfBirth: dob, examId, centerId, faceDescriptor: faceDescriptor! });
-      setResult({ rollNumber: j.rollNumber, centre: j.centre, exam: j.exam });
+      const j = await enrollApi.enrol({ fullName, dateOfBirth: dob, examId, centerId, email: email.trim() || undefined, faceDescriptor: faceDescriptor! });
+      setResult({ rollNumber: j.rollNumber, centre: j.centre, exam: j.exam, registrationYear: (j as any).registrationYear, emailDevPreview: (j as any).emailDevPreview, emailDelivery: (j as any).emailDelivery });
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -46,7 +47,16 @@ export default function CandidateEnrolment() {
         <section style={card}>
           <h1 style={h1}>You&apos;re enrolled ✓</h1>
           <p style={{ ...mono, margin: "14px 0", fontSize: 15 }}>Roll number&nbsp;&nbsp;{result.rollNumber}</p>
-          <p style={muted}>{result.exam} · {result.centre}</p>
+          <p style={muted}>{result.exam} · {result.centre}{result.registrationYear ? ` · ${result.registrationYear}` : ""}</p>
+          {result.emailDevPreview && (
+            <div style={{ marginTop: 14, padding: 12, background: "#fffbe8", border: "1px solid #d4b800", borderRadius: 8, fontSize: 12 }}>
+              <strong>📧 Dev-mode email preview</strong> (no SMTP configured — in production this would be sent to your email):
+              <pre style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 11 }}>{result.emailDevPreview}</pre>
+            </div>
+          )}
+          {result.emailDelivery === "smtp" && (
+            <p style={{ fontSize: 12, color: "#2f5438", marginTop: 8 }}>✓ Confirmation email sent.</p>
+          )}
           <ol style={{ fontSize: 14, lineHeight: 1.8, paddingLeft: 18, marginTop: 16 }}>
             <li>Your enrolment (face digest + details) is now stored and will be pre-positioned on your centre&apos;s secure terminal before exam day.</li>
             <li><strong>There is no online login.</strong> On exam day you are verified by <strong>face + fingerprint at the centre</strong> — your fingerprint is enrolled in person at your seat.</li>
@@ -68,6 +78,9 @@ export default function CandidateEnrolment() {
 
         <label style={label}>Full name (as on your government ID)</label>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} placeholder="e.g. Aarav Sharma" />
+
+        <label style={label}>Email address (for enrolment confirmation)</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={field} placeholder="e.g. aarav.sharma@example.com" />
 
         <label style={label}>Date of birth</label>
         <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={field} />
