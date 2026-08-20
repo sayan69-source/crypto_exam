@@ -98,7 +98,7 @@ export default function ContactPage() {
                 {[
                   { icon: "mail", label: "Programme enquiries", value: "Use the form on this page", isText: true },
                   { icon: "clock", label: "Response time", value: "Within two working days", isText: true },
-                  { icon: "search-check", label: "Audit & press", value: "Use the form — choose Press", isText: true },
+                  { icon: "search-check", label: "Audit & press", value: "Use the form - choose Press", isText: true },
                   { icon: "shield", label: "Your enquiry", value: "Recorded with a quotable reference", isText: true },
                 ].map((ch) => (
                   <div className={s.channel} key={ch.label}>

@@ -184,6 +184,7 @@ function StaffRegistration() {
 }
 
 
+
 /** Webcam capture → SHA-256 digest of the frame (the enrolment embedding-hash
  * stand-in). The raw image never leaves the browser. */
 function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => void }) {
