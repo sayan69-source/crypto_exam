@@ -100,9 +100,42 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# ── Unhandled errors, inside CORS ──
+# Starlette runs `@app.exception_handler(Exception)` in ServerErrorMiddleware,
+# which sits OUTSIDE the middleware stack — so a 500 produced there never
+# passes back through CORSMiddleware and carries no Access-Control-Allow-Origin
+# header. The browser then reports a CORS failure and discards the body, hiding
+# the actual error: a missing-table 500 surfaced in the UI as "couldn't reach
+# the server", pointing at the wrong subsystem entirely.
+#
+# Catching here instead keeps the response inside the stack, so the CORS
+# middleware added below (and therefore wrapping this) annotates it and the
+# real message reaches the client.
+@app.middleware("http")
+async def catch_unhandled_errors(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        logger.error(
+            f"Unhandled exception on {request.method} {request.url}: {exc}",
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error": "internal_server_error",
+                "message": "An unexpected error occurred." if not settings.DEBUG else str(exc),
+            },
+        )
+
+
 # ── CORS ──
 # Production hosts set CORS_ALLOW_ORIGINS to the deployed frontend URL(s),
 # comma-separated; it is merged with the local dev defaults.
+#
+# Added last, so it is the OUTERMOST middleware: Starlette applies middleware in
+# reverse registration order, and CORS has to wrap the error handler above for
+# a 500 to carry CORS headers.
 import os as _os
 _extra_origins = [o.strip() for o in _os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
 _allow_origins = list(dict.fromkeys([*settings.CORS_ORIGINS, *_extra_origins]))
