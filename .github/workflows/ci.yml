@@ -61,6 +61,33 @@ jobs:
   backend:
     name: backend (pytest)
     runs-on: ubuntu-latest
+
+    # SQLite (what the rest of this suite runs against) does not enforce
+    # foreign keys by default, so an INSERT-ordering bug in the seeder — a
+    # child row flushed before the parent it references — is invisible there
+    # no matter how many times the suite runs. It shipped exactly that way:
+    # ExamOffering/BiometricEnrollment have a bare ForeignKey column but no
+    # ORM relationship() back to their parent, so SQLAlchemy's automatic
+    # insert ordering didn't reliably see the dependency. On Render's real
+    # Postgres that's a ForeignKeyViolationError that aborts the WHOLE
+    # seeding transaction — silently emptying the production database on
+    # every restart while the log claimed "Seeding complete". This service
+    # is what lets test_seeder_postgres_integration.py catch that for real.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ce
+          POSTGRES_PASSWORD: ce
+          POSTGRES_DB: cryptoexam_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ce -d cryptoexam_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +110,20 @@ jobs:
       - name: pytest
         working-directory: public/backend
         run: pytest -q
+
+      # SEEDER_POSTGRES_URL set → the two tests in this file run for real
+      # instead of skipping. If Postgres is ever unavailable they'd go quiet
+      # rather than failing, so assert explicitly that neither was skipped.
+      - name: pytest (seeder against real Postgres)
+        working-directory: public/backend
+        env:
+          SEEDER_POSTGRES_URL: postgresql+asyncpg://ce:ce@127.0.0.1:5432/cryptoexam_ci
+        run: |
+          pytest -q tests/test_seeder_postgres_integration.py -v --no-header 2>&1 | tee /tmp/seeder_pg.log
+          if grep -q "SKIPPED" /tmp/seeder_pg.log; then
+            echo "::error::seeder Postgres integration test skipped — Postgres service unavailable"
+            exit 1
+          fi
 
       # The terminal's biometric daemon is Python too, and nothing ran it. That
       # is how `enrol()` came to return sha256(embedding) while `verify()`

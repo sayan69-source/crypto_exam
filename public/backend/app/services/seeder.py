@@ -110,32 +110,54 @@ async def seed_database(db: AsyncSession) -> dict:
     logger.info("CryptoExam Core — Seeding Database")
     logger.info("═" * 60)
 
+    # Every phase below is flushed before the next one starts. Several models
+    # here (ExamOffering→Exam, BiometricEnrollment→User, and others) have a
+    # bare ForeignKey column with no ORM relationship() declared — and without
+    # one, SQLAlchemy's automatic insert-ordering does not reliably see the
+    # dependency, so a parent created earlier in the SAME flush can be ordered
+    # after a child that references it. SQLite doesn't enforce foreign keys by
+    # default, so this was invisible in every local/CI run; Postgres — what
+    # Render actually runs — correctly rejects the out-of-order INSERT, which
+    # aborts this whole transaction and rolls back EVERYTHING, silently
+    # emptying the database on every restart while the log below claims
+    # "Seeding complete". Flushing between phases means each phase's rows are
+    # already committed-within-transaction (and therefore FK-visible) before
+    # the next phase can reference them, regardless of which models declare a
+    # relationship() and which don't.
+
     # ── 1. Users ──
     users = await _seed_users(db)
+    await db.flush()
     summary["users"] = len(users)
 
     # ── 2. Centers ──
     centers = await _seed_centers(db)
+    await db.flush()
     summary["centers"] = len(centers)
 
     # ── 3. Hardware Nodes ──
     nodes = await _seed_hardware_nodes(db, centers)
+    await db.flush()
     summary["hardware_nodes"] = len(nodes)
 
     # ── 4. Exams ──
     exams = await _seed_exams(db, users)
+    await db.flush()
     summary["exams"] = len(exams)
 
     # ── 5. Questions ──
     questions_count = await _seed_questions(db, exams)
+    await db.flush()
     summary["questions"] = questions_count
 
     # ── 6. Public registration offerings ──
     offerings = await _seed_exam_offerings(db, exams, centers)
+    await db.flush()
     summary["exam_offerings"] = len(offerings)
 
     # ── 7. Enrollments ──
     enrollments = await _seed_enrollments(db, users, exams, centers)
+    await db.flush()
     summary["enrollments"] = len(enrollments)
 
     # ── 8. § 29 Invigilator + biometric enrollments ──
@@ -575,6 +597,18 @@ async def _seed_invigilator_biometrics(
         is_active=True,
     )
     db.add(invig)
+
+    # BiometricEnrollment has no ORM relationship() back to User — only a bare
+    # FK column — so SQLAlchemy's automatic unit-of-work insert ordering does
+    # not know to insert `invig` first. On SQLite this is invisible (FK
+    # enforcement is off by default there), which is why every local
+    # reproduction of this seeder passed; on Postgres — what Render actually
+    # runs — the out-of-order INSERT is a real ForeignKeyViolationError that
+    # rolls back the ENTIRE seed_database transaction, silently emptying the
+    # database on every restart while the log claims "Seeding complete".
+    # candidates further below don't need this: they're existing User rows
+    # from an earlier phase, already flushed by an intervening query.
+    await db.flush()
 
     db.add(BiometricEnrollment(
         id=str(uuid4()),
