@@ -44,6 +44,43 @@ def email_configured() -> bool:
     return bool(getattr(s, "SMTP_HOST", None) and getattr(s, "SMTP_FROM", None))
 
 
+def smtp_status() -> dict:
+    """A masked, safe-to-return description of the mail configuration.
+
+    Exists because the failure this module keeps producing — "the code never
+    arrives" — is a configuration fault that is invisible from outside the
+    process, and guessing at it from the client side wastes hours. Reports what
+    THIS process actually resolved. The password is reported only as
+    present/absent and by length; never its value.
+    """
+    s = get_settings()
+    host = (s.SMTP_HOST or "").strip()
+    port = int(s.SMTP_PORT or 587)
+    sender = (s.SMTP_FROM or "").strip()
+    raw_password = s.SMTP_PASSWORD or ""
+    password = _smtp_password()
+
+    # 587 negotiates STARTTLS, 465 is implicit TLS. _send_blocking picks by
+    # port, so a mismatch is not fatal here — but it is worth surfacing,
+    # because a host that only listens on one of them hangs until timeout.
+    return {
+        "configured": email_configured(),
+        "host": host or None,
+        "port": port,
+        "mode": "implicit-tls" if port == 465 else "starttls",
+        "user": mask_email(s.SMTP_USER) if s.SMTP_USER else None,
+        "password_present": bool(password),
+        "password_length": len(password),
+        # Google shows app passwords as four space-separated groups; pasting
+        # that verbatim is the commonest cause of a bare "Username and Password
+        # not accepted". _smtp_password() strips them, so this only reports
+        # that it happened.
+        "password_had_spaces": raw_password != password,
+        "from": sender or None,
+        "from_present": bool(sender),
+    }
+
+
 def mask_email(address: str | None) -> str:
     """`arjun.mehta@nta.ac.in` → `a***a@nta.ac.in`. Enough to recognise, not to read."""
     if not address or "@" not in address:
@@ -230,27 +267,35 @@ async def send_email(to: str, subject: str, body: str, critical: bool = False) -
 
 
 async def _send_smtp(to: str, subject: str, body: str, allow_dev_fallback: bool = True) -> EmailResult:
-    """Real SMTP send (synchronous in a thread-pool would be ideal; kept simple here)."""
-    s = get_settings()
-    smtp_host: str = getattr(s, "SMTP_HOST", "")
-    smtp_port: int = int(getattr(s, "SMTP_PORT", 587))
-    smtp_user: str = getattr(s, "SMTP_USER", "")
-    smtp_pass: str = getattr(s, "SMTP_PASS", "")
-    smtp_from: str = getattr(s, "SMTP_FROM", smtp_user)
+    """Real SMTP send, delegating to the one transport this module has.
 
+    THIS FUNCTION USED TO CARRY ITS OWN COPY OF THE SMTP CONVERSATION, AND THE
+    COPY HAD DRIFTED. It read the password as `getattr(s, "SMTP_PASS", "")` —
+    but the setting is named `SMTP_PASSWORD` (config.py), so `getattr` found
+    nothing, returned the `""` default, and logged in with an EMPTY PASSWORD on
+    every send. A correctly configured deployment therefore failed
+    authentication every time, while `send_otp_email` and
+    `send_setter_invitation` — which go through `_send_blocking` — worked
+    perfectly. That split is why login-by-email delivered and the contact /
+    enquiry verification did not.
+
+    The duplicate is gone rather than patched. Two implementations of one
+    protocol is how the divergence happened, and renaming the constant would
+    have left the second copy free to drift again — it still lacked the port-465
+    branch and still passed the app password with Google's display spaces
+    intact, either of which reproduces the same "Username and Password not
+    accepted" from a different direction.
+    """
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = smtp_from
+    msg["From"] = get_settings().SMTP_FROM
     msg["To"] = to
+    # Transactional mail; keep it out of threads and auto-responders.
+    msg["Auto-Submitted"] = "auto-generated"
     msg.set_content(body)
 
     try:
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.ehlo()
-            server.starttls(context=ctx)
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
+        await asyncio.to_thread(_send_blocking, msg)
         logger.info("Email sent to %s subject=%r", mask_email(to), subject)
         return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
     except Exception as exc:
