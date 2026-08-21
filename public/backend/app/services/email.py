@@ -55,16 +55,22 @@ class EmailResult:
     dev_preview: str | None = None
 
 
-async def send_email(to: str, subject: str, body: str) -> EmailResult:
+async def send_email(to: str, subject: str, body: str, critical: bool = False) -> EmailResult:
     """
     Send an email via SMTP (if configured) or return dev-mode preview.
 
-    Mirrors the SMS OTP dev-mode pattern: when credentials are absent the
-    cleartext message is returned in EmailResult.dev_preview so the calling
-    endpoint can include it in the API response, clearly flagged as dev-mode.
+    If critical=True (e.g. for authentication OTPs), the function will NOT fall back
+    to dev-mode preview if SMTP fails or is not configured, unless EMAIL_OTP_DEV_MODE
+    and DEBUG are both explicitly True. It will raise an exception instead.
     """
+    settings = get_settings()
+    is_dev_fallback_allowed = not critical or (settings.DEBUG and getattr(settings, "EMAIL_OTP_DEV_MODE", False))
+    
     if _email_configured():
-        return await _send_smtp(to, subject, body)
+        return await _send_smtp(to, subject, body, allow_dev_fallback=is_dev_fallback_allowed)
+
+    if not is_dev_fallback_allowed:
+        raise RuntimeError("SMTP is not configured and dev-mode fallback is disabled for this critical email.")
 
     # Dev-mode: no gateway configured
     logger.info(
@@ -75,7 +81,7 @@ async def send_email(to: str, subject: str, body: str) -> EmailResult:
     return EmailResult(delivery="dev", subject=subject, body=body, to=to, dev_preview=preview)
 
 
-async def _send_smtp(to: str, subject: str, body: str) -> EmailResult:
+async def _send_smtp(to: str, subject: str, body: str, allow_dev_fallback: bool = True) -> EmailResult:
     """Real SMTP send (synchronous in a thread-pool would be ideal; kept simple here)."""
     s = get_settings()
     smtp_host: str = getattr(s, "SMTP_HOST", "")
@@ -100,6 +106,10 @@ async def _send_smtp(to: str, subject: str, body: str) -> EmailResult:
         logger.info("Email sent to %s subject=%r", _mask_email(to), subject)
         return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
     except Exception as exc:
+        if not allow_dev_fallback:
+            logger.error("SMTP send failed to %s: %s (critical email, failing closed)", _mask_email(to), exc)
+            raise RuntimeError(f"Could not deliver email: {exc}")
+            
         logger.warning(
             "SMTP send failed to %s: %s — falling back to dev-mode preview",
             _mask_email(to), exc,

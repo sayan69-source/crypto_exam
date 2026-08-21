@@ -16,9 +16,11 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, EmailStr, Field
-
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
 from app.services.email import send_email
 
 logger = logging.getLogger(__name__)
@@ -28,20 +30,39 @@ router = APIRouter()
 class ContactSubmission(BaseModel):
     firstName: str = Field(min_length=1, max_length=100)
     lastName: str = Field(min_length=1, max_length=100)
-    email: str = Field(min_length=3, max_length=255)
+    email: EmailStr
     organisation: str = Field(min_length=1, max_length=255)
     role: str = Field(min_length=1, max_length=100)
     scale: str = Field(min_length=1, max_length=50)
     message: str = Field(min_length=10, max_length=5000)
+    email_verification_token: str | None = None
 
 
 @router.post("/")
-async def submit_contact(body: ContactSubmission):
+async def submit_contact(body: ContactSubmission, db: AsyncSession = Depends(get_db)):
     """
     Problem 2: Real backend for the public contact form.
-    Sends a notification email to the CryptoExam team (dev-mode preview if SMTP not configured).
-    Mirrors the dev-mode pattern from the SMS OTP flow.
+    Requires email verification grant.
+    Sends a notification email to the CryptoExam team.
     """
+    if not body.email_verification_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email verification token required")
+
+    from app.models import EmailVerificationGrant
+    grant = (await db.execute(
+        select(EmailVerificationGrant).where(EmailVerificationGrant.token == body.email_verification_token)
+    )).scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired email verification token")
+        
+    if grant.email != body.email.strip().lower() or grant.purpose != "CONTACT":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification token context mismatch")
+    
+    grant.consumed_at = now
+    await db.commit()
+
     # Notify the CryptoExam team
     team_email_body = (
         f"New enquiry from {body.firstName} {body.lastName} <{body.email}>\n"

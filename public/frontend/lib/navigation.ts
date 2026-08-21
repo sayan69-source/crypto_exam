@@ -167,6 +167,7 @@ export const GROUPS: NavGroup[] = [
     icon: "book-open",
     items: [
       { title: "Platform", href: "/platform", desc: "The full architecture, layer by layer.", icon: "layers", keywords: ["architecture", "how it works", "tech"] },
+      { title: "FAQ", href: "/faq", desc: "Frequently asked questions.", icon: "help-circle", keywords: ["faq", "questions", "help", "answers"] },
       { title: "About", href: "/about", desc: "Why this exists and what it guarantees.", icon: "info", keywords: ["mission", "team"] },
       { title: "Centre access", href: "/center-access", desc: "Why exam terminals boot a locked operating system.", icon: "hard-drive", keywords: ["zuup", "os", "kiosk", "terminal"] },
       { title: "Privacy", href: "/privacy", desc: "DPDP Act 2023 commitments.", icon: "lock", keywords: ["dpdp", "data", "gdpr"] },

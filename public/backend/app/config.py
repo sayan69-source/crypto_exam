@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     SMTP_PASS: str = ""
     SMTP_FROM: str = ""   # Defaults to SMTP_USER when blank
 
+    # ── Email OTP Settings ──
+    EMAIL_OTP_TTL_SECONDS: int = 300
+    EMAIL_OTP_MAX_ATTEMPTS: int = 5
+    EMAIL_OTP_RESEND_COOLDOWN_SECONDS: int = 60
+    EMAIL_OTP_MAX_SENDS_PER_HOUR: int = 5
+    EMAIL_OTP_SECRET: str = "default_unsafe_secret_for_dev_only"
+    EMAIL_OTP_DEV_MODE: bool = True
+
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
     POLYGON_CHAIN_ID: int = 80002

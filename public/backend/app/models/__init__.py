@@ -136,6 +136,9 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     email = Column(String(255), unique=True, nullable=True)
+    email_normalized = Column(String(255), unique=True, nullable=True)
+    email_verified = Column(Boolean, default=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
     phone = Column(String(15), nullable=True)
     role = Column(Enum(UserRole, name="user_role", create_type=True), nullable=False)
     full_name = Column(String(255), nullable=False)
@@ -160,7 +163,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    enrollments = relationship("Enrollment", back_populates="candidate")
+    enrollments = relationship("Enrollment", back_populates="candidate", foreign_keys="[Enrollment.candidate_id]")
     exams_set = relationship("Exam", back_populates="setter")
 
 
@@ -357,7 +360,7 @@ class Enrollment(Base):
     )
 
     # Relationships
-    candidate = relationship("User", back_populates="enrollments")
+    candidate = relationship("User", back_populates="enrollments", foreign_keys=[candidate_id])
     exam = relationship("Exam", back_populates="enrollments")
     center = relationship("Center", back_populates="enrollments")
     session = relationship("Session", back_populates="enrollment", uselist=False)
@@ -609,3 +612,34 @@ class OtpChallenge(Base):
     attempts = Column(Integer, default=0)
     delivery = Column(String(20), default="sms")   # sms | dev
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EmailOtpChallenge(Base):
+    """Real server-side email OTP verification challenge."""
+    __tablename__ = "email_otp_challenges"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    email = Column(String(255), nullable=False, index=True)
+    purpose = Column(String(20), nullable=False) # LOGIN | CONTACT
+    role = Column(String(20), nullable=True)     # INVIGILATOR | SETTER | ADMIN | null
+    code_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    attempts = Column(Integer, default=0)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    request_ip = Column(String(45), nullable=True)
+
+
+class EmailVerificationGrant(Base):
+    """Short-lived, single-use email verification grant/token."""
+    __tablename__ = "email_verification_grants"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    token = Column(String(64), nullable=False, unique=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    purpose = Column(String(20), nullable=False)
+    role = Column(String(20), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+

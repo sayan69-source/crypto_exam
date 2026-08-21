@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
+import { api } from "@/lib/api/client";
 import s from "./page.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -14,34 +15,91 @@ export default function ContactPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [devPreview, setDevPreview] = useState<string | null>(null);
+  
+  const [step, setStep] = useState<'FORM' | 'OTP'>('FORM');
+  const [formData, setFormData] = useState<FormData | null>(null);
+  const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
+  const [emailOtp, setEmailOtp] = useState('');
+  
+  // Timer state
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Clear timer when leaving OTP step
+  if (step !== 'OTP' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
+
+  async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
     if (!formRef.current?.checkValidity()) {
       formRef.current?.reportValidity();
       return;
     }
     const data = new FormData(formRef.current!);
+    setFormData(data);
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const email = data.get('email') as string;
+      const res = await api.requestEmailVerification({ email, purpose: 'CONTACT' });
+      setEmailChallengeId(res.challenge_id);
+      setStep('OTP');
+      setTimeLeft(120);
+      
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setStep('FORM');
+            setSubmitError('OTP expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setSubmitError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleVerifyAndSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (emailOtp.length < 6) {
+      setSubmitError('Enter the 6-digit OTP.');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const email = formData!.get('email') as string;
+      
+      const verifyRes = await api.verifyEmailOtp({ challenge_id: emailChallengeId!, email, code: emailOtp });
+      const verificationToken = verifyRes.verification_token;
+      
       const res = await fetch(`${API_BASE}/contact/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName: data.get('first'),
-          lastName: data.get('last'),
-          email: data.get('email'),
-          organisation: data.get('org'),
-          role: data.get('role'),
-          scale: data.get('scale'),
-          message: data.get('message'),
+          firstName: formData!.get('first'),
+          lastName: formData!.get('last'),
+          email: formData!.get('email'),
+          organisation: formData!.get('org'),
+          role: formData!.get('role'),
+          scale: formData!.get('scale'),
+          message: formData!.get('message'),
+          email_verification_token: verificationToken,
         }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.detail || `Submission failed (${res.status})`);
       if (j.ackEmailDevPreview) setDevPreview(j.ackEmailDevPreview);
       setSent(true);
+      setStep('FORM');
     } catch (err) {
       setSubmitError((err as Error).message);
     } finally {
@@ -107,13 +165,13 @@ export default function ContactPage() {
                 <p>The more we know about your context, the faster we can respond meaningfully.</p>
               </div>
 
-              {!sent && (
+              {!sent && step === 'FORM' && (
                 <form
                   ref={formRef}
                   className={s.form}
                   id="cec-form"
                   noValidate
-                  onSubmit={handleSubmit}
+                  onSubmit={handleRequestOtp}
                 >
                   <div className={s.field}>
                     <label htmlFor="first">First name</label>
@@ -175,7 +233,7 @@ export default function ContactPage() {
                       Encrypted in transit · TLS 1.3
                     </span>
                     <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>
-                      {submitting ? 'Sending…' : <span>Send enquiry <Icon name="arrow-right" size={16} /></span>}
+                      {submitting ? 'Verifying…' : <span>Verify Email & Send <Icon name="arrow-right" size={16} /></span>}
                     </button>
                   </div>
                   {submitError && (
@@ -183,6 +241,42 @@ export default function ContactPage() {
                       ⚠ {submitError}
                     </p>
                   )}
+                </form>
+              )}
+              
+              {!sent && step === 'OTP' && (
+                <form className={s.form} onSubmit={handleVerifyAndSubmit}>
+                  <div className={s.field}>
+                    <label htmlFor="emailOtp">Verification Code</label>
+                    <input 
+                      id="emailOtp" 
+                      name="emailOtp" 
+                      type="text" 
+                      inputMode="numeric" 
+                      maxLength={6} 
+                      placeholder="● ● ● ● ● ●" 
+                      value={emailOtp} 
+                      onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} 
+                      required 
+                      autoFocus 
+                    />
+                    <p style={{ fontSize: 12, color: 'var(--color-navy-600)', marginTop: 8 }}>
+                      Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                    </p>
+                  </div>
+                  <div className={s.formActions}>
+                    <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>
+                      {submitting ? 'Submitting…' : 'Submit Enquiry'}
+                    </button>
+                  </div>
+                  {submitError && (
+                    <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 8 }}>
+                      ⚠ {submitError}
+                    </p>
+                  )}
+                  <button type="button" onClick={() => setStep('FORM')} style={{ marginTop: 16, background: 'none', border: 'none', color: 'var(--color-navy-500)', cursor: 'pointer', textDecoration: 'underline' }}>
+                    Go back
+                  </button>
                 </form>
               )}
 
