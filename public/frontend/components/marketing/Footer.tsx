@@ -71,6 +71,7 @@ export default function Footer() {
               <li><Link href="/candidate-enrolment">Candidate</Link></li>
               <li><Link href="/center-access">Centre Staff</Link></li>
               <li><Link href="/admin/login">Administrator</Link></li>
+              <li><Link href="/sysadmin/login">System Administration · tier&nbsp;0</Link></li>
             </ul>
           </div>
         </div>
