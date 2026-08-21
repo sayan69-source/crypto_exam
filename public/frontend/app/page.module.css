@@ -32,11 +32,8 @@
 .heroPhoto {
   position: absolute; inset: 0; z-index: 0;
   background: url('/exam-hall.jpg') center / cover no-repeat;
-  opacity: 0.06;
-  filter: grayscale(0.35) contrast(1.04);
-  /* dark scrim so the faded image never fights the headline */
-  -webkit-mask-image: linear-gradient(180deg, rgba(32, 21, 21,0.9), rgba(32, 21, 21,0.55) 60%, transparent);
-  mask-image: linear-gradient(180deg, rgba(32, 21, 21,0.9), rgba(32, 21, 21,0.55) 60%, transparent);
+  opacity: 0.03;
+  filter: grayscale(0.5) contrast(1.1);
   pointer-events: none;
 }
 

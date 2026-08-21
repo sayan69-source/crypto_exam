@@ -28,7 +28,7 @@ export default function CommandPalette() {
   const restoreFocusTo = useRef<HTMLElement | null>(null);
 
   const results = useMemo(
-    () => (query.trim() ? searchItems(query).slice(0, 24) : ALL_ITEMS.slice(0, 24)),
+    () => (query.trim() ? searchItems(query) : ALL_ITEMS),
     [query]
   );
 

@@ -124,23 +124,6 @@ export default function HomePage() {
                 </div>
 
                 <h3 className={s.doorLabel}>{d.label}</h3>
-                <p className={s.doorTagline}>{d.tagline}</p>
-
-                <ul className={s.doorLinks}>
-                  {d.picks.map((href) => {
-                    const item = lookup(href);
-                    if (!item) return null;
-                    return (
-                      <li key={href}>
-                        <Link href={href}>
-                          <Icon name={item.icon} size={14} strokeWidth={1.9} />
-                          <span>{item.title}</span>
-                          {item.auth && <Icon name="lock" size={11} strokeWidth={2} />}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
 
                 {/* The role hubs are only reachable from here now that the
                     header carries no role tabs — this is their front door. */}
@@ -195,9 +178,9 @@ export default function HomePage() {
               GATE and the state commissions.
             </p>
             <div className={s.finalActions}>
-              <Link className="btn btn-accent btn-lg" href="/contact">
-                Request a briefing <Icon name="arrow-right" size={16} />
-              </Link>
+              <a className="btn btn-accent btn-lg" href="https://www.youtube.com/watch?v=MPss8a4I9Rk" target="_blank" rel="noopener noreferrer">
+                Demo <Icon name="play-circle" size={16} />
+              </a>
               <Link className="btn btn-ghost btn-lg" href="/explore">
                 Explore all {ALL.length} features
               </Link>

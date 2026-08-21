@@ -179,7 +179,7 @@ export const GROUPS: NavGroup[] = [
     blurb: "Bring CryptoExam Core to your examination body.",
     icon: "rocket",
     items: [
-      { title: "Request a briefing", href: "/contact", desc: "Talk to us about your examination.", icon: "mail", keywords: ["contact", "demo", "sales", "briefing"] },
+      { title: "Watch a Demo", href: "https://www.youtube.com/watch?v=MPss8a4I9Rk", desc: "See the platform in action.", icon: "play-circle", keywords: ["contact", "demo", "sales", "briefing", "video"] },
       { title: "Centre-staff registration", href: "/staff-registration", desc: "Register personnel for an accredited centre.", icon: "clipboard-pen", keywords: ["staff", "register", "centre"] },
       { title: "Login", href: "/login", desc: "One sign-in for all four roles — candidate, setter, invigilator, admin.", icon: "log-in", keywords: ["login", "sign in", "signin", "log in", "portal", "access"] },
       { title: "Explore everything", href: "/explore", desc: "The complete feature directory.", icon: "compass", keywords: ["all", "directory", "index", "sitemap", "features"] },
