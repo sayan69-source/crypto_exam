@@ -45,7 +45,7 @@
 
 /* Crypto Section — dark is intentional (represents blockchain) */
 .cryptoSection {
-  background: var(--color-navy-900, #1a1010); color: #fffefb;
+  background: var(--color-navy-900, #201515); color: #fffefb;
   padding: 28px 36px; display: flex; flex-direction: column; gap: 20px;
 }
 
@@ -89,7 +89,7 @@
 .merkleRoot { background: var(--color-navy-600, #3d332c); color: #fffefb; font-weight: 600; }
 .merkleSibling { background: rgba(255, 254, 251,0.08); color: rgba(255, 254, 251,0.5); }
 .merkleLeaf {
-  background: var(--color-india-gold, #b07d1a); color: var(--color-navy-900, #1a1010);
+  background: var(--color-india-gold, #b07d1a); color: var(--color-navy-900, #201515);
   font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 2px;
 }
 .merkleLeaf code { font-size: 10px; opacity: 0.7; }

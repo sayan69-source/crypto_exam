@@ -2,7 +2,7 @@
    Premium minimalistic · light professional workbench */
 
 .page { animation: pmFadeIn 400ms ease forwards; }
-.title { font-size: 24px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin-bottom: 6px; letter-spacing: -0.02em; }
+.title { font-size: 24px; font-weight: 700; color: var(--color-navy-900, #201515); margin-bottom: 6px; letter-spacing: -0.02em; }
 .subtitle { font-size: 14px; color: var(--color-navy-500, #605d52); margin-bottom: 32px; }
 
 /* ── Hub Cards ── */
@@ -87,7 +87,7 @@
   width: 100%; padding: 12px 14px; font-size: 14px;
   font-family: var(--font-sans, system-ui); background: var(--bg-page, #fffefb);
   border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px;
-  color: var(--color-navy-900, #1a1010); outline: none;
+  color: var(--color-navy-900, #201515); outline: none;
   transition: border-color 150ms ease, background 150ms ease;
 }
 .input:focus { border-color: var(--color-navy-400, #605d52); background: #fffefb; }
@@ -96,7 +96,7 @@
   width: 100%; min-height: 100px; padding: 12px 14px; font-size: 14px;
   font-family: var(--font-sans, system-ui); background: var(--bg-page, #fffefb);
   border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px;
-  color: var(--color-navy-900, #1a1010); outline: none; resize: vertical;
+  color: var(--color-navy-900, #201515); outline: none; resize: vertical;
   transition: border-color 150ms ease, background 150ms ease;
 }
 .textarea:focus { border-color: var(--color-navy-400, #605d52); background: #fffefb; }
@@ -364,7 +364,7 @@
   display: flex; align-items: center; justify-content: center;
 }
 .setterInfo { flex: 1; }
-.setterName { font-size: 17px; font-weight: 700; color: var(--color-navy-900, #1a1010); }
+.setterName { font-size: 17px; font-weight: 700; color: var(--color-navy-900, #201515); }
 .setterDesignation { font-size: 13px; color: var(--color-navy-500, #605d52); }
 
 .verifiedBadge {

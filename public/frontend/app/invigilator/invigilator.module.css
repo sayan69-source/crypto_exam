@@ -30,7 +30,7 @@
   gap: 12px;
   font-weight: 700;
   font-size: 17px;
-  color: var(--color-navy-900, #1a1010);
+  color: var(--color-navy-900, #201515);
 }
 
 .brandTitle { font-size: 17px; font-weight: 600; }
@@ -38,7 +38,7 @@
 .brandMark {
   width: 36px; height: 36px;
   display: grid; place-items: center;
-  background: var(--color-navy-900, #1a1010);
+  background: var(--color-navy-900, #201515);
   color: #fffefb;
   border-radius: 12px;
 }
@@ -202,7 +202,7 @@
 .input {
   width: 100%; padding: 13px 14px; font-size: 15px; font-family: inherit;
   border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px; outline: none;
-  color: var(--color-navy-900, #1a1010); background: var(--bg-page, #fffefb);
+  color: var(--color-navy-900, #201515); background: var(--bg-page, #fffefb);
   transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
 }
 .input:focus { border-color: var(--color-navy-400, #605d52); box-shadow: 0 0 0 3px rgba(96, 93, 82,0.08); background: #fffefb; }
@@ -293,14 +293,14 @@
 .textarea {
   width: 100%; min-height: 140px; padding: 14px; font-size: 14px; font-family: inherit;
   border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px; outline: none; resize: vertical;
-  color: var(--color-navy-900, #1a1010); background: var(--bg-page, #fffefb);
+  color: var(--color-navy-900, #201515); background: var(--bg-page, #fffefb);
   transition: border-color 150ms ease, background 150ms ease;
 }
 .textarea:focus { border-color: var(--color-navy-400, #605d52); background: #fffefb; }
 .select {
   width: 100%; padding: 13px 14px; font-size: 15px; font-family: inherit;
   border: 1px solid var(--border-soft, #e8e2d8);
-  border-radius: 6px; color: var(--color-navy-900, #1a1010); background: #fffefb;
+  border-radius: 6px; color: var(--color-navy-900, #201515); background: #fffefb;
 }
 
 @media (max-width: 720px) {

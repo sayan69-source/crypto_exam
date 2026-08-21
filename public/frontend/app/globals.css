@@ -109,7 +109,7 @@
      language's hero-band-dark / card-feature-dark surface), not cool navy. */
   --bg-exam:   #fffefb;
   --bg-setter: #201515;
-  --bg-admin:  #1a1010;
+  --bg-admin:  #201515;
 
   /* ── Font Stacks ── */
   --font-sans:        'Inter', system-ui, -apple-system, 'Noto Sans Devanagari', sans-serif;
@@ -1038,7 +1038,7 @@ body.is-scrolled .nav-inner { height: 56px; }
    ══════════════════════════════════════════════ */
 .hdr {
   position: sticky; top: 0; z-index: calc(var(--z-sticky) + 2);
-  background: #000000;
+  background: var(--brand-ink);
   border-bottom: 1px solid rgba(255, 254, 251, 0.08);
 }
 .hdr-inner {

@@ -14,7 +14,7 @@
   justify-content: space-between;
 }
 
-.header h1 { font-size: 22px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin: 0; letter-spacing: -0.02em; }
+.header h1 { font-size: 22px; font-weight: 700; color: var(--color-navy-900, #201515); margin: 0; letter-spacing: -0.02em; }
 .headerMeta { font-size: 12px; color: var(--color-navy-400, #605d52); font-family: var(--font-mono, monospace); }
 
 /* Live Exams Strip */

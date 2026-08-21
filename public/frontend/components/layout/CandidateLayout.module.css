@@ -45,14 +45,14 @@
   align-items: center;
   gap: 9px;
   text-decoration: none;
-  color: var(--color-navy-900, #1a1010);
+  color: var(--color-navy-900, #201515);
 }
 
 .logoMark {
   width: 30px; height: 30px;
   border-radius: 12px;
   display: grid; place-items: center;
-  background: var(--color-navy-900, #1a1010);
+  background: var(--color-navy-900, #201515);
   color: #fffefb;
 }
 

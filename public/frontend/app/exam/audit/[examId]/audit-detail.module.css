@@ -1,6 +1,6 @@
 /* Audit Detail — Premium minimalistic */
 
-.container { min-height: 100%; color: var(--color-navy-900, #1a1010); }
+.container { min-height: 100%; color: var(--color-navy-900, #201515); }
 
 .header {
   display: flex; justify-content: space-between; align-items: center;
@@ -8,7 +8,7 @@
 }
 
 .headerLeft { display: flex; align-items: center; gap: 14px; }
-.logo { font-size: 20px; font-weight: 700; color: var(--color-navy-900, #1a1010); text-decoration: none; letter-spacing: -0.02em; }
+.logo { font-size: 20px; font-weight: 700; color: var(--color-navy-900, #201515); text-decoration: none; letter-spacing: -0.02em; }
 .headerBadge {
   font-family: var(--font-mono, monospace); background: var(--color-navy-50, #f8f4f0);
   color: var(--color-navy-600, #3d332c); padding: 4px 10px; border-radius: 12px;
@@ -24,7 +24,7 @@
 }
 
 .reportHeader { padding: 32px; text-align: center; border-bottom: 1px solid var(--border-soft, #e8e2d8); }
-.title { font-size: 28px; font-weight: 700; margin-bottom: 6px; color: var(--color-navy-900, #1a1010); letter-spacing: -0.02em; }
+.title { font-size: 28px; font-weight: 700; margin-bottom: 6px; color: var(--color-navy-900, #201515); letter-spacing: -0.02em; }
 .examId { font-family: var(--font-mono, monospace); color: var(--color-navy-400, #605d52); font-size: 13px; }
 
 .verdictBox {
@@ -54,7 +54,7 @@
   flex: 1; padding: 12px 14px;
   border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 6px; font-family: var(--font-mono, monospace);
-  background: #fffefb; color: var(--color-navy-900, #1a1010);
+  background: #fffefb; color: var(--color-navy-900, #201515);
 }
 .input:focus { border-color: var(--color-navy-400, #605d52); outline: none; }
 

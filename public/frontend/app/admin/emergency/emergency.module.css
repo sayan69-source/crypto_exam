@@ -60,7 +60,7 @@
   width: 100%; padding: 12px 14px; font-size: 14px;
   font-family: var(--font-sans, system-ui); background: var(--bg-page, #fffefb);
   border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px;
-  color: var(--color-navy-900, #1a1010); outline: none;
+  color: var(--color-navy-900, #201515); outline: none;
   transition: border-color 150ms ease, background 150ms ease;
 }
 .select:focus, .textarea:focus { border-color: var(--color-navy-400, #605d52); background: #fffefb; }

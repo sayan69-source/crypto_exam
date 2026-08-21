@@ -12,7 +12,7 @@
 }
 
 /* PHASE 1 — Checklist */
-.phaseTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin-bottom: 4px; letter-spacing: -0.02em; }
+.phaseTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #201515); margin-bottom: 4px; letter-spacing: -0.02em; }
 .phaseSubtitle { font-size: 14px; color: var(--color-navy-500, #605d52); margin-bottom: 28px; }
 
 .checklist { display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
@@ -41,7 +41,7 @@
 
 /* PHASE 2 — Generating */
 .genTitle {
-  font-size: 26px; font-weight: 700; color: var(--color-navy-900, #1a1010);
+  font-size: 26px; font-weight: 700; color: var(--color-navy-900, #201515);
   text-align: center; margin-bottom: 32px; letter-spacing: -0.02em;
 }
 
@@ -91,13 +91,13 @@
 @keyframes badgeReveal { from { transform: scale(0.3); opacity: 0; } 60% { transform: scale(1.1); } to { transform: scale(1); opacity: 1; } }
 
 .confirmedTitle {
-  font-size: 24px; font-weight: 700; color: var(--color-navy-900, #1a1010);
+  font-size: 24px; font-weight: 700; color: var(--color-navy-900, #201515);
   text-align: center; margin-bottom: 4px; letter-spacing: -0.02em;
 }
 .confirmedSubtitle { font-size: 14px; color: var(--color-navy-500, #605d52); text-align: center; margin-bottom: 32px; }
 
 .proofCard {
-  background: var(--color-navy-900, #1a1010);
+  background: var(--color-navy-900, #201515);
   border: 1px solid var(--color-navy-700, #2b211c);
   border-radius: 12px; padding: 24px; margin-bottom: 24px;
   display: flex; flex-direction: column; gap: 12px;
@@ -164,7 +164,7 @@
   width: 100%; padding: 12px 14px; font-size: 14px;
   font-family: var(--font-sans, system-ui);
   border: 1px solid #eecfc8; border-radius: 12px; outline: none;
-  color: var(--color-navy-900, #1a1010);
+  color: var(--color-navy-900, #201515);
 }
 .lockInput:focus { border-color: #9b2226; }
 

@@ -89,7 +89,7 @@ export default function ComplaintPortalPage() {
         </p>
 
         <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: '1fr', gap: 18 }}>
-          <div style={{ background: '#1a1010', border: '1px solid #2b211c', borderRadius: 14, padding: 22 }}>
+          <div style={{ background: '#201515', border: '1px solid #2b211c', borderRadius: 14, padding: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <h3 style={{ margin: 0, color: '#fffefb', fontSize: 15 }}>Step 1 · Your CryptoExam Receipt (JSON)</h3>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -106,7 +106,7 @@ export default function ComplaintPortalPage() {
             />
           </div>
 
-          <div style={{ background: '#1a1010', border: '1px solid #2b211c', borderRadius: 14, padding: 22 }}>
+          <div style={{ background: '#201515', border: '1px solid #2b211c', borderRadius: 14, padding: 22 }}>
             <h3 style={{ margin: 0, color: '#fffefb', fontSize: 15 }}>Step 2 · The Question You Are Disputing</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 12 }}>
               <label style={fieldStyle}>

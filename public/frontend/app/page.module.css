@@ -14,7 +14,7 @@
   background:
     radial-gradient(1100px 520px at 78% -8%, rgba(255, 255, 255, 0.05), transparent 60%),
     radial-gradient(800px 460px at 10% 110%, rgba(255, 79, 0, 0.12), transparent 55%),
-    linear-gradient(160deg, #050505 0%, #151515 55%, #000000 100%);
+    linear-gradient(160deg, var(--color-navy-950) 0%, var(--color-navy-800) 55%, var(--color-navy-900) 100%);
   color: #fffefb;
   overflow: hidden;
 }

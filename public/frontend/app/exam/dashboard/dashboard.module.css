@@ -26,7 +26,7 @@
 .logoutBtn:hover { background: var(--color-navy-50, #f8f4f0); border-color: var(--color-navy-200, #c5c0b1); }
 
 .container { max-width: 1100px; margin: 0 auto; }
-.heading { font-size: 24px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin-bottom: 6px; letter-spacing: -0.02em; }
+.heading { font-size: 24px; font-weight: 700; color: var(--color-navy-900, #201515); margin-bottom: 6px; letter-spacing: -0.02em; }
 .subHeading { font-size: 14px; color: var(--color-navy-500, #605d52); margin-bottom: 24px; }
 
 /* Category tabs */

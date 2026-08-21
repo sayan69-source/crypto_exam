@@ -1,6 +1,6 @@
 /* Setter Create Exam — Premium minimalistic */
 .page { max-width: 720px; animation: fadeIn 300ms ease forwards; }
-.title { font-size: 24px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin-bottom: 28px; letter-spacing: -0.02em; }
+.title { font-size: 24px; font-weight: 700; color: var(--color-navy-900, #201515); margin-bottom: 28px; letter-spacing: -0.02em; }
 
 .stepper { display: flex; gap: 6px; margin-bottom: 32px; }
 .stepperItem { flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px; background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8); transition: all 200ms ease; }
@@ -18,7 +18,7 @@
 .row { display: flex; gap: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .field label { font-size: 12px; font-weight: 600; color: var(--color-navy-600, #3d332c); text-transform: uppercase; letter-spacing: 0.05em; }
-.input { width: 100%; padding: 12px 14px; font-size: 14px; font-family: var(--font-sans, system-ui); background: var(--bg-page, #fffefb); border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px; color: var(--color-navy-900, #1a1010); outline: none; transition: border-color 150ms ease, background 150ms ease; }
+.input { width: 100%; padding: 12px 14px; font-size: 14px; font-family: var(--font-sans, system-ui); background: var(--bg-page, #fffefb); border: 1px solid var(--border-soft, #e8e2d8); border-radius: 6px; color: var(--color-navy-900, #201515); outline: none; transition: border-color 150ms ease, background 150ms ease; }
 .input:focus { border-color: var(--color-navy-400, #605d52); background: #fffefb; }
 
 .subjectRow { display: flex; gap: 8px; margin-bottom: 6px; }
@@ -28,7 +28,7 @@
 .bloomsGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .bloomsItem { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8); border-radius: 12px; }
 .bloomsLabel { font-size: 13px; color: var(--color-navy-700, #2b211c); flex: 1; }
-.bloomsInput { width: 60px; padding: 6px 8px; font-size: 14px; font-family: var(--font-mono, monospace); background: var(--bg-page, #fffefb); border: 1px solid var(--border-soft, #e8e2d8); border-radius: 12px; color: var(--color-navy-900, #1a1010); outline: none; text-align: center; }
+.bloomsInput { width: 60px; padding: 6px 8px; font-size: 14px; font-family: var(--font-mono, monospace); background: var(--bg-page, #fffefb); border: 1px solid var(--border-soft, #e8e2d8); border-radius: 12px; color: var(--color-navy-900, #201515); outline: none; text-align: center; }
 .bloomsPercent { font-size: 12px; color: var(--color-navy-400, #605d52); }
 
 .reviewCard { background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8); border-radius: 12px; padding: 28px; }

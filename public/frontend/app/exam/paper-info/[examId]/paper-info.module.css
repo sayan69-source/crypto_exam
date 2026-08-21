@@ -6,7 +6,7 @@
 /* Main */
 .main { flex: 1; max-width: 800px; margin: 0 auto; padding: 16px 0 48px; width: 100%; }
 
-.pageTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin-bottom: 6px; letter-spacing: -0.02em; }
+.pageTitle { font-size: 26px; font-weight: 700; color: var(--color-navy-900, #201515); margin-bottom: 6px; letter-spacing: -0.02em; }
 .pageSubtitle { font-size: 15px; color: var(--color-navy-500, #605d52); line-height: 1.6; margin-bottom: 32px; }
 
 /* Setter Card */
@@ -30,7 +30,7 @@
 }
 
 .setterInfo { flex: 1; }
-.setterName { font-size: 18px; font-weight: 700; color: var(--color-navy-900, #1a1010); display: block; }
+.setterName { font-size: 18px; font-weight: 700; color: var(--color-navy-900, #201515); display: block; }
 .setterDesignation { font-size: 14px; color: var(--color-navy-600, #3d332c); display: block; margin-top: 2px; }
 .setterDept { font-size: 13px; color: var(--color-navy-500, #605d52); display: block; margin-top: 2px; }
 

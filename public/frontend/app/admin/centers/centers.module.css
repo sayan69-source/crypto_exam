@@ -1,6 +1,6 @@
 /* Admin Centers — Premium minimalistic */
 .page { animation: fadeIn 300ms ease forwards; }
-.title { font-size: 22px; font-weight: 700; color: var(--color-navy-900, #1a1010); margin: 0 0 4px; letter-spacing: -0.02em; }
+.title { font-size: 22px; font-weight: 700; color: var(--color-navy-900, #201515); margin: 0 0 4px; letter-spacing: -0.02em; }
 .subtitle { font-size: 13px; color: var(--color-navy-500, #605d52); margin-bottom: 28px; }
 
 .layout { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }

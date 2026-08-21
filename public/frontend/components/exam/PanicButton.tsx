@@ -150,7 +150,7 @@ export default function PanicButton({ examId, candidateId, seatNumber, centerId 
 }
 
 const armedOverlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(21, 14, 14,0.55)', display: 'grid', placeItems: 'center', zIndex: 1000 };
-const armedCard: React.CSSProperties = { background: '#1a1010', border: '1px solid #631518', padding: 24, borderRadius: 14, textAlign: 'center', maxWidth: 360 };
+const armedCard: React.CSSProperties = { background: '#201515', border: '1px solid #631518', padding: 24, borderRadius: 14, textAlign: 'center', maxWidth: 360 };
 const progressBg: React.CSSProperties = { marginTop: 14, height: 8, width: '100%', background: '#2f2a26', borderRadius: 4, overflow: 'hidden' };
 const progressFill: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg, #d9a441, #b3341c)', transition: 'width 100ms linear' };
 

@@ -108,7 +108,7 @@ export default function DualControlPanel() {
 
   return (
     <section style={{
-      background: 'linear-gradient(180deg, #1a1010 0%, #150e0e 100%)',
+      background: 'linear-gradient(180deg, #201515 0%, #150e0e 100%)',
       border: '1px solid #2b211c', borderRadius: 16, padding: 24, marginBottom: 28,
       fontFamily: 'var(--font-sans)',
     }}>

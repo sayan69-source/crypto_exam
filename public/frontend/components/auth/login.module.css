@@ -58,7 +58,7 @@
 .logoIcon {
   width: 56px; height: 56px;
   border-radius: 12px;
-  background: var(--color-navy-900, #1a1010);
+  background: var(--color-navy-900, #201515);
   color: #fffefb;
   display: grid; place-items: center;
   margin: 0 auto 12px;
@@ -105,7 +105,7 @@
   font-size: 14px; font-family: var(--font-sans, system-ui);
   border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 6px; outline: none;
-  color: var(--color-navy-900, #1a1010);
+  color: var(--color-navy-900, #201515);
   background: var(--bg-page, #fffefb);
   transition: all 150ms ease;
 }

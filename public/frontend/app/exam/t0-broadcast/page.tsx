@@ -85,7 +85,7 @@ export default function T0BroadcastDemo() {
           ▶ Run T₀ delivery simulation
         </button>
 
-        <div style={{ marginTop: 24, background: '#1a1010', border: '1px solid #2b211c', borderRadius: 12, padding: 18, fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.9 }}>
+        <div style={{ marginTop: 24, background: '#201515', border: '1px solid #2b211c', borderRadius: 12, padding: 18, fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.9 }}>
           {log.length === 0 ? <span style={{ color: '#939084' }}>Click run to execute the real Web Crypto + IndexedDB pipeline…</span>
             : log.map((l, i) => (
               <div key={i} style={{ color: l.ok === true ? '#6fa678' : l.ok === false ? '#c25a48' : '#c5c0b1' }}>{l.t}</div>
@@ -93,7 +93,7 @@ export default function T0BroadcastDemo() {
         </div>
 
         {paper && (
-          <div style={{ marginTop: 20, background: '#1a1010', border: '1px solid #138808', borderRadius: 12, padding: 18 }}>
+          <div style={{ marginTop: 20, background: '#201515', border: '1px solid #138808', borderRadius: 12, padding: 18 }}>
             <h3 style={{ color: '#6fa678', margin: '0 0 10px' }}>Decrypted Paper (client-side)</h3>
             {(paper.questions as { text: string }[]).map((q, i) => (
               <div key={i} style={{ fontSize: 14, padding: '6px 0', borderBottom: '1px solid #201515' }}>Q{i + 1}. {q.text}</div>

@@ -268,7 +268,7 @@ function ProgressBar({ status }: { status: CeremonyStatus | null }) {
 }
 
 const page: React.CSSProperties = { minHeight: '100vh', background: '#150e0e', color: '#ddd8cc', padding: 32, fontFamily: 'var(--font-sans)' };
-const card: React.CSSProperties = { background: '#1a1010', border: '1px solid #2b211c', borderRadius: 14, padding: 22, marginBottom: 18 };
+const card: React.CSSProperties = { background: '#201515', border: '1px solid #2b211c', borderRadius: 14, padding: 22, marginBottom: 18 };
 const cardH2: React.CSSProperties = { color: '#fffefb', fontSize: 16, margin: '0 0 12px' };
 const btn: React.CSSProperties = { padding: '10px 18px', background: '#605d52', color: '#fffefb', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
 const pcrBox: React.CSSProperties = { background: '#150e0e', border: '1px solid #2b211c', borderRadius: 10, padding: 14 };
