@@ -16,6 +16,7 @@ import {
   type Organisation,
 } from "@/lib/api/enroll";
 import { detectFace, loadFaceApi } from "@/lib/biometric/face-real";
+import { api } from "@/lib/api/client";
 
 type Result = Awaited<ReturnType<typeof enrollApi.enrol>>;
 
@@ -44,6 +45,12 @@ export default function CandidateEnrolment() {
   const [optionsError, setOptionsError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [otpStep, setOtpStep] = useState<'idle' | 'sent' | 'verified'>('idle');
+  const [otp, setOtp] = useState('');
+  const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
+  const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
 
   useEffect(() => {
     enrollApi.organisations().then(setOrgs).catch(() => setDown(true));
@@ -94,7 +101,8 @@ export default function CandidateEnrolment() {
       const j = await enrollApi.enrol({
         fullName, dateOfBirth: dob, examId,
         locationPreferences: prefs, subjectIds: subjects,
-        email: email.trim() || undefined,
+        email: email.trim(),
+        emailVerificationToken: emailVerificationToken!,
         faceDescriptor: faceDescriptor!,
       });
       setResult(j);
@@ -164,7 +172,85 @@ export default function CandidateEnrolment() {
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} placeholder="e.g. Aarav Sharma" />
 
         <label style={label}>Email address</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={field} placeholder="For your enrolment confirmation" />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input 
+            type="email" 
+            value={email} 
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (otpStep !== 'idle') {
+                setOtpStep('idle');
+                setEmailVerificationToken(null);
+                setOtp('');
+              }
+            }} 
+            disabled={otpStep === 'verified' || busy}
+            style={{ ...field, flex: 1 }} 
+            placeholder="For your enrolment confirmation" 
+          />
+          {otpStep === 'idle' && (
+            <button 
+              type="button"
+              disabled={!email || busy}
+              onClick={async () => {
+                setOtpError(null); setBusy(true);
+                try {
+                  const res = await api.requestEmailVerification({ email: email.trim(), purpose: 'CANDIDATE_REGISTRATION' });
+                  setEmailChallengeId(res.challenge_id);
+                  setOtpStep('sent');
+                } catch (e) {
+                  setOtpError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              style={{ ...ghostBtn, width: 'auto', whiteSpace: 'nowrap' }}
+            >
+              Verify
+            </button>
+          )}
+          {otpStep === 'verified' && (
+            <span style={{ color: '#15803d', fontSize: 13, fontWeight: 600 }}>✓ Verified</span>
+          )}
+        </div>
+        {otpError && <p style={errp}>{otpError}</p>}
+        
+        {otpStep === 'sent' && (
+          <div style={{ marginTop: 8, padding: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+            <p style={{ fontSize: 13, margin: '0 0 8px', color: '#166534' }}>An OTP was sent to your email.</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input 
+                type="text" 
+                value={otp} 
+                onChange={e => setOtp(e.target.value)} 
+                maxLength={6}
+                placeholder="Enter 6-digit OTP"
+                style={{ ...field, width: 140 }}
+              />
+              <button
+                type="button"
+                disabled={otp.length !== 6 || busy}
+                onClick={async () => {
+                  setOtpError(null); setBusy(true);
+                  try {
+                    const res = await api.verifyEmailOtp({ challenge_id: emailChallengeId!, code: otp, email: email.trim() });
+                    if (res.verified) {
+                      setEmailVerificationToken(res.verification_token);
+                      setOtpStep('verified');
+                    }
+                  } catch (e) {
+                    setOtpError((e as Error).message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                style={{ ...ghostBtn, width: 'auto' }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        )}
 
         <label style={label}>Date of birth</label>
         <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={field} />
@@ -308,7 +394,7 @@ export default function CandidateEnrolment() {
 
         {(() => {
           const ready = !busy && !down && !!fullName.trim() && !!dob && !!examId
-            && !!options && locationsOk && subjectsOk && !!faceDescriptor;
+            && !!options && locationsOk && subjectsOk && !!faceDescriptor && otpStep === 'verified';
           return (
             <button
               disabled={!ready}

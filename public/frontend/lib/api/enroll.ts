@@ -65,6 +65,7 @@ export const enrollApi = {
     /** Only the OPTIONAL subjects; compulsory ones are added server-side. */
     subjectIds: string[];
     email?: string;
+    emailVerificationToken?: string;
     faceDescriptor: number[];
   }) {
     const res = await fetch(`${API_BASE}/enroll/candidate`, {

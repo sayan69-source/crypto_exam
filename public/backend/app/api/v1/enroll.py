@@ -31,6 +31,7 @@ from app.database import get_db
 from app.models import (
     CandidateChoice, Center, Enrollment, EnrollmentStatus, Exam, ExamLocation,
     ExamOffering, ExamStatus, ExamSubject, User, UserRole, CandidateApprovalStatus,
+    EmailVerificationGrant,
 )
 from app.services.auth import hash_password
 from app.services.email import send_email
@@ -101,7 +102,8 @@ class CandidateEnrolment(BaseModel):
     # The OPTIONAL subjects the candidate picked. Compulsory ones are added
     # server-side; sending them back would only create a way to get it wrong.
     subjectIds: list[str] = Field(default_factory=list)
-    email: str = Field(default="", description="Candidate email for enrolment confirmation")
+    email: str = Field(..., description="Candidate email for enrolment confirmation")
+    emailVerificationToken: str = Field(..., description="Token proving email ownership from OTP flow")
     faceDescriptor: list[float] = Field(min_length=FACE_DIM, max_length=FACE_DIM,
                                         description="128-float face-recognition descriptor")
 
@@ -213,6 +215,11 @@ async def enrol_candidate(
     """Store a real candidate enrolment — User(CANDIDATE) + Enrollment, with a
     real 128-d face descriptor and DOB. NO usable password is set: candidates
     cannot log in online; they are verified biometrically at the centre OS."""
+    if not body.email or not body.email.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required for registration.")
+    if not body.emailVerificationToken or not body.emailVerificationToken.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email verification token is required.")
+
     if not _DOB.match(body.dateOfBirth):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="DOB must be YYYY-MM-DD")
 
@@ -223,6 +230,25 @@ async def enrol_candidate(
     # one whose paper has already been sat.
     offering, exam = await _load_offering(db, body.examId)
 
+    # ── verify email ────────────────────────────────────────────────────────
+    stmt = select(EmailVerificationGrant).where(
+        EmailVerificationGrant.token == body.emailVerificationToken,
+        EmailVerificationGrant.email == body.email.strip().lower(),
+        EmailVerificationGrant.consumed_at.is_(None)
+    )
+    grant = (await db.execute(stmt)).scalar_one_or_none()
+    
+    if not grant:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or already consumed email verification token.")
+        
+    now = datetime.now(timezone.utc)
+    grant_expires = grant.expires_at.replace(tzinfo=timezone.utc) if not grant.expires_at.tzinfo else grant.expires_at
+    if grant_expires < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email verification token has expired.")
+    
+    # Consume token
+    grant.consumed_at = now
+    
     # ── the subjects ────────────────────────────────────────────────────────
     # Validated before anything is written, so a bad selection costs the
     # candidate a message rather than a half-created enrolment.
