@@ -43,7 +43,6 @@ export default function SysAdminLayout({ children }: { children: React.ReactNode
             <span className={s.mark}><Icon name="shield-check" size={15} strokeWidth={1.9} /></span>
             <span className={s.brandText}>CryptoExam<b>Core</b></span>
           </Link>
-          <span className={s.tier}>Tier 0 · System Administration</span>
         </div>
 
         <div className={s.right}>
