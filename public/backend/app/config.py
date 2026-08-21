@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     EMAIL_OTP_MAX_SENDS_PER_HOUR: int = 5
     EMAIL_OTP_SECRET: str = "default_unsafe_secret_for_dev_only"
     EMAIL_OTP_DEV_MODE: bool = True
+    # Resolve the domain's MX (then A/AAAA) records before spending a send, so a
+    # typed-wrong domain is refused in the form rather than a week later when no
+    # reply has arrived. Only a definitive answer refuses — a resolver timeout
+    # lets the address through. Set false for an environment with no DNS egress.
+    EMAIL_CHECK_DELIVERABILITY: bool = True
 
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
