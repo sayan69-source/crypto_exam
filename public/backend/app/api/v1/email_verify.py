@@ -120,10 +120,7 @@ async def request_email_verification(req_data: EmailOtpRequest, req: Request, db
         "resend_after": settings.EMAIL_OTP_RESEND_COOLDOWN_SECONDS
     }
     
-    # Dev mode explicitly allowed
-    if res.delivery == "dev" and settings.DEBUG and getattr(settings, "EMAIL_OTP_DEV_MODE", False):
-        resp["dev_code"] = code
-        
+
     return resp
 
 

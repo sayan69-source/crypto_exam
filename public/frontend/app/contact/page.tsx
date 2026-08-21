@@ -19,8 +19,17 @@ export default function ContactPage() {
   const [step, setStep] = useState<'FORM' | 'OTP'>('FORM');
   const [formData, setFormData] = useState<FormData | null>(null);
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
-  const [emailDevCode, setEmailDevCode] = useState<string | null>(null);
   const [emailOtp, setEmailOtp] = useState('');
+  
+  // Timer state
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear timer when leaving OTP step
+  if (step !== 'OTP' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -36,8 +45,21 @@ export default function ContactPage() {
       const email = data.get('email') as string;
       const res = await api.requestEmailVerification({ email, purpose: 'CONTACT' });
       setEmailChallengeId(res.challenge_id);
-      if (res.dev_code) setEmailDevCode(res.dev_code);
       setStep('OTP');
+      setTimeLeft(120);
+      
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setStep('FORM');
+            setSubmitError('OTP expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err) {
       setSubmitError((err as Error).message);
     } finally {
@@ -238,11 +260,9 @@ export default function ContactPage() {
                       required 
                       autoFocus 
                     />
-                    {emailDevCode && (
-                      <p style={{ fontSize: 12, color: 'var(--color-navy-600)', marginTop: 8 }}>
-                        Dev mode: code is <b>{emailDevCode}</b>
-                      </p>
-                    )}
+                    <p style={{ fontSize: 12, color: 'var(--color-navy-600)', marginTop: 8 }}>
+                      Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                    </p>
                   </div>
                   <div className={s.formActions}>
                     <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>

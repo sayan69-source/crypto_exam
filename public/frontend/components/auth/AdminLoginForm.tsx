@@ -4,7 +4,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { api } from '@/lib/api/client';
 import styles from './login.module.css';
@@ -21,8 +21,15 @@ export default function AdminLoginForm() {
   const [step, setStep] = useState<LoginStep>('EMAIL_ENTRY');
   
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
-  const [emailDevCode, setEmailDevCode] = useState<string | null>(null);
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+  
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  if (step !== 'EMAIL_OTP' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
   
   const [smsChallengeId, setSmsChallengeId] = useState<string | null>(null);
   const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
@@ -42,8 +49,21 @@ export default function AdminLoginForm() {
     try {
       const res = await api.requestEmailVerification({ email: adminId, purpose: 'LOGIN', role: 'ADMIN' });
       setEmailChallengeId(res.challenge_id);
-      setEmailDevCode(res.dev_code ?? null);
       setStep('EMAIL_OTP');
+      setTimeLeft(120);
+      
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setStep('EMAIL_ENTRY');
+            setError('OTP expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not request email verification.');
     } finally {
@@ -136,7 +156,7 @@ export default function AdminLoginForm() {
             <div className={styles.field}>
               <label htmlFor="emailOtp" className={styles.label}>OTP sent to {adminId}</label>
               <input id="emailOtp" type="text" inputMode="numeric" maxLength={6} className={`${styles.input} ${styles.otpInput}`} placeholder="● ● ● ● ● ●" value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} autoFocus />
-              {emailDevCode && <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Dev mode (no SMTP configured): code is <b>{emailDevCode}</b></p>}
+              <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
             </div>
             {error && <div className={styles.errorMessage}>{error}</div>}
             <button type="submit" className={styles.submitBtn} disabled={loading}>

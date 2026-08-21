@@ -33,9 +33,16 @@ export default function InvigilatorLoginForm() {
   
   // Email OTP state
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
-  const [emailDevCode, setEmailDevCode] = useState<string | null>(null);
   const [emailOtp, setEmailOtp] = useState('');
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (step !== 'email_otp' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
 
   const [enrollment, setEnrollment] = useState<InvigilatorEnrollment | null>(null);
   const [busy, setBusy] = useState(false);
@@ -98,8 +105,21 @@ export default function InvigilatorLoginForm() {
     try {
       const res = await api.requestEmailVerification({ email: staffId, purpose: 'LOGIN', role: 'INVIGILATOR' });
       setEmailChallengeId(res.challenge_id);
-      setEmailDevCode(res.dev_code ?? null);
       setStep('email_otp');
+      setTimeLeft(120);
+      
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setStep('creds');
+            setError('OTP expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not request email verification.');
     } finally {
@@ -271,7 +291,7 @@ export default function InvigilatorLoginForm() {
             <div className={styles.field}>
               <input className={`${styles.input} ${styles.otpInput}`} type="text" inputMode="numeric" maxLength={6} value={emailOtp}
                 onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ''))} placeholder="● ● ● ● ● ●" autoFocus />
-              {emailDevCode && <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Dev mode (no SMTP configured): code is <b>{emailDevCode}</b></p>}
+              <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
             </div>
             <button type="submit" className={`${styles.btnPrimary} ${styles.fullBtn}`} disabled={busy}>
               {busy ? <span className={styles.spinner} /> : 'Verify Email & Continue'}
