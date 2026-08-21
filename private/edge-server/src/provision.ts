@@ -103,7 +103,7 @@ async function main(): Promise<void> {
     console.log(
       `provisioned ${bundle.centre.name} (${bundle.centre.id}):\n` +
         `  exams ${counts.exams} · candidates ${counts.candidates} · staff ${counts.staff}\n` +
-        `  terminals ${counts.terminals} · sealed papers ${counts.bundles}`,
+        `  terminals ${counts.terminals} · sealed papers ${counts.questionBundles}`,
     );
     // Say it plainly rather than leaving an estate that cannot boot look fine.
     const unattestable = (bundle.terminals ?? []).filter((t) => !t.golden_pcr || !t.ak_pubkey_pem);
