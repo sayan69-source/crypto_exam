@@ -82,6 +82,7 @@ export default function Footer() {
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/about">About</Link>
+            <Link href="/faq">FAQ</Link>
             <span className="mono" style={{ color: "var(--text-on-dark-muted)" }}>
               Polygon PoS · CIRCOM Groth16
             </span>
