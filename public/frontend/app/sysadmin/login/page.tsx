@@ -54,7 +54,6 @@ export default function SysAdminLoginPage() {
     <main className={s.shell}>
       <div className={s.panel}>
         <Link href="/" className={s.back}>← CryptoExam Core</Link>
-        <span className={s.tier}>Tier 0</span>
         <h1 className={s.h1}>System Administration</h1>
         <p className={s.lead}>
           The only tier that can decrypt answers. Sign-in requires this machine&rsquo;s
