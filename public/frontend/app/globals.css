@@ -1038,7 +1038,7 @@ body.is-scrolled .nav-inner { height: 56px; }
    ══════════════════════════════════════════════ */
 .hdr {
   position: sticky; top: 0; z-index: calc(var(--z-sticky) + 2);
-  background: var(--brand-ink);
+  background: #000000;
   border-bottom: 1px solid rgba(255, 254, 251, 0.08);
 }
 .hdr-inner {
