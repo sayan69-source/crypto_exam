@@ -236,3 +236,57 @@ jobs:
             fi
           done
           echo "all jobs succeeded"
+
+  # ── Gate Render on CI ───────────────────────────────────────────────────────
+  #
+  # Render's own auto-deploy fires on every push regardless of CI — a red commit
+  # still ships. This job is the other half of gating it: it only runs after
+  # `ci` (above) has actually passed, and only for a push (not a PR, which has
+  # nothing merged yet) to the branch the two live services track.
+  #
+  # ⚠ THIS ALONE DOES NOT GATE ANYTHING. Render's own auto-deploy has to be
+  # turned OFF in the dashboard for both services, or it deploys the red commit
+  # itself before this job even finishes. Setup, once, in the Render dashboard:
+  #   1. Each service → Settings → Build & Deploy → Auto-Deploy → No.
+  #   2. Each service → Settings → Deploy Hook → Create → copy the URL.
+  #   3. Repo → Settings → Secrets and variables → Actions → New repository
+  #      secret: RENDER_DEPLOY_HOOK_BACKEND and RENDER_DEPLOY_HOOK_FRONTEND,
+  #      pasting each service's hook URL.
+  # Until both secrets exist this job no-ops (logs a notice, exits 0) rather
+  # than failing the run — so merging this workflow file is itself harmless.
+  #
+  # The branch name below is deploy/allinone-image-and-setter-portal-specific:
+  # it names whichever branch the two Render services are currently connected
+  # to, which is this feature branch, not `main` (confirmed 2026-08-21 — the
+  # live frontend serves `/faq` and other content that only exists here).
+  # Update it if the services are ever repointed to `main`.
+  deploy:
+    name: deploy (Render, gated on CI)
+    needs: [ci]
+    if: >
+      needs.ci.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/feat/allinone-image-and-setter-portal'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backend deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_BACKEND not set — skipping (Render's own auto-deploy, if still on, is what's shipping this commit)."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK"
+          echo "backend deploy triggered"
+
+      - name: Trigger frontend deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_FRONTEND not set — skipping (Render's own auto-deploy, if still on, is what's shipping this commit)."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK"
+          echo "frontend deploy triggered"
