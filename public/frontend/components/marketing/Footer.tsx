@@ -60,6 +60,7 @@ export default function Footer() {
               <li><Link href="/platform">Platform Overview</Link></li>
               <li><Link href="/platform#architecture">Security & Architecture</Link></li>
               <li><Link href="/exam/audit">Public Audit</Link></li>
+              <li><Link href="/faq">FAQ</Link></li>
               <li><Link href="/privacy">Privacy & DPDP</Link></li>
               <li><Link href="/contact">Contact Us</Link></li>
             </ul>
