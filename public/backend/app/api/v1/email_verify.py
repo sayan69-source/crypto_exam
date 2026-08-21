@@ -110,6 +110,8 @@ async def request_email_verification(req_data: EmailOtpRequest, req: Request, db
             body=body,
             critical=True
         )
+        if res.delivery == "dev":
+            logger.info("DEV MODE OTP PREVIEW:\n%s", res.dev_preview)
     except Exception as exc:
         logger.error(f"Failed to send email OTP: {exc}")
         raise HTTPException(status_code=500, detail="We could not send the verification code right now. Please try again.")
