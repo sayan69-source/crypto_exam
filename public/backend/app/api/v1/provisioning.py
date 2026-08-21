@@ -2,16 +2,23 @@
 HQ → Centre-Edge pre-exam provisioning (§12).
 
 BEFORE exam day, while a centre still has an uplink, the System Admin pushes
-that centre's enrolment bundle — candidates (roll + DOB + face hash) and the
-centre's staff — into the centre's local Edge DB. After that the centre runs the
-exam fully OFFLINE: login + biometric checks are answered locally, with no
-internet for anyone. Raw biometrics never travel; only DPDP-safe hashes do.
+that centre's enrolment bundle — candidates (roll + DOB + face hash), the
+centre's staff, AND the sealed question bundles — into the centre's local
+Edge DB. After that the centre runs the exam fully OFFLINE: login + biometric
+checks are answered locally, with no internet for anyone. Raw biometrics never
+travel; only DPDP-safe hashes do.
 
     GET  /api/v1/provisioning/bundle/{center_id}  — build the per-centre bundle
     POST /api/v1/provisioning/sync/{center_id}    — build it AND push to the Edge
+
+The question bundles are keyless ciphertext + Merkle proofs (sealed at HQ via
+/api/v1/delivery/seal). Including them here lets the Edge pre-stage papers
+before exam day — the terminal then serves them locally over the LAN (§10.7).
 """
+import hashlib
 import logging
 import os
+import struct
 from typing import Any
 
 from datetime import datetime, timezone
@@ -27,6 +34,7 @@ from app.models import (
     Center, User, UserRole, Enrollment, Exam, ExamPatternRow,
     SealedBundleKeying, SealedQuestionBundle,
     StaffRegistrationRequest, StaffApprovalStatus,
+    SealedQuestionBundle,
 )
 from app.api.v1.enroll import FACE_MODEL
 from app.services.auth import require_role
@@ -45,6 +53,23 @@ _STAFF_STATUS = {
     StaffApprovalStatus.PENDING: "PENDING_APPROVAL",
     StaffApprovalStatus.REJECTED: "REVOKED",
 }
+
+
+def _hash_face_descriptor(descriptor: list | None) -> str | None:
+    """SHA-256 hash of a 128-float face descriptor (struct-packed little-endian
+    doubles). The Edge stores this as ``face_embedding_hash`` (bytea) and the
+    terminal recomputes it from a live face scan at login time, so both sides
+    must use the same packing convention.
+
+    Returns the hex digest, or None if no descriptor is available.
+    """
+    if not descriptor or not isinstance(descriptor, list):
+        return None
+    try:
+        packed = struct.pack(f"<{len(descriptor)}d", *[float(v) for v in descriptor])
+        return hashlib.sha256(packed).hexdigest()
+    except (struct.error, TypeError, ValueError):
+        return None
 
 
 async def _build_bundle(db: AsyncSession, center_id: str) -> dict[str, Any]:
@@ -88,6 +113,9 @@ async def _build_bundle(db: AsyncSession, center_id: str) -> dict[str, Any]:
         }
 
     # Centre staff captured via public registration.
+    # face_descriptor is a JSON list[float] (128-d FaceNet embedding). We hash it
+    # to produce the same face_embedding_hash the Edge stores and the terminal
+    # recomputes from a live face scan at login time.
     staff_rows = (await db.execute(
         select(StaffRegistrationRequest).where(StaffRegistrationRequest.center_id == center_id)
     )).scalars().all()
@@ -95,7 +123,7 @@ async def _build_bundle(db: AsyncSession, center_id: str) -> dict[str, Any]:
         "id": s.id,
         "role": s.role,
         "full_name": s.full_name,
-        "face_hash": s.face_embedding_hash,
+        "face_hash": _hash_face_descriptor(s.face_descriptor),
         "fingerprint": None,                           # enrolled in person at activation
         "status": _STAFF_STATUS.get(s.status, "PENDING_APPROVAL"),
     } for s in staff_rows]
@@ -130,11 +158,11 @@ async def _build_bundle(db: AsyncSession, center_id: str) -> dict[str, Any]:
             # it early.
             released = t0 is not None and now >= t0
             bundles.append({
-                "exam_id": sb.exam_id,
+                "exam_id": str(sb.exam_id),
                 "questions_root": sb.questions_root[2:] if sb.questions_root.startswith("0x") else sb.questions_root,
                 "bundle_cid": sb.bundle_cid,
                 "chain_tx": sb.chain_tx,
-                "bundle": sb.bundle,
+                "bundle_json": sb.bundle,
                 "drand_round": sb.drand_round or 0,
                 "hkdf_salt": key.hkdf_salt.hex(),
                 "t0_at": t0.isoformat() if t0 else None,
@@ -176,7 +204,12 @@ async def bundle(
     b = await _build_bundle(db, center_id)
     return {
         "ok": True,
-        "counts": {"candidates": len(b["candidates"]), "staff": len(b["staff"]), "exams": len(b["exams"])},
+        "counts": {
+            "candidates": len(b["candidates"]),
+            "staff": len(b["staff"]),
+            "exams": len(b["exams"]),
+            "question_bundles": len(b["question_bundles"]),
+        },
         "bundle": b,
     }
 
