@@ -1065,7 +1065,7 @@ body.is-scrolled .nav-inner { height: 56px; }
 /* ── Links ── */
 .hdr-nav {
   flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: var(--space-lg);
+  display: flex; align-items: center; justify-content: center; gap: clamp(var(--space-md), 3vw, var(--space-2xl));
 }
 .hdr-link {
   position: relative;

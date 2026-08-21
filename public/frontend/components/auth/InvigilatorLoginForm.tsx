@@ -2,7 +2,7 @@
  * CryptoExam Core — § 29.2 Invigilator Biometric Login (REAL biometrics).
  *
  * Verifies the signed-in invigilator against their on-device enrollment:
- *   Geofence (hard-coded centre) → Face (live face-api match) →
+ *   Email OTP → Geofence (hard-coded centre) → Face (live face-api match) →
  *   Fingerprint (WebAuthn assertion) → OTP → session.
  *
  * Face and fingerprint are real. IP is captured live and compared to the
@@ -14,16 +14,15 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { api } from '@/lib/api/client';
 import { invigilatorApi } from '@/lib/api/invigilator';
 import { loadFaceApi, detectFace, matchDescriptors, FACE_MATCH_THRESHOLD } from '@/lib/biometric/face-real';
 import { verifyFingerprint } from '@/lib/biometric/webauthn';
 import { getPublicIP } from '@/lib/biometric/device';
 import { getEnrollment, type InvigilatorEnrollment } from '@/lib/biometric/enrollment';
-// Lives with the invigilator portal, not with the other login forms — this
-// flow has its own geofence/face/fingerprint chrome.
 import styles from '@/app/invigilator/invigilator.module.css';
 
-type Step = 'creds' | 'geofence' | 'face' | 'fingerprint' | 'otp' | 'done';
+type Step = 'creds' | 'email_otp' | 'geofence' | 'face' | 'fingerprint' | 'otp' | 'done';
 const STEP_ORDER: Step[] = ['geofence', 'face', 'fingerprint', 'otp'];
 const STEP_LABELS: Record<string, string> = { geofence: 'Location', face: 'Face', fingerprint: 'Fingerprint', otp: 'OTP' };
 
@@ -31,6 +30,20 @@ export default function InvigilatorLoginForm() {
   const { login } = useAuth();
   const [step, setStep] = useState<Step>('creds');
   const [staffId, setStaffId] = useState('');
+  
+  // Email OTP state
+  const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (step !== 'email_otp' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
+
   const [enrollment, setEnrollment] = useState<InvigilatorEnrollment | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +58,6 @@ export default function InvigilatorLoginForm() {
   const [camReady, setCamReady] = useState(false);
   const [modelStatus, setModelStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
-  // Start/stop webcam + load model on the face step
   useEffect(() => {
     if (step !== 'face') return;
     let cancelled = false;
@@ -69,8 +81,6 @@ export default function InvigilatorLoginForm() {
     };
   }, [step]);
 
-  // Attach the live stream once the <video> is actually mounted (camReady renders it in).
-  // Setting srcObject in the effect above failed because the element isn't in the DOM yet.
   useEffect(() => {
     const v = videoRef.current;
     if (camReady && v && streamRef.current && v.srcObject !== streamRef.current) {
@@ -85,7 +95,7 @@ export default function InvigilatorLoginForm() {
     setCamReady(false);
   }
 
-  // ── creds ───────────────────────────────────────────────────────────
+  // ── creds (Request Email OTP) ───────────────────────────────────────
   async function startCreds(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -93,10 +103,47 @@ export default function InvigilatorLoginForm() {
     
     setBusy(true);
     try {
-      // First try server-side lookup
-      let enr = await invigilatorApi.getEnrollment(staffId);
+      const res = await api.requestEmailVerification({ email: staffId, purpose: 'LOGIN', role: 'INVIGILATOR' });
+      setEmailChallengeId(res.challenge_id);
+      setStep('email_otp');
+      setTimeLeft(120);
       
-      // Fallback to local enrollment ONLY in development mode
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setStep('creds');
+            setError('OTP expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not request email verification.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Verify Email OTP & Get Enrollment ───────────────────────────────
+  async function verifyEmailOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (emailOtp.length < 6) { setError('Enter the 6-digit email OTP.'); return; }
+    
+    setBusy(true);
+    try {
+      const res = await api.verifyEmailOtp({ challenge_id: emailChallengeId!, email: staffId, code: emailOtp });
+      setEmailVerificationToken(res.verification_token);
+      
+      // Look up enrollment securely now that we have the grant
+      let enr = await invigilatorApi.getEnrollment(staffId, res.verification_token);
+      // Fallback to local (browser-storage) enrollment ONLY in development —
+      // a production login must never be satisfiable from data the client
+      // itself wrote, which is exactly what an unauthenticated attacker
+      // controls.
       if (!enr && process.env.NODE_ENV === 'development') {
         enr = getEnrollment(staffId);
       }
@@ -108,7 +155,7 @@ export default function InvigilatorLoginForm() {
       setEnrollment(enr);
       setStep('geofence');
     } catch (err) {
-      setError('Failed to lookup enrollment. Check your connection.');
+      setError(err instanceof Error ? err.message : 'Incorrect email OTP. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -118,7 +165,6 @@ export default function InvigilatorLoginForm() {
   async function runGeofence() {
     setBusy(true); setError(null);
     try {
-      // Capture the real public IP and compare to the enrolled IP (display only)
       const { ip } = await getPublicIP();
       setLiveIp(ip);
 
@@ -176,7 +222,6 @@ export default function InvigilatorLoginForm() {
     try {
       if (!enrollment) { setError('No enrollment loaded.'); return; }
       if (!enrollment.fingerprint) {
-        // No fingerprint was enrolled — allow proceeding (face already matched)
         setFpResult('No fingerprint enrolled — skipped');
         setStep('otp');
         return;
@@ -191,12 +236,12 @@ export default function InvigilatorLoginForm() {
     } finally { setBusy(false); }
   }
 
-  // ── OTP (unchanged — backend TOTP, lenient in dev) ──────────────────
+  // ── OTP ─────────────────────────────────────────────────────────────
   async function runOtp() {
     setBusy(true); setError(null);
     try {
       if (otp.length < 6) { setError('Enter the 6-digit OTP.'); setBusy(false); return; }
-      const tok = await invigilatorApi.verifyTOTP(otp, staffId);
+      const tok = await invigilatorApi.verifyTOTP(otp, staffId, emailVerificationToken!);
       if (!tok) { setError('Invalid OTP code.'); setBusy(false); return; }
       await login('invigilator', staffId, enrollment?.fullName || 'Invigilator');
       setStep('done');
@@ -215,7 +260,7 @@ export default function InvigilatorLoginForm() {
           <p className={styles.loginSub}>Biometric multi-factor sign-in</p>
         </div>
 
-        {step !== 'creds' && (
+        {step !== 'creds' && step !== 'email_otp' && (
           <div className={styles.stepper}>
             {STEP_ORDER.map((s) => {
               const idx = STEP_ORDER.indexOf(s);
@@ -234,10 +279,27 @@ export default function InvigilatorLoginForm() {
               <label className={styles.label}>Staff Email</label>
               <input className={styles.input} type="email" value={staffId} onChange={(e) => setStaffId(e.target.value)} placeholder="you@centre.gov.in" />
             </div>
-            <button type="submit" className={`${styles.btnPrimary} ${styles.fullBtn}`}>Begin Verification</button>
+            <button type="submit" className={`${styles.btnPrimary} ${styles.fullBtn}`} disabled={busy}>
+              {busy ? <span className={styles.spinner} /> : 'Request Email Verification'}
+            </button>
             <p style={{ marginTop: 14, fontSize: 13 }}>
               Not enrolled yet? <Link href="/invigilator/register" style={{ color: 'var(--color-navy-600)', fontWeight: 600 }}>Register your biometrics</Link>
             </p>
+          </form>
+        )}
+
+        {step === 'email_otp' && (
+          <form onSubmit={verifyEmailOtp} className={styles.stepBody}>
+            <h3 className={styles.stepHeading}>Verify Email</h3>
+            <p className={styles.stepHint}>Enter the 6-digit code sent to {staffId}</p>
+            <div className={styles.field}>
+              <input className={`${styles.input} ${styles.otpInput}`} type="text" inputMode="numeric" maxLength={6} value={emailOtp}
+                onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ''))} placeholder="● ● ● ● ● ●" autoFocus />
+              <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+            </div>
+            <button type="submit" className={`${styles.btnPrimary} ${styles.fullBtn}`} disabled={busy}>
+              {busy ? <span className={styles.spinner} /> : 'Verify Email & Continue'}
+            </button>
           </form>
         )}
 

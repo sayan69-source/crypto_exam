@@ -85,11 +85,7 @@ export default function HomePage() {
             <h1 className={s.heroH1}>
               High-stakes exams that prove <em>their own integrity.</em>
             </h1>
-            <p className={s.heroLead}>
-              Papers are sealed before anyone can read them, answers are committed with
-              tamper-evident records, and each role gets a focused portal for the work they
-              actually need to do.
-            </p>
+
             <div className={s.heroCta}>
               <Link className="btn btn-accent btn-lg" href="#roles">
                 Find your portal <Icon name="arrow-down" size={16} />
@@ -103,44 +99,17 @@ export default function HomePage() {
             </p>
           </div>
 
-          <aside className={s.proofPanel} aria-label="Live integrity proofs">
-            <div className={s.proofHead}>
-              <span className={s.proofLabel}>Integrity ledger</span>
-              <span className={`pill ${s.proofPill}`}>
-                <span className="dot" style={{ background: "#8fbf93" }} /> Verified
-              </span>
-            </div>
-            {[
-              { icon: "lock", title: "Paper sealed before T₀", hash: "AES-GCM-256 · HKDF" },
-              { icon: "git-merge", title: "Answers committed", hash: "SHA-256 Merkle root" },
-              { icon: "binary", title: "Difficulty proven", hash: "ZK-SNARK · Groth16" },
-              { icon: "satellite-dish", title: "Delivery attested", hash: "TPM 2.0 · GPS signed" },
-            ].map((r) => (
-              <div className={s.proofRow} key={r.icon}>
-                <span className={s.proofIco}>
-                  <Icon name={r.icon} size={17} strokeWidth={1.7} />
-                </span>
-                <span className={s.proofInfo}>
-                  <span className={s.proofT}>{r.title}</span>
-                  <span className={s.proofH}>{r.hash}</span>
-                </span>
-                <span className={s.proofChk}><Icon name="check" size={17} /></span>
-              </div>
-            ))}
-          </aside>
         </div>
       </section>
 
       {/* ═══ 2 · WHO ARE YOU ═══ */}
       <section className={`section ${s.doorsSection}`} id="roles">
         <div className="wrap">
-          <div className="heading-block reveal">
+          <div className="heading-block reveal center">
             <span className="eyebrow">Start here</span>
             <h2>Four portals. Pick the one that is yours.</h2>
             <p>
-              Every role has its own interface and its own proofs. Choose a door to go straight to
-              what you need — or press <kbd className={s.kbd}>⌘</kbd><kbd className={s.kbd}>K</kbd>{" "}
-              anywhere to search all {ALL.length} features.
+              Press <kbd className={s.kbd}>⌘</kbd><kbd className={s.kbd}>K</kbd> anywhere to search all {ALL.length} features.
             </p>
           </div>
 
@@ -185,22 +154,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══ 4 · HOW THE ROLES CONNECT ═══ */}
-      <section className={`section ${s.howItWorks}`}>
-        <div className="wrap">
-          <div className="heading-block reveal">
-            <span className="eyebrow">Lifecycle</span>
-            <h2>One sealed path, from authoring to completion.</h2>
-            <p>
-              Each stage hands the next a proof it can check. Nobody in the chain — including the
-              examining body — can skip a step or forge one.
-            </p>
-          </div>
-          <div className="reveal">
-            <WorkflowDiagram />
-          </div>
-        </div>
-      </section>
+
 
       {/* ═══ 6 · PROOF POINTS ═══ */}
       <section className={`section-sm ${s.stats}`}>

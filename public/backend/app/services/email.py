@@ -201,30 +201,24 @@ class EmailResult:
     to: str
     dev_preview: str | None = None
 
-async def send_email(to: str, subject: str, body: str) -> EmailResult:
+async def send_email(to: str, subject: str, body: str, critical: bool = False) -> EmailResult:
     """
     Send an email via SMTP (if configured) or return dev-mode preview.
+
+    If critical=True (e.g. for authentication OTPs), the function will NOT fall back
+    to dev-mode preview if SMTP fails or is not configured, unless EMAIL_OTP_DEV_MODE
+    and DEBUG are both explicitly True. It will raise an exception instead — an OTP
+    that silently degrades to a dev-mode preview in production looks like a
+    successful send to the caller while the user never receives a code.
     """
+    settings = get_settings()
+    is_dev_fallback_allowed = not critical or (settings.DEBUG and getattr(settings, "EMAIL_OTP_DEV_MODE", False))
+
     if email_configured():
-        s = get_settings()
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = s.SMTP_FROM or s.SMTP_USER
-        msg["To"] = to
-        msg.set_content(body)
-        
-        try:
-            await asyncio.to_thread(_send_blocking, msg)
-            logger.info("Email sent to %s subject=%r", mask_email(to), subject)
-            return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
-        except Exception as exc:
-            logger.warning(
-                "SMTP send failed to %s: %s — falling back to dev-mode preview",
-                mask_email(to), exc,
-            )
-            # Soft failure: don't crash the calling endpoint; surface as dev-mode
-            preview = f"[SMTP-FAILED] To: {to}\nSubject: {subject}\n\n{body}"
-            return EmailResult(delivery="dev", subject=subject, body=body, to=to, dev_preview=preview)
+        return await _send_smtp(to, subject, body, allow_dev_fallback=is_dev_fallback_allowed)
+
+    if not is_dev_fallback_allowed:
+        raise RuntimeError("SMTP is not configured and dev-mode fallback is disabled for this critical email.")
 
     # Dev-mode: no gateway configured
     logger.info(
@@ -233,3 +227,41 @@ async def send_email(to: str, subject: str, body: str) -> EmailResult:
     )
     preview = f"[DEV-MODE] To: {to}\nSubject: {subject}\n\n{body}"
     return EmailResult(delivery="dev", subject=subject, body=body, to=to, dev_preview=preview)
+
+
+async def _send_smtp(to: str, subject: str, body: str, allow_dev_fallback: bool = True) -> EmailResult:
+    """Real SMTP send (synchronous in a thread-pool would be ideal; kept simple here)."""
+    s = get_settings()
+    smtp_host: str = getattr(s, "SMTP_HOST", "")
+    smtp_port: int = int(getattr(s, "SMTP_PORT", 587))
+    smtp_user: str = getattr(s, "SMTP_USER", "")
+    smtp_pass: str = getattr(s, "SMTP_PASS", "")
+    smtp_from: str = getattr(s, "SMTP_FROM", smtp_user)
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = smtp_from
+    msg["To"] = to
+    msg.set_content(body)
+
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.ehlo()
+            server.starttls(context=ctx)
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        logger.info("Email sent to %s subject=%r", mask_email(to), subject)
+        return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
+    except Exception as exc:
+        if not allow_dev_fallback:
+            logger.error("SMTP send failed to %s: %s (critical email, failing closed)", mask_email(to), exc)
+            raise RuntimeError(f"Could not deliver email: {exc}")
+
+        logger.warning(
+            "SMTP send failed to %s: %s — falling back to dev-mode preview",
+            mask_email(to), exc,
+        )
+        # Soft failure: don't crash the calling endpoint; surface as dev-mode
+        preview = f"[SMTP-FAILED] To: {to}\nSubject: {subject}\n\n{body}"
+        return EmailResult(delivery="dev", subject=subject, body=body, to=to, dev_preview=preview)

@@ -283,7 +283,7 @@ app.include_router(sysadmin_auth.router, prefix="/api/v1/sysadmin", tags=["Syste
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
-app.include_router(email_verify.router, prefix="/api/v1/auth/email/verify", tags=["Email Verification"])
+app.include_router(email_verify.router, prefix="/api/v1/email-verification", tags=["Email Verification"])
 app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"])
 app.include_router(delivery.router, prefix="/api/v1/delivery", tags=["Sealed Question Delivery (§10.7)"])
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
