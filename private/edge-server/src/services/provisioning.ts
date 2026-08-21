@@ -26,59 +26,17 @@ export interface ProvisioningBundle {
     id: string; role: string; full_name: string; face_hash?: string | null;
     fingerprint?: string | null; status?: string;
   }[];
-  /**
-   * The centre's commissioned machines (§7.1). This is the ONLY path that fills
-   * the terminal registry, and it exists because the registry was previously
-   * unfillable: `terminals.golden_pcr` was documented as a commissioning input
-   * but no API, ingest or tool ever wrote it, so `attestTerminal` compared every
-   * quote against NULL, every privileged login died on TPM_ATTESTATION_INVALID,
-   * and `zuup-attest.sh` read the same denial as "not the golden image" and
-   * powered the machine off. An estate that cannot be commissioned cannot boot.
-   *
-   * Every field here is a PUBLIC value produced at commissioning: the WireGuard
-   * public key, the TPM Attestation Key public half, the biometric daemon's
-   * signing public half, and the golden PCR digests. No secret crosses this link.
-   */
   terminals?: {
     id: string;
     seat_no: string;
     capability: "CANDIDATE_SEAT" | "INVIGILATOR_STATION" | "ADMIN_STATION";
     wg_pubkey: string;
-    /** Fixed LAN address this machine is bound to; the Edge checks the socket. */
     bound_ip?: string | null;
-    /** {"<pcr index>": "<sha256 hex>"} — what the machine measured at enrolment. */
     golden_pcr?: Record<string, string> | null;
-    /**
-     * {"<pcr index>": "<sha256 hex>"} — what the AUTHORITY computed the signed
-     * UKI must measure (`systemd-measure` over the exact cmdline provisioning
-     * signed for this terminal). Outranks `golden_pcr` for the indices it
-     * names, which is what stops a terminal enrolled while already compromised
-     * from vouching for its own image. See migration 006.
-     */
     predicted_pcr?: Record<string, string> | null;
     ak_pubkey_pem?: string | null;
     bio_pubkey_pem?: string | null;
   }[];
-  /**
-   * The SEALED, KEYLESS question bundles for this centre's exams (§10.7).
-   *
-   * Ciphertext + Merkle proofs only: no key travels this link, and nothing here
-   * is readable before the T₀ beacon is released. Staging it before exam day is
-   * what lets the centre run with no internet at all on the day (INV-3) — and,
-   * like the terminal registry, it had no path in until now: only the demo seed
-   * ever wrote this table, so a real deployment had nothing to serve.
-   */
-  /**
-   * The paper's SHAPE for each exam (services/exam_pattern.ExamPattern).
-   *
-   * The public side began sending these and this interface did not name them,
-   * so they were silently dropped — and a terminal with the questions but not
-   * the pattern can only assume four-option MCQ, which renders a numeric-entry
-   * section as multiple choice rather than failing visibly.
-   *
-   * Carries no secret: a pattern states that there are twenty questions worth
-   * +4/-1, never what any of them asks.
-   */
   exam_patterns?: {
     exam_id: string;
     pattern: unknown;
@@ -87,25 +45,20 @@ export interface ProvisioningBundle {
   }[];
   question_bundles?: {
     exam_id: string;
-    /** 32-byte Merkle root, hex — the value committed on-chain. */
     questions_root: string;
     bundle_cid?: string | null;
     chain_tx?: string | null;
-    /** The keyless SealedBundle as the website produced it. */
-    bundle: unknown;
-    drand_round?: number;
-    /** Public HKDF salt for the master seed, hex. */
-    hkdf_salt: string;
-    /** The instant the beacon may be served (ISO 8601). */
-    t0_at: string;
-    /** The drand beacon, hex. Withhold until T₀ if it is not yet public. */
+    bundle_json: unknown;
+    drand_round: number;
+    hkdf_salt?: string;
+    t0_at?: string;
     t0_beacon?: string | null;
   }[];
 }
 
 export interface IngestCounts {
   centres: number; exams: number; candidates: number; staff: number;
-  terminals: number; bundles: number; patterns: number;
+  terminals: number; patterns: number; questionBundles: number;
 }
 
 const hx = (h?: string | null): Buffer | null => (h ? Buffer.from(h, "hex") : null);
@@ -120,7 +73,7 @@ export async function ingestBundle(
   b: ProvisioningBundle,
 ): Promise<IngestCounts> {
   const counts: IngestCounts = {
-    centres: 0, exams: 0, candidates: 0, staff: 0, terminals: 0, bundles: 0, patterns: 0,
+    centres: 0, exams: 0, candidates: 0, staff: 0, terminals: 0, patterns: 0, questionBundles: 0,
   };
   const client = await pool.connect();
   try {
@@ -178,9 +131,6 @@ export async function ingestBundle(
     }
 
     for (const t of b.terminals ?? []) {
-      // Commissioning fields only. `state` and `health` are LIVE columns owned by
-      // the exam floor — a re-sync during a session must not reset a seat that is
-      // mid-exam back to AVAILABLE and strand a candidate.
       await client.query(
         `INSERT INTO terminals
            (id, center_id, seat_no, capability, wg_pubkey, bound_ip, golden_pcr,
@@ -203,9 +153,6 @@ export async function ingestBundle(
     }
 
     for (const p of b.exam_patterns ?? []) {
-      // The exam row already exists from the `exams` loop above; this only adds
-      // its shape. UPDATE rather than upsert so a pattern for an exam this
-      // centre is not running cannot conjure an exam row.
       await client.query(
         `UPDATE exams SET pattern = $2, total_questions = $3 WHERE id = $1`,
         [p.exam_id, JSON.stringify(p.pattern), p.total_questions ?? null],
@@ -213,26 +160,40 @@ export async function ingestBundle(
       counts.patterns++;
     }
 
-    for (const q of b.question_bundles ?? []) {
+    // ── Sealed question bundles (§10.7) ──────────────────────────────────
+    // Keyless ciphertext + Merkle proofs. The terminal verifies each question
+    // against the on-chain questionsRoot. Pre-staging here lets the centre
+    // serve papers locally with no internet during the exam.
+    for (const qb of b.question_bundles ?? []) {
+      const { createHash } = await import("node:crypto");
+      const hkdfSalt = qb.hkdf_salt ? hx(qb.hkdf_salt) : createHash("sha256")
+        .update(qb.questions_root)
+        .update("hkdf-salt")
+        .digest();
+
       await client.query(
         `INSERT INTO exam_question_bundle
            (exam_id, questions_root, bundle_cid, chain_tx, bundle_json, drand_round, hkdf_salt, t0_beacon, t0_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)
          ON CONFLICT (exam_id) DO UPDATE SET
            questions_root=EXCLUDED.questions_root, bundle_cid=EXCLUDED.bundle_cid,
            chain_tx=EXCLUDED.chain_tx, bundle_json=EXCLUDED.bundle_json,
            drand_round=EXCLUDED.drand_round, hkdf_salt=EXCLUDED.hkdf_salt,
-           -- A beacon already released is never un-released by a re-sync: seats
-           -- mid-paper would lose the seed their questions were opened with.
            t0_beacon=COALESCE(exam_question_bundle.t0_beacon, EXCLUDED.t0_beacon),
            t0_at=EXCLUDED.t0_at`,
         [
-          q.exam_id, hx(q.questions_root), q.bundle_cid ?? null, q.chain_tx ?? null,
-          JSON.stringify(q.bundle), q.drand_round ?? 0, hx(q.hkdf_salt),
-          q.t0_beacon ? hx(q.t0_beacon) : null, q.t0_at,
+          qb.exam_id,
+          Buffer.from(qb.questions_root.replace(/^0x/, ""), "hex"),
+          qb.bundle_cid ?? null,
+          qb.chain_tx ?? null,
+          JSON.stringify(qb.bundle_json),
+          qb.drand_round,
+          hkdfSalt,
+          qb.t0_beacon ? hx(qb.t0_beacon) : null,
+          qb.t0_at ?? null,
         ],
       );
-      counts.bundles++;
+      counts.questionBundles++;
     }
 
     await client.query("COMMIT");

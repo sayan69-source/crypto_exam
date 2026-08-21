@@ -1349,3 +1349,16 @@ class EmailVerificationChallenge(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
 
+class DecryptedAnswerRecord(Base):
+    """Decrypted candidate answers at Tier-0 (HQ). The ONLY plaintext copy."""
+    __tablename__ = "decrypted_answer_records"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(String(36), ForeignKey("exams.id"), nullable=False, index=True)
+    centre_id_hash = Column(String(64), nullable=False)  # SHA-256(centreId)
+    seat_no = Column(String(20), nullable=True)
+    leaf_index = Column(Integer, nullable=False)
+    answers = Column(JSON, nullable=False)  # the decrypted record R
+    chain_root = Column(String(64), nullable=True)  # final chain root
+    polygon_tx = Column(String(66), nullable=True)  # anchor tx hash
+    ingested_at = Column(DateTime(timezone=True), default=datetime.utcnow)

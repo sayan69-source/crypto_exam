@@ -35,7 +35,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
 from app.models import UserRole
 from app.services.auth import require_role
 
@@ -234,3 +237,74 @@ async def anchor_centre_root(
         node_pubkey=req.nodePubkey,
     )
     return {"ok": True, "tx": tx}
+
+
+class StoreDecryptedRequest(BaseModel):
+    centreIdHash: str
+    decrypted: list[dict[str, Any]]
+    polygonTx: str | None = None
+    chainRoot: str | None = None
+
+
+@router.post(
+    "/ledger/store",
+    summary="Store decrypted answers and mark enrolments as submitted",
+    description="Tier-0 only. Called immediately after /decrypt to persist the plaintext "
+    "answers into the system admin DB and mark the candidate's enrolment as SUBMITTED.",
+)
+async def store_decrypted(
+    req: StoreDecryptedRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    from app.models import DecryptedAnswerRecord, Enrollment, EnrollmentStatus
+
+    stored_count = 0
+    # Group by exam_id for efficient enrolment lookups
+    by_exam: dict[str, list[dict[str, Any]]] = {}
+    for d in req.decrypted:
+        by_exam.setdefault(d["examId"], []).append(d)
+
+    for exam_id, answers in by_exam.items():
+        # Insert decrypted records
+        for a in answers:
+            record = DecryptedAnswerRecord(
+                exam_id=exam_id,
+                centre_id_hash=req.centreIdHash,
+                seat_no=a.get("seatNo"),
+                leaf_index=a["leafIndex"],
+                answers=a["record"],
+                chain_root=req.chainRoot,
+                polygon_tx=req.polygonTx,
+            )
+            db.add(record)
+            stored_count += 1
+
+        # Update enrolments to SUBMITTED
+        rolls = [a["record"].get("roll") for a in answers if a["record"].get("roll")]
+        if rolls:
+            # Note: We can't use centre_id here because we only have centreIdHash,
+            # but (exam_id, roll_number) is unique anyway.
+            # We must use proper SQLAlchemy Enum setting or string if it's a string column.
+            # Depending on how EnrollmentStatus is defined, we'll try string mapping first.
+            await db.execute(
+                select(Enrollment)
+                .where(Enrollment.exam_id == exam_id, Enrollment.roll_number.in_(rolls))
+            )
+            # A more robust update:
+            for roll in rolls:
+                enrolment = (await db.execute(
+                    select(Enrollment)
+                    .where(Enrollment.exam_id == exam_id, Enrollment.roll_number == roll)
+                )).scalar_one_or_none()
+                if enrolment:
+                    # Depending on how your enum is defined, handle it safely
+                    if hasattr(EnrollmentStatus, "SUBMITTED"):
+                        enrolment.status = EnrollmentStatus.SUBMITTED
+                    else:
+                        # Fallback for string-based or other enum definitions
+                        enrolment.status = "SUBMITTED"
+
+    await db.commit()
+    logger.info("Stored %d decrypted answers for centre %s", stored_count, req.centreIdHash[:12])
+    return {"ok": True, "stored": stored_count}

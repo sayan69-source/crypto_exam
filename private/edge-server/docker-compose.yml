@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: zuup
       POSTGRES_DB: zuup_edge
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - edge_pg:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +25,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "127.0.0.1:6380:6379"
+      - "127.0.0.1:6381:6379"
 
 volumes:
   edge_pg:
