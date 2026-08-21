@@ -24,6 +24,9 @@ async def setup_db():
 
 @pytest.mark.asyncio
 async def test_email_verify_flow():
+    from app.config import get_settings
+    get_settings().DEBUG = True
+
     # Use ASGITransport for modern httpx testing of ASGI apps
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

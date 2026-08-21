@@ -147,7 +147,7 @@ def test_the_opener_is_withheld_until_T0_but_the_ciphertext_is_not():
     """
     a = _bundle(A_CENTRE)["question_bundles"][0]
     assert a["t0_beacon"] is None, "the opener shipped before T0 — the paper is readable early"
-    assert a["bundle"] and a["hkdf_salt"], "ciphertext and salt must still travel"
+    assert a.get("bundle_json") and a.get("hkdf_salt"), "ciphertext and salt must still travel"
 
     b = _bundle(B_CENTRE)["question_bundles"][0]
     assert b["t0_beacon"] == "b" * 32, "after T0 the centre cannot open its own paper"
