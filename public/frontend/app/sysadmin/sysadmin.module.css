@@ -23,9 +23,7 @@
   min-height: 100dvh;
   display: flex;
   padding: clamp(28px, 5vh, 64px) var(--space-lg);
-  background:
-    radial-gradient(900px 460px at 80% -10%, rgba(61, 92, 190, 0.22), transparent 60%),
-    linear-gradient(165deg, #070C18 0%, #0D1526 60%, #0A1120 100%);
+  background: var(--brand-ink);
 }
 
 .panel {
@@ -33,9 +31,9 @@
   margin: auto;
   width: min(468px, 100%);
   padding: clamp(26px, 4vw, 38px);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--brand-ink-soft);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
 }
 
@@ -107,7 +105,7 @@
   /* Lighter than the panel so a field reads as a field. The old
      rgba(0,0,0,0.25) on a dark panel made the boundaries almost invisible. */
   padding: 12px 14px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.07);
   color: #FFFFFF;
@@ -119,9 +117,9 @@
 .field input:hover { border-color: rgba(255, 255, 255, 0.28); }
 .field input:focus {
   outline: none;
-  border-color: #E07020;
+  border-color: var(--brand-primary);
   background: rgba(255, 255, 255, 0.10);
-  box-shadow: 0 0 0 3px rgba(224, 112, 32, 0.22);
+  box-shadow: 0 0 0 3px rgba(255, 79, 0, 0.22);
 }
 
 .primary {
@@ -129,16 +127,16 @@
   min-height: 46px;                    /* comfortable touch target */
   padding: 13px 18px;
   border: 0;
-  border-radius: 9px;
-  background: #E07020;
+  border-radius: var(--radius-md);
+  background: var(--brand-primary);
   color: #FFFFFF;
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms ease;
 }
-.primary:hover:not(:disabled) { background: #F0812C; }
-.primary:focus-visible { outline: 2px solid #F5B980; outline-offset: 2px; }
+.primary:hover:not(:disabled) { background: var(--color-saffron-600); }
+.primary:focus-visible { outline: 2px solid var(--color-saffron-300); outline-offset: 2px; }
 .primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Status blocks ──────────────────────────────────────────────────────── */
