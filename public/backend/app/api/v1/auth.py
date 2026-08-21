@@ -449,6 +449,99 @@ async def get_profile(
     return UserProfile.model_validate(user)
 
 
+class ExamAdminSignup(BaseModel):
+    full_name: str = Field(min_length=2, max_length=255)
+    email: str = Field(min_length=4, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    email_verification_token: str
+
+
+@router.post(
+    "/register-exam-admin",
+    status_code=status.HTTP_201_CREATED,
+    summary="Exam Administrator self-registration",
+    description="An administrator for a requested exam registers to manage it. Requires email verification.",
+)
+async def register_exam_admin(
+    body: ExamAdminSignup,
+    req: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models import EmailVerificationGrant, ExamAdministrator, ExamOffering
+    
+    # 1. Verify OTP token
+    grant = (await db.execute(
+        select(EmailVerificationGrant).where(EmailVerificationGrant.token == body.email_verification_token)
+    )).scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired email verification token")
+        
+    if grant.email != body.email.strip().lower() or grant.purpose != "REGISTER":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification token context mismatch")
+        
+    grant.consumed_at = now
+    
+    # 2. Check if an ExamAdministrator record exists for this email with an active offering
+    from app.services.exam_registration import normalise
+    email_norm = normalise(body.email)
+    
+    admin_stmt = (
+        select(ExamAdministrator)
+        .join(ExamOffering, ExamOffering.id == ExamAdministrator.offering_id)
+        .where(
+            (ExamAdministrator.email == body.email) | (ExamAdministrator.email_norm == email_norm)
+        )
+    )
+    exam_admin = (await db.execute(admin_stmt)).scalar_one_or_none()
+    
+    if not exam_admin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No approved exam request found for this email address. Ensure your exam is LIVE first."
+        )
+        
+    if exam_admin.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An administrator account has already been registered for this exam."
+        )
+        
+    # Check if a user with this email already exists
+    existing = (await db.execute(select(User).where(User.email == body.email.strip().lower()))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists.")
+
+    # 3. Create the ADMIN User
+    user = User(
+        email=body.email.strip().lower(),
+        full_name=body.full_name.strip(),
+        role=UserRole.ADMIN,
+        password_hash=hash_password(body.password),
+        is_active=True,  # They are active immediately since their exam was approved
+        email_verified=True,
+        email_verified_at=now,
+        dpdp_consent=True,
+        dpdp_consent_at=now,
+        dpdp_consent_ip=req.client.host if req else None,
+        dpdp_consent_version="1.0",
+    )
+    db.add(user)
+    await db.flush()  # to get user.id
+    
+    # 4. Link the user to the ExamAdministrator record
+    exam_admin.user_id = user.id
+    
+    await db.commit()
+    logger.info(f"Exam Administrator registered: {user.email} (offering={exam_admin.offering_id})")
+    
+    return {
+        "ok": True,
+        "message": "Administrator account registered successfully. You can now log in.",
+    }
+
+
 # NOTE: `POST /auth/seed-admin` used to live here. It created
 # admin@cryptoexam.dev / CryptoExam2025! — a hardcoded-password ADMIN, plus a
 # SETTER — and returned a signed JWT for it immediately, gated only by

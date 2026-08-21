@@ -85,7 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       '/staff-registration',
       // Candidates enrol (face + details) on the public site; they never log in
       // online — verified biometrically at the centre OS, offline, on exam day.
+      // Candidate enrolment
       '/candidate-enrolment',
+      // Public exam request form
+      '/request-exam',
     ];
     const isPublicRoute = publicRoutes.some(r => pathname === r) || pathname.startsWith('/exam/paper-info');
 
@@ -110,7 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Role-based protection — wrong role for the area
       if (inArea('/setter') && pathname !== '/setter/login' && session.role !== 'setter') {
         router.replace('/setter/login');
-      } else if (inArea('/admin') && pathname !== '/admin/login' && session.role !== 'admin') {
+      } else if (
+        inArea('/admin') &&
+        pathname !== '/admin/login' &&
+        pathname !== '/admin/register' &&
+        session.role !== 'admin'
+      ) {
         router.replace('/admin/login');
       } else if (
         inArea('/sysadmin') &&

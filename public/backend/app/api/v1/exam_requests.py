@@ -270,25 +270,43 @@ async def approve(
                                 detail={"reason": "ALREADY_APPROVED_BY_SYSADMIN"})
         req.sysadmin_approved_at, req.sysadmin_approved_by = now, actor
     else:
-        if req.admin_approved_at:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail={"reason": "ALREADY_APPROVED_BY_ADMIN"})
-        req.admin_approved_at, req.admin_approved_by = now, actor
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail={"reason": "ONLY_SYSADMIN_CAN_APPROVE"})
 
     if both_approved(req):
         offering = await materialise(db, req)
+        
+        # Load the ExamAdministrator to get their email
+        admin_stmt = select(ExamAdministrator).where(ExamAdministrator.request_id == req.id)
+        exam_admin = (await db.execute(admin_stmt)).scalar_one_or_none()
+        admin_email = exam_admin.email if exam_admin else req.contact_email
+        
         await db.commit()
         logger.info("exam request %s ACTIVE — exam=%s", req.reference, req.exam_id)
+        
+        # Send automated email
+        from app.services.email import send_email
+        email_body = (
+            f"Dear {req.contact_name},\n\n"
+            f"Your request to conduct the examination '{req.exam_name}' has been APPROVED and is now LIVE.\n\n"
+            f"Exam Administrator ({admin_email}) can now register on the portal using their email address to manage the examination.\n\n"
+            f"Candidates and centre staff can also begin registration.\n\n"
+            f"CryptoExam Core System Admin"
+        )
+        await send_email(
+            to=req.contact_email,
+            subject=f"Exam Request Approved: {req.exam_name}",
+            body=email_body,
+        )
+
         return {"ok": True, "status": req.status.value, "examId": req.exam_id,
                 "offeringId": offering.id,
-                "note": "Both approvals recorded — candidates can now register."}
+                "note": "System Admin approval recorded — exam is now LIVE."}
 
-    req.status = (ExamRequestStatus.SYSADMIN_APPROVED if is_sysadmin
-                  else ExamRequestStatus.ADMIN_APPROVED)
+    req.status = ExamRequestStatus.SYSADMIN_APPROVED
     await db.commit()
-    outstanding = "the administration" if is_sysadmin else "the System Administrator"
     return {"ok": True, "status": req.status.value,
-            "note": f"Recorded. Still awaiting approval from {outstanding}."}
+            "note": "Recorded."}
 
 
 @router.post("/{request_id}/reject")

@@ -83,8 +83,9 @@ def new_reference(prefix: str = "EXR") -> str:
 
 
 def both_approved(req: ExamRequest) -> bool:
-    """Dual approval, stated once so no caller can decide it differently."""
-    return req.sysadmin_approved_at is not None and req.admin_approved_at is not None
+    """System Admin approval makes the request LIVE immediately.
+    The Exam Administrator registers afterwards."""
+    return req.sysadmin_approved_at is not None
 
 
 async def materialise(db: AsyncSession, req: ExamRequest) -> ExamOffering:

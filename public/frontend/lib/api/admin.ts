@@ -224,6 +224,32 @@ export interface EnquiriesResponse {
   items: Enquiry[];
 }
 
+export type ExamRequestStatus = 'PENDING' | 'SYSADMIN_APPROVED' | 'ADMIN_APPROVED' | 'ACTIVE' | 'REJECTED' | 'WITHDRAWN';
+
+export interface ExamRequestItem {
+  id: string;
+  reference: string;
+  examName: string;
+  organisation: string;
+  contactName: string;
+  contactEmail: string;
+  proposedDate: string | null;
+  status: ExamRequestStatus;
+  sysadminApproved: boolean;
+  adminApproved: boolean;
+  rejectionReason: string | null;
+  examId: string | null;
+  locations: Array<{ name: string; city: string | null; state: string | null; capacity: number | null }>;
+  subjects: Array<{ name: string; code: string | null; compulsory: boolean }>;
+}
+
+export interface ExamRequestsResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  items: ExamRequestItem[];
+}
+
 async function postWithBody<T>(path: string, body: unknown): Promise<T> {
   const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
@@ -273,4 +299,12 @@ export const adminApi = {
     post<{ ok: boolean; approvalStatus: string; approvedAt: string }>(`/admin/candidates/${candidateId}/approve`),
   rejectCandidate: (candidateId: string, rejectionReason: string) =>
     postWithBody<{ ok: boolean; approvalStatus: string; rejectedAt: string }>(`/admin/candidates/${candidateId}/reject`, { rejection_reason: rejectionReason }),
+  
+  // Exam Requests
+  examRequests: (statusFilter?: string) =>
+    get<ExamRequestsResponse>(`/exam-requests${statusFilter ? `?status_filter=${statusFilter}` : ''}`),
+  approveExamRequest: (id: string) =>
+    post<{ ok: boolean; status: string; note: string }>(`/exam-requests/${id}/approve`),
+  rejectExamRequest: (id: string, reason: string) =>
+    postWithBody<{ ok: boolean; status: string }>(`/exam-requests/${id}/reject`, { reason }),
 };
