@@ -24,16 +24,6 @@ export default function CandidateLoginForm() {
   const [consentExpanded, setConsentExpanded] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [whatIsExpanded, setWhatIsExpanded] = useState(false);
-  const [language, setLanguage] = useState('en');
-
-  const taglines: Record<string, string> = {
-    en: 'Your answers. Mathematically protected.',
-    hi: 'आपके उत्तर। गणितीय रूप से सुरक्षित।',
-    bn: 'আপনার উত্তর। গাণিতিকভাবে সুরক্ষিত।',
-    te: 'మీ సమాధానాలు. గణిత శాస్త్రపరంగా రక్షించబడ్డాయి.',
-    ta: 'உங்கள் விடைகள். கணிதரீதியாக பாதுகாக்கப்பட்டவை.',
-    mr: 'तुमची उत्तरे. गणितीयदृष्ट्या संरक्षित.',
-  };
 
   const validateForm = () => {
     setError(null);
@@ -94,32 +84,13 @@ export default function CandidateLoginForm() {
     <div className={styles.page}>
       <div className={styles.patternBg} />
 
-      {/* Language selector */}
-      <div className={styles.langSelector}>
-        {[
-          { code: 'en', label: 'EN' },
-          { code: 'hi', label: 'हिंदी' },
-          { code: 'bn', label: 'বাংলা' },
-          { code: 'te', label: 'తెలుగు' },
-          { code: 'ta', label: 'தமிழ்' },
-          { code: 'mr', label: 'मराठी' },
-        ].map(l => (
-          <button
-            key={l.code}
-            className={`${styles.langBtn} ${language === l.code ? styles.langActive : ''}`}
-            onClick={() => setLanguage(l.code)}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
 
       <div className={styles.card}>
         {/* Logo */}
         <div className={styles.logoArea}>
           <span className={styles.logoIcon}></span>
           <h1 className={styles.logoTitle}>CryptoExam Core</h1>
-          <p className={styles.tagline}>{taglines[language] || taglines.en}</p>
+          <p className={styles.tagline}>Your answers. Mathematically protected.</p>
         </div>
 
         {/* Role Badge */}
