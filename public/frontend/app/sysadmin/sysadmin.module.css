@@ -89,7 +89,8 @@
   border: 1px solid var(--border-soft);
   background: #fffefb;
   color: var(--brand-ink);
-  font-size: 14.5px;
+  font-size: 14px;
+  font-family: var(--font-sans, system-ui);
   line-height: 1.4;
   transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
@@ -111,6 +112,7 @@
   background: var(--brand-primary);
   color: var(--brand-on-primary);
   font-size: 14.5px;
+  font-family: var(--font-sans, system-ui);
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms ease;
