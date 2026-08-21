@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import (
     ExamAdministrator, ExamRequest, ExamRequestLocation, ExamRequestStatus,
-    ExamRequestSubject, UserRole,
+    ExamRequestSubject, UserRole, EmailVerificationGrant
 )
 from app.services.auth import require_role
 from app.services.exam_registration import both_approved, materialise, new_reference, normalise
@@ -83,6 +83,7 @@ class ExamRequestIn(BaseModel):
     subjects: list[SubjectIn] = Field(min_length=1)
     subjectChoiceMin: int | None = Field(default=None, ge=0)
     subjectChoiceMax: int | None = Field(default=None, ge=1)
+    emailVerificationToken: str = Field(..., description="Token proving contact email ownership")
 
 
 class RejectIn(BaseModel):
@@ -139,6 +140,29 @@ async def submit(body: ExamRequestIn, db: AsyncSession = Depends(get_db)) -> dic
             detail={"reason": "IMPOSSIBLE_SUBJECT_RULE",
                     "message": "The minimum number of subjects exceeds the maximum."},
         )
+
+    if not body.emailVerificationToken or not body.emailVerificationToken.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email verification token is required.")
+
+    # ── verify email ────────────────────────────────────────────────────────
+    stmt = select(EmailVerificationGrant).where(
+        EmailVerificationGrant.token == body.emailVerificationToken,
+        EmailVerificationGrant.email == body.contactEmail.strip().lower(),
+        EmailVerificationGrant.consumed_at.is_(None)
+    )
+    grant = (await db.execute(stmt)).scalar_one_or_none()
+    
+    if not grant:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or already consumed email verification token.")
+        
+    now_dt = datetime.now(timezone.utc)
+    grant_expires = grant.expires_at.replace(tzinfo=timezone.utc) if not grant.expires_at.tzinfo else grant.expires_at
+    if grant_expires < now_dt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email verification token has expired.")
+    
+    # Consume token
+    grant.consumed_at = now_dt
+    # ────────────────────────────────────────────────────────────────────────
 
     req = ExamRequest(
         id=str(uuid.uuid4()),
