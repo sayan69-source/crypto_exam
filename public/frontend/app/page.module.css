@@ -32,8 +32,8 @@
 .heroPhoto {
   position: absolute; inset: 0; z-index: 0;
   background: url('/exam-hall.jpg') center / cover no-repeat;
-  opacity: 0.15;
-  filter: grayscale(0.8) contrast(0.6) brightness(0.3);
+  opacity: 0.18;
+  filter: grayscale(0.8) contrast(0.8) brightness(0.4);
   pointer-events: none;
 }
 
