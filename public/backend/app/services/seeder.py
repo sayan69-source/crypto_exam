@@ -692,6 +692,40 @@ async def _seed_exam_offerings(
     return offerings
 
 
+async def backfill_exam_offerings(db: AsyncSession) -> list[ExamOffering]:
+    """
+    Create offerings for any registerable exam that does not have one yet.
+
+    `seed_database` only runs its full pass on an EMPTY database — the guard
+    at its top returns early the moment a single User row exists. That guard
+    is correct for the users/centres/exams themselves (re-running would
+    duplicate them), but it meant a database seeded before
+    `_seed_exam_offerings` existed stayed on the old, offering-less shape
+    forever: `seed_database` kept reporting "already_seeded" and the exam
+    the offerings backfill was meant to fix never got backfilled. This is
+    exactly what happened on the Render deployment — confirmed live,
+    `/enroll/organisations` returned `[]` after the code fix had already
+    shipped, because nothing had told the EXISTING database about it.
+
+    Runs on every startup and is cheap when there is nothing to do: one query
+    for exams missing an offering, short-circuiting before touching Center at
+    all if that query is empty.
+    """
+    missing = (await db.execute(
+        select(Exam)
+        .outerjoin(ExamOffering, ExamOffering.exam_id == Exam.id)
+        .where(ExamOffering.id.is_(None), Exam.status.in_(REGISTERABLE_EXAM_STATES))
+    )).scalars().all()
+    if not missing:
+        return []
+
+    centers = (await db.execute(select(Center))).scalars().all()
+    created = await _seed_exam_offerings(db, missing, centers)
+    if created:
+        logger.info(f"Backfilled {len(created)} exam offering(s) missing on an existing database")
+    return created
+
+
 async def _seed_enrollments(
     db: AsyncSession,
     users: list[User],

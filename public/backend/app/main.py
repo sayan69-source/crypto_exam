@@ -62,7 +62,8 @@ async def lifespan(app: FastAPI):
 
     # Seed on startup in dev (DEBUG) OR when SEED_ON_START=true (set this on a
     # prod deploy so a fresh DB gets its admin/exams/centres without turning DEBUG
-    # on). The seeder is idempotent — it no-ops once the DB is already seeded.
+    # on). seed_database's full pass no-ops once a User row exists — it will
+    # never re-populate users/centres/exams on an existing database, by design.
     if settings.DEBUG or os.getenv("SEED_ON_START", "").lower() == "true":
         try:
             from app.services.seeder import seed_database
@@ -73,6 +74,21 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Auto-seed result: {result}")
         except Exception as e:
             logger.warning(f"Auto-seed skipped: {e}")
+
+        # Unlike the pass above, this runs regardless of whether the database
+        # was already seeded: it targets data that a LATER code change starts
+        # depending on, appended to a database that predates that change.
+        # seed_database's guard would otherwise leave it missing forever.
+        try:
+            from app.services.seeder import backfill_exam_offerings
+            from app.database import async_session
+            async with async_session() as session:
+                added = await backfill_exam_offerings(session)
+                await session.commit()
+                if added:
+                    logger.info(f"Backfilled {len(added)} exam offering(s)")
+        except Exception as e:
+            logger.warning(f"Exam offering backfill skipped: {e}")
 
     yield
 
