@@ -16,7 +16,8 @@ security — strictly stronger than computational hardness.
 
 Compatibility with existing crypto
 ----------------------------------
-This module is purely additive. The existing AES-GCM helpers continue to
+This module is purely additive. The existing
+`app.services.question_modes.answer_key_crypto` AES-GCM helpers continue to
 work unchanged. Callers that want the V3 CC-SSS layer simply split the AES
 master key with `split_aes_key`, distribute shares, and reconstruct them
 inside the enclave (real or simulated) before deriving the per-question key

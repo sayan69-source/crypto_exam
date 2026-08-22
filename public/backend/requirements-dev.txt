@@ -1,0 +1,11 @@
+# Test dependency set = exactly what production installs, plus the test runner.
+#
+# CI deliberately installs `requirements.txt` rather than the pyproject `[dev]`
+# extra. The extra pulls the heavy optional libs (sentence-transformers → torch,
+# gmpy2, celery, openai) that the deployed API never imports, so testing against
+# it would prove the suite passes on a dependency set no server ever runs. This
+# file keeps CI on the same libraries Render boots.
+-r requirements.txt
+
+pytest>=8.2.0
+pytest-asyncio>=0.23.0

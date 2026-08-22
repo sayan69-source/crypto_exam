@@ -109,6 +109,10 @@ export default function SetterLoginPage() {
           <button type="submit" className={styles.submitBtn} disabled={loading || !consentAccepted}>
             {loading ? <span className={styles.spinner} /> : showOtp ? 'Verify & Login' : 'Send OTP'}
           </button>
+
+          <p style={{ fontSize: 12, color: 'var(--color-navy-400, #64748b)', textAlign: 'center', marginTop: 12 }}>
+            New setter? <a href="/setter/register" style={{ color: 'var(--color-india-saffron, #FF9933)' }}>Apply for access</a>
+          </p>
         </form>
       </div>
     </div>

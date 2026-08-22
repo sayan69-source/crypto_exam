@@ -3,8 +3,8 @@
 
 .container {
   min-height: 100vh;
-  background: var(--bg-page, #F8F9FC);
-  color: var(--text-body, #313A52);
+  background: var(--bg-page, #fffefb);
+  color: var(--text-body, #2f2a26);
   display: flex;
   flex-direction: column;
 }
@@ -12,8 +12,8 @@
 /* ── Top Bar ── */
 .topBar {
   height: 56px;
-  background: #fff;
-  border-bottom: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb;
+  border-bottom: 1px solid var(--border-soft, #e8e2d8);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -34,15 +34,15 @@
   align-items: center;
   gap: 9px;
   text-decoration: none;
-  color: var(--color-navy-900, #0D1526);
+  color: var(--color-navy-900, #201515);
 }
 
 .logoMark {
   width: 30px; height: 30px;
-  border-radius: 8px;
+  border-radius: 12px;
   display: grid; place-items: center;
-  background: var(--color-navy-900, #0D1526);
-  color: #fff;
+  background: var(--color-navy-900, #201515);
+  color: #fffefb;
 }
 
 .logoText {
@@ -57,9 +57,9 @@
   font-size: 10px;
   font-weight: 600;
   padding: 4px 10px;
-  border-radius: 999px;
-  background: #FEF2F2;
-  color: #B91C1C;
+  border-radius: 12px;
+  background: #fbeeea;
+  color: #8f2418;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -77,13 +77,13 @@
   font-family: var(--font-mono, monospace);
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-success, #1A7A4C);
+  color: var(--color-success, #3f6f4a);
 }
 
 .liveDot {
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--color-success, #1A7A4C);
+  background: var(--color-success, #3f6f4a);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -93,9 +93,9 @@
   gap: 5px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-navy-500, #5B6478);
+  color: var(--color-navy-500, #605d52);
 }
-.healthBadge svg { color: var(--color-success, #1A7A4C); }
+.healthBadge svg { color: var(--color-success, #3f6f4a); }
 
 .topRight {
   display: flex;
@@ -111,14 +111,14 @@
   font-family: var(--font-mono, monospace);
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-navy-800, #132040);
+  color: var(--color-navy-800, #201515);
   display: block;
   line-height: 1;
 }
 
 .clockDate {
   font-size: 10px;
-  color: var(--color-navy-400, #5B6478);
+  color: var(--color-navy-400, #605d52);
 }
 
 .alertBadge {
@@ -127,8 +127,8 @@
   justify-content: center;
   width: 24px; height: 24px;
   border-radius: 50%;
-  background: #FEE2E2;
-  color: #B91C1C;
+  background: #f7e3dd;
+  color: #8f2418;
   font-size: 11px;
   font-weight: 700;
 }
@@ -141,9 +141,9 @@
 
 .adminAvatar {
   width: 30px; height: 30px;
-  border-radius: 8px;
-  background: var(--color-navy-100, #D7DCF0);
-  color: var(--color-navy-700, #1A2D5A);
+  border-radius: 12px;
+  background: var(--color-navy-100, #ddd8cc);
+  color: var(--color-navy-700, #2b211c);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700;
   font-size: 12px;
@@ -152,7 +152,7 @@
 .adminName {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-navy-700, #1A2D5A);
+  color: var(--color-navy-700, #2b211c);
 }
 
 /* ── Body ── */
@@ -164,8 +164,8 @@
 /* ── Sidebar ── */
 .sidebar {
   width: 220px;
-  background: #fff;
-  border-right: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb;
+  border-right: 1px solid var(--border-soft, #e8e2d8);
   padding: 8px 10px;
   position: sticky;
   top: 56px;
@@ -180,43 +180,46 @@
   gap: 2px;
 }
 
+/* App-shell nav row — the active state is marked by the brand primary. */
 .navItem {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--fs-body);
   font-weight: 500;
-  color: var(--color-navy-500, #5B6478);
+  color: var(--brand-body);
   text-decoration: none;
-  transition: all 150ms ease;
-  border-radius: 8px;
+  transition: background-color 150ms ease, color 150ms ease;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
 }
-.navItem svg { flex-shrink: 0; color: var(--color-navy-400, #8A92A6); }
+.navItem svg { flex-shrink: 0; color: var(--brand-body-mid); }
 
 .navItem:hover {
-  background: var(--color-navy-50, #EFF1FA);
-  color: var(--color-navy-800, #132040);
+  background: var(--brand-canvas-soft);
+  color: var(--brand-ink);
 }
-.navItem:hover svg { color: var(--color-navy-600, #213573); }
+.navItem:hover svg { color: var(--brand-ink); }
 
 .active {
-  background: var(--color-navy-50, #EFF1FA);
-  color: var(--color-navy-800, #132040);
+  background: var(--brand-canvas-soft);
+  color: var(--brand-ink);
   font-weight: 600;
+  border-left-color: var(--brand-primary);
 }
-.active svg { color: var(--color-navy-700, #1A2D5A); }
+.active svg { color: var(--brand-primary); }
 
 .emergency {
   margin-top: 6px;
   padding-top: 14px;
-  border-top: 1px solid var(--border-soft, #E3E7F2);
-  color: #B91C1C;
+  border-top: 1px solid var(--border-soft, #e8e2d8);
+  color: #8f2418;
 }
-.emergency svg { color: #DC2626; }
+.emergency svg { color: #9b2226; }
 .emergency:hover {
-  background: #FEF2F2;
-  color: #991B1B;
+  background: #fbeeea;
+  color: #7a1a1d;
 }
 
 /* ── Main ── */

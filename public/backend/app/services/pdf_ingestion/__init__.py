@@ -1,5 +1,5 @@
 """
-§ 28.2 — Shared PDF ingestion pipeline.
+§ 28.2 — Shared PDF ingestion pipeline (used by all three question modes).
 """
 
 from app.services.pdf_ingestion.parser import (

@@ -15,29 +15,45 @@
  * authorises the fingerprint, and the applicant activates at a centre station
  * with code + live fingerprint (§9.4). This page cannot mint a working login.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { staffApi, type Centre } from "@/lib/api/staff";
+import { staffApi, type Centre, type StaffExam } from "@/lib/api/staff";
 
 type Role = "CENTER_INVIGILATOR" | "CENTER_ADMIN";
 
-export default function StaffRegistration() {
-  const searchParams = useSearchParams();
-  const roleParam = searchParams.get("role");
-  const initialRole: Role = roleParam === "CENTER_ADMIN" ? "CENTER_ADMIN" : "CENTER_INVIGILATOR";
-  const [role, setRole] = useState<Role>(initialRole);
+/**
+ * `useSearchParams` opts a component out of static prerendering unless it sits
+ * inside a Suspense boundary — Next fails the build otherwise. The exported
+ * page is therefore a thin shell and the form is the inner component.
+ */
+export default function StaffRegistrationPage() {
+  return (
+    <Suspense fallback={null}>
+      <StaffRegistration />
+    </Suspense>
+  );
+}
+
+function StaffRegistration() {
+  const search = useSearchParams();
+  const requested = search.get("role");
+  const [role, setRole] = useState<Role>(
+    requested === "CENTER_ADMIN" ? "CENTER_ADMIN" : "CENTER_INVIGILATOR",
+  );
   const [centres, setCentres] = useState<Centre[] | null>(null);
+  const [exams, setExams] = useState<StaffExam[] | null>(null);
   const [relayDown, setRelayDown] = useState(false);
   const [centerId, setCenterId] = useState("");
+  const [examId, setExamId] = useState("");
   const [fullName, setFullName] = useState("");
-  const [faceHash, setFaceHash] = useState<string | null>(null);
+  const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ requestId: string; approver: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    staffApi.centres()
-      .then((c) => setCentres(c))
+    Promise.all([staffApi.centres(), staffApi.exams()])
+      .then(([c, e]) => { setCentres(c); setExams(e); })
       .catch(() => setRelayDown(true));
   }, []);
 
@@ -45,7 +61,7 @@ export default function StaffRegistration() {
     setBusy(true);
     setError(null);
     try {
-      const j = await staffApi.register({ role, centerId, fullName, faceEmbeddingHash: faceHash! });
+      const j = await staffApi.register({ role, centerId, fullName, faceDescriptor: faceDescriptor!, examId: examId || undefined });
       setResult({ requestId: j.requestId, approver: j.approver });
     } catch (e) {
       setError((e as Error).message);
@@ -107,19 +123,35 @@ export default function StaffRegistration() {
               onClick={() => setRole(r)}
               style={{
                 flex: 1, padding: "12px 10px", borderRadius: 10, cursor: "pointer",
-                border: role === r ? "2px solid #1e40af" : "1px solid #cbd5e1",
-                background: role === r ? "#eff6ff" : "#fff", textAlign: "left",
+                border: role === r ? "2px solid #4a3f34" : "1px solid #c5c0b1",
+                background: role === r ? "#f2ede5" : "#fffefb", textAlign: "left",
               }}
             >
               <strong style={{ fontSize: 14 }}>{title}</strong>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{sub}</div>
+              <div style={{ fontSize: 11, color: "#605d52", marginTop: 2 }}>{sub}</div>
             </button>
           ))}
         </div>
 
+        <label style={label}>Examination (which exam will you be staffing)</label>
+        {relayDown ? (
+          <p style={{ color: "#8f2418", fontSize: 13 }}>Exam list unavailable — try again later.</p>
+        ) : (
+          <select value={examId} onChange={(e) => setExamId(e.target.value)} style={field}>
+            <option value="">{exams ? "— choose the examination —" : "loading exams…"}</option>
+            {(exams ?? []).map((x) => (
+              <option key={x.id} value={x.id}>
+                {/* Most exam names already carry the year, so appending it
+                    unconditionally read "CUET UG 2026 … (2026)". */}
+                {x.year && !x.name.includes(String(x.year)) ? `${x.name} (${x.year})` : x.name}
+              </option>
+            ))}
+          </select>
+        )}
+
         <label style={label}>Examination centre</label>
         {relayDown ? (
-          <p style={{ color: "#b91c1c", fontSize: 13 }}>
+          <p style={{ color: "#8f2418", fontSize: 13 }}>
             The HQ↔centre relay is unavailable right now — try again later. (Registrations are never
             taken without a live link to your centre.)
           </p>
@@ -138,21 +170,21 @@ export default function StaffRegistration() {
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} placeholder="e.g. Neha Rao" />
 
         <label style={label}>Face capture</label>
-        <FaceCapture onHash={setFaceHash} />
+        <FaceCapture onDescriptor={setFaceDescriptor} />
 
         {error && (
-          <p role="alert" style={{ color: "#b91c1c", fontSize: 13, marginTop: 12 }}>
+          <p role="alert" style={{ color: "#8f2418", fontSize: 13, marginTop: 12 }}>
             Registration failed · {error}
           </p>
         )}
 
         <button
-          disabled={busy || !centerId || !fullName.trim() || !faceHash || relayDown}
+          disabled={busy || !centerId || !fullName.trim() || !faceDescriptor || relayDown}
           onClick={submit}
           style={{
             width: "100%", marginTop: 18, padding: 14, borderRadius: 10, border: "none",
-            background: busy || !centerId || !fullName.trim() || !faceHash ? "#94a3b8" : "#1e40af",
-            color: "#fff", fontWeight: 600, fontSize: 15, cursor: "pointer",
+            background: busy || !centerId || !fullName.trim() || !faceDescriptor ? "#939084" : "#4a3f34",
+            color: "#fffefb", fontWeight: 600, fontSize: 15, cursor: "pointer",
           }}
         >
           {busy ? "Submitting…" : "Submit registration (PENDING approval)"}
@@ -168,13 +200,16 @@ export default function StaffRegistration() {
   );
 }
 
-/** Webcam capture → SHA-256 digest of the frame (the enrolment embedding-hash
- * stand-in). The raw image never leaves the browser. */
-function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
+
+
+import { loadFaceApi, detectFace } from "@/lib/biometric/face-real";
+
+/** Webcam capture → 128-float face descriptor. The raw image never leaves the browser. */
+function FaceCapture({ onDescriptor }: { onDescriptor: (d: number[] | null) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [state, setState] = useState<"idle" | "live" | "captured" | "denied">("idle");
-  const [hash, setHash] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "live" | "captured" | "denied">("idle");
+  const [descriptor, setDescriptor] = useState<number[] | null>(null);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -183,8 +218,10 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
   useEffect(() => stop, [stop]);
 
   async function start() {
+    setState("loading");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      await loadFaceApi();
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -193,35 +230,39 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
       setState("live");
     } catch {
       setState("denied");
-      onHash(null);
+      onDescriptor(null);
     }
   }
 
   async function capture() {
     const v = videoRef.current;
     if (!v) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = v.videoWidth || 640;
-    canvas.height = v.videoHeight || 480;
-    canvas.getContext("2d")!.drawImage(v, 0, 0);
-    const blob: Blob = await new Promise((res, rej) =>
-      canvas.toBlob((b) => (b ? res(b) : rej(new Error("capture"))), "image/png"),
-    );
-    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-    setHash(hex);
-    onHash(hex);
+    
+    // face-api.js can process the video element directly
+    const result = await detectFace(v);
+    if (!result) {
+      alert("No face detected. Please ensure good lighting and look at the camera.");
+      return;
+    }
+    
+    setDescriptor(result.descriptor);
+    onDescriptor(result.descriptor);
     setState("captured");
     stop();
   }
 
   return (
-    <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 12, background: "#f8fafc" }}>
+    <div style={{ border: "1px solid #c5c0b1", borderRadius: 10, padding: 12, background: "#fffefb" }}>
       {state === "idle" && (
         <button onClick={start} style={ghostBtn}>Enable camera for face capture</button>
       )}
+      {state === "loading" && (
+        <p style={{ fontSize: 13, color: "var(--color-navy-500)", margin: 0 }}>
+          Loading camera and face models…
+        </p>
+      )}
       {state === "denied" && (
-        <p style={{ fontSize: 13, color: "#b91c1c", margin: 0 }}>
+        <p style={{ fontSize: 13, color: "#8f2418", margin: 0 }}>
           Camera unavailable or denied — face capture is required to register.
           <button onClick={start} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
         </p>
@@ -233,13 +274,13 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
         style={{ width: "100%", borderRadius: 8, display: state === "live" ? "block" : "none" }}
       />
       {state === "live" && (
-        <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#1e40af", color: "#fff", border: "none" }}>
+        <button onClick={capture} style={{ ...ghostBtn, marginTop: 10, background: "#4a3f34", color: "#fffefb", border: "none" }}>
           Capture face
         </button>
       )}
-      {state === "captured" && hash && (
-        <p style={{ ...mono, fontSize: 12, margin: 0, color: "#15803d" }}>
-          ✓ face captured · digest {hash.slice(0, 16)}… (image stayed on this device)
+      {state === "captured" && descriptor && (
+        <p style={{ ...mono, fontSize: 12, margin: 0, color: "#2f5438" }}>
+          ✓ face captured · descriptor (128d) ready (image stayed on this device)
         </p>
       )}
     </div>
@@ -248,20 +289,20 @@ function FaceCapture({ onHash }: { onHash: (h: string | null) => void }) {
 
 const page: React.CSSProperties = {
   minHeight: "100vh", display: "flex", alignItems: "flex-start", justifyContent: "center",
-  padding: "48px 16px", background: "#f1f5f9",
+  padding: "48px 16px", background: "#f8f4f0",
 };
 const card: React.CSSProperties = {
-  width: "min(640px, 96vw)", background: "#fff", border: "1px solid #e2e8f0",
+  width: "min(640px, 96vw)", background: "#fffefb", border: "1px solid #e8e2d8",
   borderRadius: 16, padding: "30px 32px",
 };
 const h1: React.CSSProperties = { margin: 0, fontSize: 24 };
-const muted: React.CSSProperties = { color: "#64748b", fontSize: 14 };
-const label: React.CSSProperties = { display: "block", fontSize: 12, color: "#64748b", margin: "18px 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
+const muted: React.CSSProperties = { color: "#605d52", fontSize: 14 };
+const label: React.CSSProperties = { display: "block", fontSize: 12, color: "#605d52", margin: "18px 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
 const field: React.CSSProperties = {
-  width: "100%", padding: "11px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, background: "#fff",
+  width: "100%", padding: "11px 12px", borderRadius: 8, border: "1px solid #c5c0b1", fontSize: 14, background: "#fffefb",
 };
 const mono: React.CSSProperties = { fontFamily: "ui-monospace, monospace", wordBreak: "break-all" };
 const ghostBtn: React.CSSProperties = {
   display: "block", width: "100%", padding: "10px 12px", borderRadius: 8,
-  border: "1px solid #cbd5e1", background: "#fff", color: "#334155", fontSize: 13, cursor: "pointer",
+  border: "1px solid #c5c0b1", background: "#fffefb", color: "#36342e", fontSize: 13, cursor: "pointer",
 };

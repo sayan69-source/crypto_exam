@@ -5,6 +5,7 @@
  */
 
 import Link from 'next/link';
+import DemoBanner from '@/components/marketing/DemoBanner';
 import { mockSetterMetadata, mockTrustedInstitutions, mockExams } from '@/lib/api/mock-data';
 import styles from './paper-info.module.css';
 
@@ -20,6 +21,7 @@ export default function PaperInfoPage() {
 
   return (
     <div className={styles.container}>
+      <DemoBanner />
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <Link href="/" className={styles.logo}>CryptoExam</Link>
@@ -111,7 +113,7 @@ export default function PaperInfoPage() {
                 <span className={styles.trustStatLabel}>Exams Conducted</span>
               </div>
               <div className={styles.trustStat}>
-                <span className={styles.trustStatValue} style={{ color: '#16a34a' }}>{setter.institution_leak_incidents}</span>
+                <span className={styles.trustStatValue} style={{ color: '#3f6f4a' }}>{setter.institution_leak_incidents}</span>
                 <span className={styles.trustStatLabel}>Paper Leak Incidents</span>
               </div>
             </div>
@@ -127,7 +129,7 @@ export default function PaperInfoPage() {
               </div>
               <div className={styles.detailItem}>
                 <span className={styles.detailLabel}>Verification Status</span>
-                <span className={styles.detailValue} style={{ color: '#16a34a', fontWeight: 700 }}>✓ Premier Verified</span>
+                <span className={styles.detailValue} style={{ color: '#3f6f4a', fontWeight: 700 }}>✓ Premier Verified</span>
               </div>
               <div className={styles.detailItem}>
                 <span className={styles.detailLabel}>Verified On</span>

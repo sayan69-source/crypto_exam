@@ -1,11 +1,11 @@
 /* CryptoExam Core — Setter Layout
-   Premium minimalistic · light professional portal */
+   Premium minimalistic · light professional workbench */
 
 .container {
   display: flex;
   min-height: 100vh;
-  background: var(--bg-page, #F8F9FC);
-  color: var(--text-body, #313A52);
+  background: var(--bg-page, #fffefb);
+  color: var(--text-body, #2f2a26);
 }
 
 /* ── Sidebar ── */
@@ -13,8 +13,8 @@
   width: 260px;
   position: fixed;
   top: 0; left: 0; bottom: 0;
-  background: #fff;
-  border-right: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb;
+  border-right: 1px solid var(--border-soft, #e8e2d8);
   display: flex;
   flex-direction: column;
   padding: 20px 0;
@@ -24,7 +24,7 @@
 
 .sidebarHeader {
   padding: 0 20px 18px;
-  border-bottom: 1px solid var(--border-soft, #E3E7F2);
+  border-bottom: 1px solid var(--border-soft, #e8e2d8);
 }
 
 .logo {
@@ -32,16 +32,16 @@
   align-items: center;
   gap: 9px;
   text-decoration: none;
-  color: var(--color-navy-900, #0D1526);
+  color: var(--color-navy-900, #201515);
   margin-bottom: 10px;
 }
 
 .logoMark {
   width: 30px; height: 30px;
-  border-radius: 8px;
+  border-radius: 12px;
   display: grid; place-items: center;
-  background: var(--color-navy-900, #0D1526);
-  color: #fff;
+  background: var(--color-navy-900, #201515);
+  color: #fffefb;
 }
 
 .logoText {
@@ -57,9 +57,9 @@
   font-size: 10px;
   font-weight: 600;
   padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--color-saffron-100, #FFF0D6);
-  color: var(--color-saffron-700, #B06012);
+  border-radius: 12px;
+  background: var(--color-saffron-100, #fff0e8);
+  color: var(--color-saffron-700, #7a2600);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -70,14 +70,14 @@
   align-items: center;
   gap: 10px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-soft, #E3E7F2);
+  border-bottom: 1px solid var(--border-soft, #e8e2d8);
 }
 
 .avatar {
   width: 34px; height: 34px;
-  border-radius: 8px;
-  background: var(--color-navy-100, #D7DCF0);
-  color: var(--color-navy-700, #1A2D5A);
+  border-radius: 12px;
+  background: var(--color-navy-100, #ddd8cc);
+  color: var(--color-navy-700, #2b211c);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700;
   font-size: 14px;
@@ -93,7 +93,7 @@
 .userName {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-navy-800, #132040);
+  color: var(--color-navy-800, #201515);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -101,7 +101,7 @@
 
 .userInst {
   font-size: 11px;
-  color: var(--color-navy-400, #5B6478);
+  color: var(--color-navy-400, #605d52);
 }
 
 /* ── Navigation ── */
@@ -113,39 +113,40 @@
   gap: 2px;
 }
 
+/* App-shell nav row — the active state is marked by the brand primary. */
 .navItem {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--fs-body);
   font-weight: 500;
-  color: var(--color-navy-500, #5B6478);
+  color: var(--brand-body);
   text-decoration: none;
-  border-radius: 8px;
-  transition: all 150ms ease;
+  border-radius: var(--radius-sm);
+  transition: background-color 150ms ease, color 150ms ease;
   border-left: 3px solid transparent;
 }
-.navItem svg { flex-shrink: 0; color: var(--color-navy-400, #8A92A6); }
+.navItem svg { flex-shrink: 0; color: var(--brand-body-mid); }
 
 .navItem:hover {
-  background: var(--color-navy-50, #EFF1FA);
-  color: var(--color-navy-800, #132040);
+  background: var(--brand-canvas-soft);
+  color: var(--brand-ink);
 }
-.navItem:hover svg { color: var(--color-navy-600, #213573); }
+.navItem:hover svg { color: var(--brand-ink); }
 
 .active {
-  background: var(--color-navy-50, #EFF1FA);
-  color: var(--color-navy-800, #132040);
+  background: var(--brand-canvas-soft);
+  color: var(--brand-ink);
   font-weight: 600;
-  border-left-color: var(--color-saffron-500, #E07020);
+  border-left-color: var(--brand-primary);
 }
-.active svg { color: var(--color-saffron-600, #C35E0D); }
+.active svg { color: var(--brand-primary); }
 
 /* ── Sidebar Footer ── */
 .sidebarFooter {
   padding: 14px 20px;
-  border-top: 1px solid var(--border-soft, #E3E7F2);
+  border-top: 1px solid var(--border-soft, #e8e2d8);
 }
 
 .backLink {
@@ -153,12 +154,12 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--color-navy-400, #5B6478);
+  color: var(--color-navy-400, #605d52);
   text-decoration: none;
   transition: color 150ms ease;
 }
 .backLink svg { transform: rotate(180deg); }
-.backLink:hover { color: var(--color-navy-700, #1A2D5A); }
+.backLink:hover { color: var(--color-navy-700, #2b211c); }
 
 /* ── Main Content ── */
 .main {

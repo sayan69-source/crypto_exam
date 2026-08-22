@@ -1,4 +1,13 @@
 """
+NOTE ON THE ROLE GATE
+---------------------
+Every route here is SYSTEM_ADMIN (tier-0), which is what the descriptions
+always claimed. They were gated on ADMIN — so a tier-1 operations
+administrator could unwrap data keys and read candidate answers, while the
+tier that exists to hold exactly that authority could not. The whole point of
+separating the tiers is that running the platform day to day does not carry
+the power to read answers.
+
 CryptoExam — System Admin (Tier-0 / HQ) Answer-Ledger API
 ZUUP-OS §13.5 + §11.4.  The ONLY tier that turns ciphertext back into answers.
 
@@ -22,11 +31,15 @@ the key-ceremony test vector (§18.2).
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
 from app.models import UserRole
 from app.services.auth import require_role
 
@@ -158,7 +171,7 @@ def _assert_no_pii(anchor: AnchorRequest) -> None:
 )
 async def ingest_bundle(
     bundle: SyncBundle,
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
     # 1 — manifest integrity: the centre node signed exactly these bytes.
     manifest_bytes = _canonical_json(bundle.manifest.model_dump())
@@ -183,11 +196,15 @@ async def ingest_bundle(
 )
 async def decrypt_bundle(
     bundle: SyncBundle,
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
-    from app.config import settings
+    # `app.config` exports get_settings(), not a module-level `settings`, so the
+    # old `from app.config import settings` here raised ImportError — the tier-0
+    # decrypt route could not run at all, and the failure looked like a 500 with
+    # no connection to key custody.
+    from app.config import get_settings
 
-    private_pem = getattr(settings, "SYSTEM_ADMIN_PRIVATE_KEY_PEM", None)
+    private_pem = getattr(get_settings(), "SYSTEM_ADMIN_PRIVATE_KEY_PEM", None)
     if not private_pem:
         # In production this branch never runs: decryption is an HSM operation.
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "HSM_NOT_AVAILABLE")
@@ -211,7 +228,7 @@ async def decrypt_bundle(
 )
 async def anchor_centre_root(
     req: AnchorRequest,
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
     _assert_no_pii(req)
     from app.services.blockchain import BlockchainService
@@ -225,3 +242,262 @@ async def anchor_centre_root(
         node_pubkey=req.nodePubkey,
     )
     return {"ok": True, "tx": tx}
+
+
+class StoreDecryptedRequest(BaseModel):
+    centreIdHash: str
+    decrypted: list[dict[str, Any]]
+    polygonTx: str | None = None
+    chainRoot: str | None = None
+
+
+@router.post(
+    "/ledger/store",
+    summary="Store decrypted answers (tier-0)",
+    description="Persist plaintext answers into the System Admin store. Prefer "
+    "/ledger/open, which decrypts what a centre already delivered without the "
+    "plaintext ever leaving this process.",
+)
+async def store_decrypted(
+    req: StoreDecryptedRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+):
+    """
+    Gated on SYSTEM_ADMIN, not ADMIN.
+
+    Every other route in this module is tier-0 because tier-0 is the only tier
+    that may turn ciphertext into answers. This one was left on ADMIN, which is
+    worse than the read it mirrors: it does not merely let a tier-1 operations
+    administrator READ answers, it lets them WRITE the store — post any JSON
+    they like as candidate X's paper for exam Y, into the table results are
+    computed from.
+    """
+    from app.models import DecryptedAnswerRecord
+
+    stored = 0
+    for a in req.decrypted:
+        db.add(DecryptedAnswerRecord(
+            exam_id=a["examId"],
+            centre_id_hash=req.centreIdHash,
+            seat_no=a.get("seatNo"),
+            leaf_index=a["leafIndex"],
+            answers=a["record"],
+            chain_root=req.chainRoot,
+            polygon_tx=req.polygonTx,
+        ))
+        stored += 1
+
+    # The enrolment status is deliberately NOT touched here.
+    #
+    # This used to set `EnrollmentStatus.SUBMITTED` "if it exists" and fall back
+    # to the bare string otherwise. It does not exist — the enum is
+    # ENROLLED/PRESENT/ABSENT/DISQUALIFIED — so the fallback always ran and
+    # assigned a value outside the type. On Postgres that is
+    # `invalid input value for enum`, which failed the whole call on the live
+    # deployment for any bundle whose records carried a roll number; on SQLite
+    # it wrote a status nothing else understands.
+    #
+    # The right model is the one the Edge already uses: a candidate stays
+    # PRESENT, and "submitted" is a property of the ledger. The existence of the
+    # row added above IS the record of submission.
+    await db.commit()
+    logger.info("Stored %d decrypted answers for centre %s", stored, req.centreIdHash[:12])
+    return {"ok": True, "stored": stored}
+
+
+class OpenRequest(BaseModel):
+    """Which of the sealed records that have ARRIVED to open."""
+    examId: str | None = None
+    centreIdHash: str | None = None
+    limit: int = 500
+
+
+@router.post(
+    "/ledger/open",
+    summary="Decrypt sealed records a centre already delivered (tier-0 + HSM)",
+    description="Reads what the courier delivered, re-walks the chain, HSM-unwraps "
+    "each data key and persists the plaintext. Returns counts only — the answers "
+    "never leave this process.",
+)
+async def open_received(
+    req: OpenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The step that was missing between "the answers arrived" and "the answers exist".
+
+    Until the courier existed, a bundle reached HQ only by an operator pasting it
+    into a console: /decrypt returned the plaintext to that browser and /store
+    posted it back. That round trip is now avoidable and should be avoided — it
+    put the only plaintext copy of a paper through a browser, and it made the
+    write path accept whatever came back rather than what was decrypted.
+
+    Here the ciphertext is already in the database, so the whole operation is
+    server-side: verify, unwrap, write, mark. What comes back is a count.
+
+    Idempotent: rows already carrying `decrypted_at` are skipped, so re-running
+    after a partial failure resumes rather than duplicating.
+    """
+    from app.config import get_settings
+    from app.models import CentreSealedRecord, DecryptedAnswerRecord
+
+    private_pem = getattr(get_settings(), "SYSTEM_ADMIN_PRIVATE_KEY_PEM", None)
+    if not private_pem:
+        # In production this is an HSM operation and the key never enters this
+        # process; a deployment without one cannot open anything, and says so
+        # rather than half-succeeding.
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "HSM_NOT_AVAILABLE")
+
+    q = select(CentreSealedRecord).where(CentreSealedRecord.decrypted_at.is_(None))
+    if req.examId:
+        q = q.where(CentreSealedRecord.exam_id == req.examId)
+    if req.centreIdHash:
+        q = q.where(CentreSealedRecord.centre_id_hash == req.centreIdHash)
+    rows = (await db.execute(q.order_by(
+        CentreSealedRecord.exam_id, CentreSealedRecord.leaf_index
+    ).limit(max(1, min(req.limit, 5000))))).scalars().all()
+
+    if not rows:
+        return {"ok": True, "opened": 0, "failed": [], "note": "nothing sealed is waiting"}
+
+    # Re-walk the chain before any key is used (INV-9), from what was STORED
+    # rather than from what a caller sent. A record whose envelope no longer
+    # digests to its leaf is refused with the rest of its exam: a chain is only
+    # meaningful whole.
+    as_records = [ExportRecord(
+        examId=r.exam_id, seatNo=r.seat_no, leafIndex=r.leaf_index, leaf=r.leaf,
+        prevRoot=r.prev_root, chainRoot=r.chain_root, nodeRootSig=r.node_root_sig,
+        ciphertext=r.ciphertext, iv=r.iv, authTag=r.auth_tag, wrappedDk=r.wrapped_dk,
+    ) for r in rows]
+    _verify_chain(as_records)
+
+    opened = 0
+    failed: list[dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+    for r in rows:
+        try:
+            dk = _hsm_unwrap(bytes.fromhex(r.wrapped_dk), private_pem)
+            pt = _aes_gcm_open(
+                bytes.fromhex(r.ciphertext), bytes.fromhex(r.iv), bytes.fromhex(r.auth_tag), dk,
+            )
+            answers = json.loads(pt)
+        except Exception as exc:
+            # One unopenable envelope must not abort the exam. It is quarantined
+            # by being left sealed and named here — the previous decrypt path
+            # let a single poisoned row take down every other candidate in the
+            # same call.
+            failed.append({
+                "examId": r.exam_id, "seatNo": r.seat_no, "leafIndex": r.leaf_index,
+                "reason": type(exc).__name__,
+            })
+            continue
+
+        db.add(DecryptedAnswerRecord(
+            exam_id=r.exam_id,
+            centre_id_hash=r.centre_id_hash,
+            seat_no=r.seat_no,
+            leaf_index=r.leaf_index,
+            answers=answers,
+            chain_root=r.chain_root,
+        ))
+        r.decrypted_at = now
+        opened += 1
+
+    await db.commit()
+    logger.info("tier-0 opened %d sealed record(s); %d quarantined", opened, len(failed))
+    return {"ok": True, "opened": opened, "failed": failed}
+
+
+class AnchorReceivedRequest(BaseModel):
+    """Anchor what a centre actually delivered, rather than what a caller types."""
+    examId: str
+    centreIdHash: str
+
+
+@router.post(
+    "/ledger/anchor-received",
+    summary="Anchor a delivered centre's answer-root, derived from storage (tier-0)",
+    description="Re-walks the stored chain for one (exam, centre) and anchors ITS "
+    "final root. Roots, counts and hashes only — never a roll, a name or ciphertext.",
+)
+async def anchor_received(
+    req: AnchorReceivedRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The difference from ``/ledger/anchor`` is where the number comes from.
+
+    That route takes ``answerRoot`` from the request body, which was the only
+    option while a bundle existed nowhere but in the caller's clipboard. It means
+    the value published on a public chain — the one an auditor later checks a
+    centre's paper against — is whatever the operator pasted. Now that the
+    courier delivers into ``centre_sealed_records``, HQ can derive it: re-walk
+    the chain it received and anchor the root that walk produces.
+
+    A broken chain therefore cannot be anchored at all, rather than being
+    anchored under a root that describes a different set of answers.
+
+    One anchor per (exam, centre): the contract reverts a second attempt, so this
+    route does not need to guard against a re-anchor and deliberately does not
+    pretend to — a revert is the honest answer.
+    """
+    from app.models import CentreSealedRecord, DecryptedAnswerRecord
+    from app.services.blockchain import BlockchainService
+
+    rows = (await db.execute(
+        select(CentreSealedRecord)
+        .where(CentreSealedRecord.exam_id == req.examId,
+               CentreSealedRecord.centre_id_hash == req.centreIdHash)
+        .order_by(CentreSealedRecord.leaf_index)
+    )).scalars().all()
+    if not rows:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "NOTHING_RECEIVED_FOR_THIS_CENTRE")
+
+    # Re-walk before publishing. INV-9 applies harder here than anywhere else:
+    # an anchor is irreversible and public.
+    _verify_chain([ExportRecord(
+        examId=r.exam_id, seatNo=r.seat_no, leafIndex=r.leaf_index, leaf=r.leaf,
+        prevRoot=r.prev_root, chainRoot=r.chain_root, nodeRootSig=r.node_root_sig,
+        ciphertext=r.ciphertext, iv=r.iv, authTag=r.auth_tag, wrappedDk=r.wrapped_dk,
+    ) for r in rows])
+
+    final = rows[-1]
+    node_pubkeys = {r.node_pubkey for r in rows if r.node_pubkey}
+    if len(node_pubkeys) > 1:
+        # Two different centre nodes signing one chain is not a chain. Refuse
+        # rather than pick one and publish a root nobody can attribute.
+        raise HTTPException(status.HTTP_409_CONFLICT, "MULTIPLE_NODE_KEYS_IN_ONE_CHAIN")
+
+    anchor = AnchorRequest(
+        examId=req.examId,
+        centreIdHash=req.centreIdHash,
+        answerRoot=final.chain_root,
+        count=len(rows),
+        nodePubkey=next(iter(node_pubkeys), ""),
+    )
+    _assert_no_pii(anchor)
+
+    tx = await BlockchainService().anchor_centre_answer_root(
+        exam_id=anchor.examId,
+        centre_id_hash=anchor.centreIdHash,
+        answer_root=anchor.answerRoot,
+        count=anchor.count,
+        node_pubkey=anchor.nodePubkey,
+    )
+
+    # Record it against the answers this root covers, so a result can be traced
+    # to the transaction that published its chain.
+    await db.execute(
+        update(DecryptedAnswerRecord)
+        .where(DecryptedAnswerRecord.exam_id == req.examId,
+               DecryptedAnswerRecord.centre_id_hash == req.centreIdHash)
+        .values(polygon_tx=tx, chain_root=final.chain_root)
+    )
+    await db.commit()
+
+    logger.info("anchored centre %s exam %s root %s count %d tx %s",
+                req.centreIdHash[:12], req.examId, final.chain_root[:16], len(rows), tx)
+    return {"ok": True, "tx": tx, "answerRoot": final.chain_root, "count": len(rows)}

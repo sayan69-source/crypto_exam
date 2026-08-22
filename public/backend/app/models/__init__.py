@@ -16,12 +16,28 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import TypeDecorator
 
 from app.database import Base
 
-# Use String(36) instead of PostgreSQL UUID for SQLite compatibility
 # Use JSON instead of JSONB for SQLite compatibility
 # Use String instead of INET for SQLite compatibility
+
+
+class GUID(TypeDecorator):
+    """UUID-friendly id column. Stored as a dashed UUID string (length 36) for
+    SQLite compatibility, but binds UUID objects to that same string form — so
+    both ``Model.id == UUID(x)`` and ``Model.id == "x"`` match. Without this,
+    code that coerces ids to ``UUID(...)`` (path params, token sub) silently
+    matched no rows on SQLite, breaking every id-filtered lookup."""
+
+    impl = String(length=36)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return str(value)  # UUID or str → dashed string
 
 
 # ── Python ENUM Types ──
@@ -31,6 +47,10 @@ class UserRole(str, enum.Enum):
     SETTER = "SETTER"
     ADMIN = "ADMIN"
     INVIGILATOR = "INVIGILATOR"  # § 29 — Centre Invigilator Gateway (Interface D)
+    # Tier-0. The only role that can decrypt answers, so it does not sign in
+    # with a password alone: enrolment is IP-restricted and login requires a
+    # WebAuthn fingerprint assertion (api/v1/sysadmin_auth.py).
+    SYSTEM_ADMIN = "SYSTEM_ADMIN"
 
 
 class VerificationResultEnum(str, enum.Enum):
@@ -109,6 +129,14 @@ class EnrollmentStatus(str, enum.Enum):
     DISQUALIFIED = "DISQUALIFIED"
 
 
+class CandidateApprovalStatus(str, enum.Enum):
+    """Admin approval workflow for candidate enrolments.
+    Intentionally separate from EnrollmentStatus (which tracks exam-day state)."""
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class ConnectivityTier(str, enum.Enum):
     TIER_1_METRO = "TIER_1_METRO"
     TIER_2_4G = "TIER_2_4G"
@@ -126,8 +154,11 @@ class User(Base):
     """
     __tablename__ = "users"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     email = Column(String(255), unique=True, nullable=True)
+    email_normalized = Column(String(255), unique=True, nullable=True)
+    email_verified = Column(Boolean, default=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
     phone = Column(String(15), nullable=True)
     role = Column(Enum(UserRole, name="user_role", create_type=True), nullable=False)
     full_name = Column(String(255), nullable=False)
@@ -152,7 +183,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    enrollments = relationship("Enrollment", back_populates="candidate")
+    enrollments = relationship("Enrollment", foreign_keys="[Enrollment.candidate_id]", back_populates="candidate")
     exams_set = relationship("Exam", back_populates="setter")
 
 
@@ -160,7 +191,7 @@ class Exam(Base):
     """Core exam record with full lifecycle state machine."""
     __tablename__ = "exams"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     name = Column(String(500), nullable=False)
     name_hi = Column(String(500), nullable=True)
     name_regional = Column(String(500), nullable=True)
@@ -168,9 +199,10 @@ class Exam(Base):
     subject_taxonomy = Column(JSON, nullable=False)
     exam_type = Column(Enum(ExamType, name="exam_type", create_type=True), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=True)  # Problem 3: exam cycle year e.g. 2026
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     status = Column(Enum(ExamStatus, name="exam_status", create_type=True), nullable=False, default=ExamStatus.DRAFT)
-    setter_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    setter_id = Column(GUID, ForeignKey("users.id"), nullable=True)
     co_setter_ids = Column(JSON, nullable=True)
     sets_count = Column(Integer, default=4)
     negative_marking = Column(Numeric(4, 2), default=0.25)
@@ -207,8 +239,8 @@ class Question(Base):
     """IRT-calibrated question with Bloom's taxonomy and NCERT alignment."""
     __tablename__ = "questions"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
     set_label = Column(String(1), nullable=True)
     sequence_number = Column(Integer, nullable=True)
     text = Column(Text, nullable=False)
@@ -238,7 +270,7 @@ class Center(Base):
     """Exam center with geolocation and connectivity classification."""
     __tablename__ = "centers"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     name = Column(String(255), nullable=False)
     country = Column(String(100), default="India")
     state = Column(String(100), nullable=True)
@@ -255,6 +287,22 @@ class Center(Base):
     isp = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
+    # ── the centre's own uplink credential (ZUUP-OS §12) ──────────────────
+    #
+    # A centre's Admin Station is the one machine in the hall permitted to
+    # reach the internet, and it does so with no human logged in: a daemon
+    # pulls this centre's bundle before exam day and pushes the sealed ledger
+    # back afterwards. It cannot present a System Admin session, and it must
+    # not be given one — a stolen station would then hold tier-0 authority
+    # over the whole platform rather than over one centre's courier traffic.
+    #
+    # So the centre gets a credential of its own, scoped to itself. Only the
+    # SHA-256 is stored: HQ never needs the plaintext again after handing it
+    # to the operator once, and a database read must not yield a working key.
+    sync_key_hash = Column(String(64), nullable=True)
+    sync_key_issued_at = Column(DateTime(timezone=True), nullable=True)
+    last_sync_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     hardware_nodes = relationship("HardwareNode", back_populates="center")
     enrollments = relationship("Enrollment", back_populates="center")
@@ -264,8 +312,8 @@ class HardwareNode(Base):
     """Physical security node: TPM 2.0 + GPS + tamper detection."""
     __tablename__ = "hardware_nodes"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     serial_number = Column(String(100), unique=True, nullable=True)
     tpm_ek_cert_hash = Column(LargeBinary, nullable=True)
     gps_calibration = Column(JSON, nullable=True)
@@ -317,20 +365,39 @@ class Enrollment(Base):
     """Candidate-exam-center mapping with set assignment."""
     __tablename__ = "enrollments"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    candidate_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    candidate_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     set_label = Column(String(1), nullable=True)
     roll_number = Column(String(50), nullable=True)
     status = Column(Enum(EnrollmentStatus, name="enrollment_status", create_type=True), default=EnrollmentStatus.ENROLLED)
+
+    # Problem 3: registration year + audit timestamp
+    registration_year = Column(Integer, nullable=True)   # Confirmed/authoritative registration year
+    enrolled_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)  # Audit timestamp
+
+    # Problem 1: candidate email for confirmation notice
+    email = Column(String(255), nullable=True)
+
+    # Problem 2: admin-approval workflow (separate from EnrollmentStatus which is exam-day state)
+    approval_status = Column(
+        Enum(CandidateApprovalStatus, name="candidate_approval_status", create_type=True),
+        default=CandidateApprovalStatus.PENDING,
+        nullable=False,
+    )
+    approved_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("candidate_id", "exam_id", name="uq_enrollment_candidate_exam"),
     )
 
     # Relationships
-    candidate = relationship("User", back_populates="enrollments")
+    candidate = relationship("User", foreign_keys=[candidate_id], back_populates="enrollments")
+    approver = relationship("User", foreign_keys=[approved_by])
     exam = relationship("Exam", back_populates="enrollments")
     center = relationship("Center", back_populates="enrollments")
     session = relationship("Session", back_populates="enrollment", uselist=False)
@@ -343,8 +410,8 @@ class Session(Base):
     """
     __tablename__ = "sessions"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    enrollment_id = Column(String(36), ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    enrollment_id = Column(GUID, ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     answers_encrypted = Column(JSON, nullable=True)  # In-session JSON, encrypted at final commit
@@ -369,15 +436,15 @@ class Anomaly(Base):
     """Anti-cheat event log with severity classification."""
     __tablename__ = "anomalies"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=True)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    session_id = Column(GUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=True)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     type = Column(Enum(AnomalyType, name="anomaly_type", create_type=True), nullable=True)
     severity = Column(Integer, nullable=True)
     details = Column(JSON, nullable=True)
     resolved = Column(Boolean, default=False)
-    resolved_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resolved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
@@ -390,13 +457,13 @@ class AdminAuditLog(Base):
     """Administrative action audit trail with 2-admin co-signature."""
     __tablename__ = "admin_audit_log"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    admin_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    admin_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=True)
     target_type = Column(String(50), nullable=True)
-    target_id = Column(String(36), nullable=True)
+    target_id = Column(GUID, nullable=True)
     reason = Column(Text, nullable=True)
-    co_admin_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    co_admin_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     ip_address = Column(String(45), nullable=True)
     on_chain_tx = Column(String(66), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -406,9 +473,9 @@ class DPDPAuditLog(Base):
     """DPDP Act 2023 compliance — data subject rights + admin action tracking."""
     __tablename__ = "dpdp_audit_log"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    principal_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    principal_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=True)
     resource_type = Column(String(50), nullable=True)
     resource_id = Column(String(100), nullable=True)
@@ -416,7 +483,7 @@ class DPDPAuditLog(Base):
     ip_address = Column(String(45), nullable=True)
     requested_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     fulfilled_at = Column(DateTime(timezone=True), nullable=True)
-    fulfilled_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    fulfilled_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     data_categories = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -434,10 +501,10 @@ class BiometricEnrollment(Base):
     """
     __tablename__ = "biometric_enrollments"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     # Derived biometrics (never raw)
     face_embedding = Column(JSON, nullable=True)          # list[float] feature vector
     fp_template_hash = Column(String(128), nullable=True) # hex digest of FP template
@@ -461,11 +528,11 @@ class CandidateVerification(Base):
     """
     __tablename__ = "candidate_verifications"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    candidate_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    invigilator_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    candidate_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    invigilator_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     hall_ticket = Column(String(100), nullable=True)
     face_match = Column(Boolean, default=False)
     face_confidence = Column(Numeric(5, 4), nullable=True)
@@ -489,9 +556,9 @@ class ShamirShard(Base):
     """Secret sharing shard metadata — hash only, never raw shard."""
     __tablename__ = "shamir_shards"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
-    holder_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)
+    holder_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     shard_index = Column(Integer, nullable=True)
     shard_hash = Column(LargeBinary, nullable=True)
     is_submitted = Column(Boolean, default=False)
@@ -516,8 +583,8 @@ class SealedQuestionBundle(Base):
     """
     __tablename__ = "sealed_question_bundles"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
     questions_root = Column(String(66), nullable=False)   # 0x-prefixed hex — committed on-chain
     bundle_cid = Column(String(100), nullable=True)       # content-addressed pointer (IPFS) anchored on-chain
     question_count = Column(Integer, nullable=False, default=0)
@@ -547,12 +614,13 @@ class StaffRegistrationRequest(Base):
     """
     __tablename__ = "staff_registration_requests"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     role = Column(String(32), nullable=False)              # CENTER_ADMIN | CENTER_INVIGILATOR
-    center_id = Column(String(36), ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
     center_name = Column(String(255), nullable=True)       # denormalised for display
     full_name = Column(String(255), nullable=False)
-    face_embedding_hash = Column(String(64), nullable=False)
+    face_descriptor = Column(JSON, nullable=False)  # 128-float list
+    exam_id = Column(String(36), ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)  # Problem 5
     status = Column(Enum(StaffApprovalStatus, name="staff_approval_status", create_type=True), default=StaffApprovalStatus.PENDING)
     fingerprint_authorised = Column(Boolean, default=False)
     activation_code_hash = Column(String(64), nullable=True)   # SHA-256 of the issued code (cleartext never stored)
@@ -563,6 +631,7 @@ class StaffRegistrationRequest(Base):
 
     # Relationships
     center = relationship("Center")
+    exam = relationship("Exam")
 
 
 class OtpChallenge(Base):
@@ -571,8 +640,8 @@ class OtpChallenge(Base):
     SHA-256 hash — and a challenge is consumed on first successful verify."""
     __tablename__ = "otp_challenges"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     code_hash = Column(String(64), nullable=False)
     phone = Column(String(20), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
@@ -580,3 +649,789 @@ class OtpChallenge(Base):
     attempts = Column(Integer, default=0)
     delivery = Column(String(20), default="sms")   # sms | dev
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class SystemAdminCredential(Base):
+    """
+    The tier-0 System Admin's hardware-bound login credential.
+
+    Password + OTP is not enough for the account that can decrypt answers, so
+    this tier authenticates with a WebAuthn platform authenticator — the
+    fingerprint sensor on the machine itself (Windows Hello, Touch ID). The
+    private key never leaves the device's secure element; we store only the
+    public key, so a stolen database cannot produce an assertion.
+
+    `sign_count` is the authenticator's monotonic counter. A replayed assertion
+    carries a counter that does not advance, which is how cloned authenticators
+    are detected — see verify_assertion().
+
+    `face_embedding_hash` is the SHA-256 of the enrolment face descriptor. The
+    descriptor itself is never stored (DPDP: biometric data is not retained,
+    only a hash that can confirm a later match).
+
+    `registered_ip` records where enrolment happened, because enrolment is
+    restricted to an operator-controlled address (SYSTEM_ADMIN_ALLOWED_IPS).
+    """
+    __tablename__ = "system_admin_credentials"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # WebAuthn credential — base64url id, SPKI DER public key.
+    credential_id = Column(String(512), unique=True, nullable=False, index=True)
+    public_key_spki = Column(LargeBinary, nullable=False)
+    sign_count = Column(Integer, nullable=False, default=0)
+    aaguid = Column(String(64), nullable=True)
+
+    # Second enrolment factor. Hash only — never the descriptor itself.
+    face_embedding_hash = Column(String(64), nullable=True)
+
+    registered_ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class EnquiryStatus(str, enum.Enum):
+    NEW = "NEW"
+    IN_REVIEW = "IN_REVIEW"
+    ANSWERED = "ANSWERED"
+    CLOSED = "CLOSED"
+
+
+class Enquiry(Base):
+    """
+    An enquiry from the public site — "request a briefing", exam questions,
+    press, procurement.
+
+    This table exists because the contact form previously had no destination at
+    all: `handleSubmit` set a "sent" flag in React state and discarded the
+    message. An examination board would have filled in the form, been told it
+    was sent, and waited for a reply nobody could have known to write. For a
+    system whose whole argument is "don't take our word for it", silently
+    dropping the one channel the public has is the worst possible defect.
+
+    DPDP note: this holds contact details the enquirer chose to give us, so it
+    is personal data with a purpose (answering them) and a retention duty. It is
+    deliberately NOT joined to any exam, candidate or centre record.
+    """
+    __tablename__ = "enquiries"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    reference = Column(String(20), unique=True, nullable=False, index=True)
+    full_name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False)
+    phone = Column(String(32), nullable=True)
+    organisation = Column(String(255), nullable=True)
+    role_title = Column(String(255), nullable=True)
+    topic = Column(String(64), nullable=False, default="GENERAL")
+    message = Column(Text, nullable=False)
+
+    status = Column(
+        Enum(EnquiryStatus, name="enquiry_status", create_type=True),
+        nullable=False,
+        default=EnquiryStatus.NEW,
+        index=True,
+    )
+    handled_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    handled_at = Column(DateTime(timezone=True), nullable=True)
+    internal_note = Column(Text, nullable=True)
+
+    # Kept for abuse handling only, never shown alongside the message body.
+    source_ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ITEM POOL (design doc §5.1, §5.3, §6.1)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Questions used to belong to an exam from birth (`questions.exam_id`), so
+# there was nothing to assemble *from*: one setter authored one paper and knew
+# all of it. These two tables are the change that makes "the setter cannot leak
+# the paper" a statement about arithmetic rather than about trust.
+#
+# A template is authored once and expands into many sibling items. A pool item
+# belongs to NO exam until a form selects it, and the selection happens from a
+# beacon that did not exist when the item was written.
+
+
+class ItemStatus(str, enum.Enum):
+    DRAFT = "DRAFT"                 # authored, not yet expanded
+    PROVISIONAL = "PROVISIONAL"     # verified, difficulty is an estimate not a measurement
+    CALIBRATED = "CALIBRATED"       # IRT estimated from real response data
+    RETIRED = "RETIRED"             # over-exposed or withdrawn
+    REJECTED = "REJECTED"           # failed the gauntlet
+
+
+class ItemTemplate(Base):
+    """
+    A parametric item model. The answer is an EXPRESSION, never an asserted
+    value — which is what makes a hallucinated key structurally impossible
+    (§5.1). One template yields many siblings that differ only in parameters.
+    """
+    __tablename__ = "item_templates"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    template_id = Column(String(64), unique=True, nullable=False, index=True)
+    author_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    subject = Column(String(120), nullable=False, index=True)
+    topic = Column(String(200), nullable=True)
+    blooms_level = Column(Integer, nullable=True)
+
+    stem = Column(Text, nullable=False)                  # with {param} placeholders
+    params = Column(JSON, nullable=False)                # {"R": [2,3,4], "v": [4,6]}
+    param_constraint = Column(Text, nullable=True)       # optional filter expression
+    answer_expr = Column(Text, nullable=False)           # evaluated, never trusted
+    distractors = Column(JSON, nullable=False)           # [{expr, misconception}, ...]
+    unit = Column(String(32), nullable=True)
+
+    # Family-level IRT prior. Siblings inherit it — they differ only in numbers,
+    # so §5.1's claim that swapping them is fairness-neutral holds.
+    irt_a = Column(Numeric(6, 3), nullable=True)
+    irt_b = Column(Numeric(6, 3), nullable=True)
+    irt_c = Column(Numeric(6, 3), nullable=True)
+
+    status = Column(
+        Enum(ItemStatus, name="item_status", create_type=True),
+        nullable=False, default=ItemStatus.DRAFT, index=True,
+    )
+    # Exposure is tracked per FAMILY, not per variant: retiring one variant
+    # leaves its siblings answerable by anyone who has the template (§5.1a-A).
+    exposure_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    items = relationship("PoolItem", back_populates="template", cascade="all, delete-orphan")
+
+
+class PoolItem(Base):
+    """
+    One expanded, machine-verified sibling. Belongs to no exam until a form
+    selects it — that decoupling is the whole point of the pool.
+    """
+    __tablename__ = "pool_items"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    template_pk = Column(GUID, ForeignKey("item_templates.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Random, unrelated to position — §6.2's defence against pool enumeration.
+    blob_id = Column(String(32), unique=True, nullable=False, index=True)
+
+    stem = Column(Text, nullable=False)
+    options = Column(JSON, nullable=False)               # ["8 m/s²", "2 m/s²", ...]
+    correct_index = Column(Integer, nullable=False)      # position after shuffle
+    subject = Column(String(120), nullable=False, index=True)
+    topic = Column(String(200), nullable=True)
+    blooms_level = Column(Integer, nullable=True)
+
+    irt_a = Column(Numeric(6, 3), nullable=True)
+    irt_b = Column(Numeric(6, 3), nullable=True)
+    irt_c = Column(Numeric(6, 3), nullable=True)
+
+    status = Column(
+        Enum(ItemStatus, name="pool_item_status", create_type=True),
+        nullable=False, default=ItemStatus.PROVISIONAL, index=True,
+    )
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    template = relationship("ItemTemplate", back_populates="items")
+
+
+class ExamForm(Base):
+    """
+    One candidate form: an ordered list of pool item ids, produced at T−14d.
+
+    N of these are committed together as `formSetRoot`; at T₀ the beacon picks
+    an index (§6.1). Storing the selection rather than re-deriving it is what
+    makes 3,000 centres agree — an index cannot drift, a solver can.
+    """
+    __tablename__ = "exam_forms"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    form_index = Column(Integer, nullable=False)         # 0..N-1
+    item_ids = Column(JSON, nullable=False)              # ordered pool_items.id
+    form_hash = Column(String(64), nullable=False)       # sha256 over the id list
+    # Worst single-author share, recorded so the cap is auditable after the fact.
+    max_author_share = Column(Numeric(5, 4), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class SealedBundleKeying(Base):
+    """
+    How a sealed paper is OPENED at T0, and not one moment earlier.
+
+    `SealedQuestionBundle` stores the ciphertext. This stores what is needed to
+    derive the key for it — and is the row that was missing, which is why a
+    sealed paper could never be opened at a centre.
+
+    The two halves of the platform had drifted onto incompatible schemes:
+
+        delivery.py       master_seed = os.urandom(32), Shamir-split
+        question-seal.ts  masterSeed  = HKDF(beacon, hkdfSalt, "cryptoexam:"+examId)
+
+    Both are "seal now, release the opener at T0" — you cannot seal under a key
+    that does not exist yet — but they used different key material, so a terminal
+    could never have opened a paper the website sealed. The Python and TypeScript
+    derivations are byte-identical when given the same inputs (verified), so the
+    fix is to give them the same inputs rather than to change either.
+
+    `t0_beacon` is the opener. It is withheld from the provisioning bundle until
+    T0 has passed: the ciphertext can sit on a centre's Edge for a week and
+    remain inert, because the value that unlocks it is still on the other side of
+    the air gap. `hkdf_salt` and `t0_at` travel with the bundle from the start —
+    neither reveals anything on its own.
+    """
+
+    __tablename__ = "sealed_bundle_keying"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"),
+                     nullable=False, unique=True, index=True)
+    # Public. Ships with the ciphertext; useless without the beacon.
+    hkdf_salt = Column(LargeBinary, nullable=False)
+    # THE secret. Released only once t0_at has passed.
+    t0_beacon = Column(LargeBinary, nullable=False)
+    t0_at = Column(DateTime(timezone=True), nullable=False)
+    drand_round = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class ExamPatternRow(Base):
+    """
+    The stored shape of one exam's paper (services/exam_pattern.ExamPattern).
+
+    Separate table rather than a column on `Exam` for the same reason as
+    `exam_form_sets`: the app builds its schema with `create_all`, which creates
+    missing TABLES and never adds columns to existing ones, so a column here
+    would silently not exist on any database that already ran.
+
+    One row per exam, and immutable once the paper is committed — the pattern
+    fixes the marking scheme, and a marking scheme that can change after the
+    forms are committed is one that can change after the exam is sat.
+    """
+
+    __tablename__ = "exam_patterns"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"),
+                     nullable=False, unique=True, index=True)
+    # The full ExamPattern.to_dict() — sections, marks, types, tolerances.
+    pattern = Column(JSON, nullable=False)
+    # Denormalised so a roster or an admit card can show them without parsing.
+    total_questions = Column(Integer, nullable=False)
+    max_marks = Column(Numeric(8, 2), nullable=False)
+    duration_minutes = Column(Integer, nullable=False)
+    preset = Column(String(32), nullable=True)          # JEE_MAIN, NEET_UG, or null
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class ExamFormSet(Base):
+    """
+    The T−7d commitment, and the T₀ draw — the two halves of "no one knows the
+    paper in advance" (§6.1).
+
+    `form_set_root` is published when the forms are built, days before the exam.
+    It binds all N of them at once, so the set cannot be edited afterwards: swap
+    an item in any form and the root changes and no longer matches what was
+    published. At that point the paper EXISTS but WHICH ONE RUNS does not.
+
+    `selected_index` is filled at T₀ from a public random beacon that did not
+    exist when the forms were built. Storing the selection rather than
+    re-deriving it on demand is what makes 3,000 centres agree — an index cannot
+    drift, and anyone can recompute it afterwards from
+    (beacon, exam_id, form_count) and check this row is honest.
+
+    One row per exam. It is a separate table rather than columns on `Exam`
+    because the app builds its schema with `create_all`, which creates missing
+    TABLES but never adds columns to existing ones.
+    """
+
+    __tablename__ = "exam_form_sets"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"),
+                     nullable=False, unique=True, index=True)
+
+    form_count = Column(Integer, nullable=False)
+    paper_length = Column(Integer, nullable=False)
+    blueprint = Column(JSON, nullable=False)          # {subject: count}
+    # sha256 over every form hash, in index order — the published commitment.
+    form_set_root = Column(String(64), nullable=False)
+    # The assembly seed, kept so an auditor can rebuild the identical form set
+    # from the pool rather than take this row's word for it.
+    seed_hex = Column(String(64), nullable=False)
+    committed_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # ── filled at T₀, never before ──
+    beacon_hex = Column(String(160), nullable=True)
+    drand_round = Column(Integer, nullable=True)
+    selected_index = Column(Integer, nullable=True)
+    selected_at = Column(DateTime(timezone=True), nullable=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXAM REQUESTS → ACTIVE EXAMS → CANDIDATE CHOICES
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Where an exam comes from, and what a candidate is allowed to choose about it.
+#
+# Before this, `Exam` rows appeared from nowhere in particular and the public
+# enrolment form listed every one whose status happened to be enrollable. There
+# was no record of WHO asked for the exam, no organisation against which a
+# candidate could recognise it, and no approval anyone had to give. A candidate
+# picked an exam name out of one list and a centre out of a separate list, and
+# nothing connected the two.
+#
+# The chain is now: an organisation submits an ExamRequest -> the System Admin
+# (tier-0) and the administration BOTH approve it -> an Exam and its
+# ExamOffering are materialised -> and only then can a candidate register.
+#
+# Everything here is a NEW table on purpose. The app creates its schema with
+# `Base.metadata.create_all`, which adds missing tables but never adds a column
+# to a table that already exists -- so extending `exams` or `enrollments` in
+# place would work on a fresh SQLite file and silently do nothing to a
+# long-lived Postgres. Additive tables migrate themselves on both.
+
+
+class ExamRequestStatus(str, enum.Enum):
+    """
+    Dual approval, tracked as one state rather than two booleans.
+
+    Both authorities must approve, in either order, and either may reject. The
+    states name which approval is still outstanding, so a queue can show an
+    approver only what is actually theirs to act on.
+    """
+    SUBMITTED = "SUBMITTED"                    # awaiting both
+    SYSADMIN_APPROVED = "SYSADMIN_APPROVED"    # tier-0 done, administration outstanding
+    ADMIN_APPROVED = "ADMIN_APPROVED"          # administration done, tier-0 outstanding
+    ACTIVE = "ACTIVE"                          # both approved; the exam is registerable
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class ExamRequest(Base):
+    """
+    An organisation asking us to conduct an examination.
+
+    This is the only way an exam becomes registerable. It carries the proposal
+    exactly as the organisation stated it -- the exam name, who is conducting
+    it, where it will be sat, and which subjects a candidate may choose --
+    because those are the things a candidate is later asked to match against,
+    and they must come from the requesting body rather than from us.
+    """
+    __tablename__ = "exam_requests"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    reference = Column(String(20), unique=True, nullable=False, index=True)
+
+    # What a candidate selects at registration. Stored as given AND normalised
+    # (case- and punctuation-insensitive), because "N.T.A." and "nta" are the
+    # same body to a candidate and a lookup that disagrees is a lookup that
+    # tells a real applicant their exam does not exist.
+    exam_name = Column(String(500), nullable=False)
+    exam_name_norm = Column(String(500), nullable=False, index=True)
+    organisation = Column(String(255), nullable=False)
+    organisation_norm = Column(String(255), nullable=False, index=True)
+
+    contact_name = Column(String(200), nullable=False)
+    contact_email = Column(String(255), nullable=False)
+    contact_phone = Column(String(32), nullable=True)
+
+    proposed_date = Column(DateTime(timezone=True), nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    # How many optional subjects a candidate must choose. Null means the subject
+    # list is not a choice at all and every subject applies.
+    subject_choice_min = Column(Integer, nullable=True)
+    subject_choice_max = Column(Integer, nullable=True)
+
+    status = Column(
+        Enum(ExamRequestStatus, name="exam_request_status", create_type=True),
+        nullable=False, default=ExamRequestStatus.SUBMITTED, index=True,
+    )
+    # Recorded separately so an audit can answer "who let this exam exist", and
+    # so neither authority can be mistaken for the other.
+    sysadmin_approved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    sysadmin_approved_at = Column(DateTime(timezone=True), nullable=True)
+    admin_approved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    admin_approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
+    # Set when both approvals land and the Exam is materialised.
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    locations = relationship(
+        "ExamRequestLocation", back_populates="request",
+        cascade="all, delete-orphan", order_by="ExamRequestLocation.display_order",
+    )
+    subjects = relationship(
+        "ExamRequestSubject", back_populates="request",
+        cascade="all, delete-orphan", order_by="ExamRequestSubject.display_order",
+    )
+
+
+class ExamRequestLocation(Base):
+    """
+    One named place the requesting organisation intends to run the exam.
+
+    Named, because a candidate chooses between these by name -- "Kolkata - Salt
+    Lake" means something to them and a centre UUID does not.
+    """
+    __tablename__ = "exam_request_locations"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    city = Column(String(120), nullable=True)
+    state = Column(String(120), nullable=True)
+    address = Column(Text, nullable=True)
+    # Null means "no stated limit"; allotment then never refuses this location.
+    capacity = Column(Integer, nullable=True)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    request = relationship("ExamRequest", back_populates="locations")
+
+
+class ExamRequestSubject(Base):
+    """A subject on the proposed paper, and whether a candidate may decline it."""
+    __tablename__ = "exam_request_subjects"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(40), nullable=True)
+    # Compulsory subjects are not offered as a choice; they simply apply.
+    is_compulsory = Column(Boolean, nullable=False, default=True)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    request = relationship("ExamRequest", back_populates="subjects")
+
+
+class ExamOffering(Base):
+    """
+    The public, registerable face of an exam: who is conducting it and what a
+    candidate may choose. One per Exam, created when both approvals land.
+
+    `Exam` itself is the sealed-content lifecycle record (questions, ZK proof,
+    Merkle roots). Registration needs none of that and would otherwise have to
+    reach into it, so the two are kept apart: this table is what the public API
+    reads, and it holds nothing sealed.
+    """
+    __tablename__ = "exam_offerings"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(GUID, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="SET NULL"), nullable=True)
+
+    organisation = Column(String(255), nullable=False, index=True)
+    organisation_norm = Column(String(255), nullable=False, index=True)
+    exam_name_norm = Column(String(500), nullable=False, index=True)
+
+    # Registration is open only while this is true AND the Exam's own status
+    # still permits it. Two gates because they answer different questions:
+    # "should the public see it" and "has the paper already been sat".
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    registration_opens_at = Column(DateTime(timezone=True), nullable=True)
+    registration_closes_at = Column(DateTime(timezone=True), nullable=True)
+
+    subject_choice_min = Column(Integer, nullable=True)
+    subject_choice_max = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    locations = relationship(
+        "ExamLocation", back_populates="offering",
+        cascade="all, delete-orphan", order_by="ExamLocation.display_order",
+    )
+    subjects = relationship(
+        "ExamSubject", back_populates="offering",
+        cascade="all, delete-orphan", order_by="ExamSubject.display_order",
+    )
+
+
+class ExamLocation(Base):
+    """A location a candidate may be allotted for a specific exam."""
+    __tablename__ = "exam_locations"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    city = Column(String(120), nullable=True)
+    state = Column(String(120), nullable=True)
+    address = Column(Text, nullable=True)
+    capacity = Column(Integer, nullable=True)
+    display_order = Column(Integer, nullable=False, default=0)
+    # Bound to a real centre once one exists for this location. Until then the
+    # location is a stated place, not yet a provisioned centre -- and saying so
+    # is better than inventing a Center row nobody has commissioned.
+    center_id = Column(GUID, ForeignKey("centers.id", ondelete="SET NULL"), nullable=True)
+
+    offering = relationship("ExamOffering", back_populates="locations")
+
+
+class ExamSubject(Base):
+    """A subject on a live exam, and whether choosing it is optional."""
+    __tablename__ = "exam_subjects"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(40), nullable=True)
+    is_compulsory = Column(Boolean, nullable=False, default=True)
+    display_order = Column(Integer, nullable=False, default=0)
+
+    offering = relationship("ExamOffering", back_populates="subjects")
+
+
+class CandidateChoice(Base):
+    """
+    What one candidate chose at registration, and what they were allotted.
+
+    Kept beside `Enrollment` rather than inside it because `enrollments` is an
+    existing table and this schema is created with `create_all`, which would
+    never have added these columns to a database that already had it.
+
+    `location_preferences` is an ORDERED list of exam_locations.id. The order is
+    the whole point: allotment walks it and takes the first location with room,
+    so a candidate who cannot have their first choice lands on their second
+    rather than somewhere nobody asked for.
+    """
+    __tablename__ = "candidate_choices"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    enrollment_id = Column(GUID, ForeignKey("enrollments.id", ondelete="CASCADE"),
+                           nullable=False, unique=True, index=True)
+    location_preferences = Column(JSON, nullable=False, default=list)   # ordered [exam_locations.id]
+    allotted_location_id = Column(GUID, ForeignKey("exam_locations.id", ondelete="SET NULL"),
+                                  nullable=True, index=True)
+    # Which preference index was satisfied (0 = first choice). Null until allotted.
+    allotted_preference_rank = Column(Integer, nullable=True)
+    allotted_at = Column(DateTime(timezone=True), nullable=True)
+    # The compulsory subjects plus whichever optional ones were chosen, as
+    # exam_subjects.id.
+    subject_ids = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PER-EXAM ADMINISTRATION AND ITS SETTERS
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Authority here is scoped to ONE exam, never to the platform. The conducting
+# body names the administrator for the exam it is asking us to run; that
+# administrator nominates the setters who may author for it; the System Admin
+# approves each nomination; and the setter still has to prove they control the
+# nominated mailbox before they can author anything.
+#
+# Why this shape. The first cut of the approval chain required a single global
+# ADMIN role that nothing in the codebase could create — the seeder made one and
+# the seeder had been purged, so in production no exam could ever have been
+# approved. Scoping the administrator to the exam removes that dependency
+# entirely: the authority arrives WITH the request that needs it.
+#
+# Separate tables rather than columns on `exam_requests`, for the same reason as
+# before: `create_all` adds missing tables but never adds a column to a table
+# that already exists, and `exam_requests` is already deployed.
+
+
+class SetterNominationStatus(str, enum.Enum):
+    """
+    Three gates, and all three must pass before a setter can author.
+
+    NOMINATED          the exam's administrator has named them
+    APPROVED           the System Admin has agreed — but they still cannot author
+    VERIFIED           they proved control of the nominated mailbox; now they can
+    REJECTED / REVOKED refused, or withdrawn after the fact
+    """
+    NOMINATED = "NOMINATED"
+    APPROVED = "APPROVED"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    REVOKED = "REVOKED"
+
+
+class ExamAdministrator(Base):
+    """
+    The administrator for ONE exam, named by the body conducting it.
+
+    Deliberately not a `users` row and not a login: at this stage they are a
+    named point of authority on a request that may never be approved. The `id`
+    the organisation supplies is their own reference (a staff number, a file
+    reference) and is demonstrative — it is recorded and shown, never trusted as
+    proof of anything.
+    """
+    __tablename__ = "exam_administrators"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # Set when the request is approved and the offering exists.
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"),
+                         nullable=True, index=True)
+
+    full_name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False, index=True)
+    email_norm = Column(String(255), nullable=False, index=True)
+    # The organisation's own identifier for this person. Demonstrative.
+    reference = Column(String(120), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class ExamSetterNomination(Base):
+    """
+    One setter, for one exam, at whatever stage of the chain they have reached.
+
+    An exam may have many of these, and one person may hold nominations for
+    several exams — which is what the item pool already assumes, since authorship
+    is tracked per item so that no author may own more than 5% of a form.
+
+    A nomination is NOT permission. `can_author` is the only thing any caller
+    should ask, and it is true solely when the System Admin has approved AND the
+    nominee has proved they hold the mailbox they were nominated at. Nomination
+    alone would mean an administrator could grant authoring rights to an address
+    they typed — including one they control themselves.
+    """
+    __tablename__ = "exam_setter_nominations"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+    offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    nominated_by = Column(GUID, ForeignKey("exam_administrators.id", ondelete="SET NULL"),
+                          nullable=True)
+
+    full_name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False)
+    email_norm = Column(String(255), nullable=False, index=True)
+    reference = Column(String(120), nullable=True)
+
+    status = Column(
+        Enum(SetterNominationStatus, name="setter_nomination_status", create_type=True),
+        nullable=False, default=SetterNominationStatus.NOMINATED, index=True,
+    )
+    approved_by = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
+    # ── mailbox verification ────────────────────────────────────────────────
+    # Only the HASH of the token is stored. A verification link sitting in the
+    # database in clear would let anyone with read access finish someone else's
+    # registration, which is the whole thing this step exists to prevent.
+    verification_token_hash = Column(String(64), nullable=True)
+    verification_sent_at = Column(DateTime(timezone=True), nullable=True)
+    verification_expires_at = Column(DateTime(timezone=True), nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The account created when they completed registration.
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        # One nomination per person per exam. Without this an administrator
+        # could nominate the same address repeatedly and collect several
+        # authoring slots for it, which quietly defeats the per-author share cap
+        # on a form.
+        UniqueConstraint("offering_id", "email_norm", name="uq_setter_nomination_exam_email"),
+    )
+
+    @property
+    def can_author(self) -> bool:
+        """Approved AND verified. Anything less is not permission."""
+        return (
+            self.status == SetterNominationStatus.VERIFIED
+            and self.approved_at is not None
+            and self.verified_at is not None
+        )
+class EmailOtpChallenge(Base):
+    """Real server-side email OTP verification challenge."""
+    __tablename__ = "email_otp_challenges"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    email = Column(String(255), nullable=False, index=True)
+    purpose = Column(String(20), nullable=False) # LOGIN | CONTACT
+    role = Column(String(20), nullable=True)     # INVIGILATOR | SETTER | ADMIN | null
+    code_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    attempts = Column(Integer, default=0)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    request_ip = Column(String(45), nullable=True)
+
+
+class EmailVerificationGrant(Base):
+    """Short-lived, single-use email verification grant/token."""
+    __tablename__ = "email_verification_grants"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    token = Column(String(64), nullable=False, unique=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    purpose = Column(String(20), nullable=False)
+    role = Column(String(20), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+class DecryptedAnswerRecord(Base):
+    """Decrypted candidate answers at Tier-0 (HQ). The ONLY plaintext copy."""
+    __tablename__ = "decrypted_answer_records"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    exam_id = Column(String(36), ForeignKey("exams.id"), nullable=False, index=True)
+    centre_id_hash = Column(String(64), nullable=False)  # SHA-256(centreId)
+    seat_no = Column(String(20), nullable=True)
+    leaf_index = Column(Integer, nullable=False)
+    answers = Column(JSON, nullable=False)  # the decrypted record R
+    chain_root = Column(String(64), nullable=True)  # final chain root
+    polygon_tx = Column(String(66), nullable=True)  # anchor tx hash
+    ingested_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class CentreSealedRecord(Base):
+    """A sealed answer as it arrived from a centre — ciphertext only (§13.4).
+
+    ``/api/v1/sys/ledger/ingest`` verified a sync bundle and threw it away, so
+    a centre could complete the whole courier round-trip and leave nothing at
+    HQ: the answers were proven intact and then dropped on the floor. This is
+    where the envelopes actually land, still sealed.
+
+    Nothing here can be read without the System Admin's private key, which
+    lives in the HSM and never enters this process — the row holds the wrapped
+    data key, not the data key. Decryption is a separate, tier-0 act that
+    writes ``DecryptedAnswerRecord``.
+
+    ``leaf`` is unique because it IS the envelope's digest: re-posting the same
+    bundle (a courier that retried after a timeout it never saw answered) must
+    be idempotent rather than duplicate a candidate's paper.
+    """
+    __tablename__ = "centre_sealed_records"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    centre_id = Column(GUID, nullable=True, index=True)
+    centre_id_hash = Column(String(64), nullable=False, index=True)
+    exam_id = Column(String(36), nullable=False, index=True)
+    seat_no = Column(String(20), nullable=True)
+    leaf_index = Column(Integer, nullable=False)
+    leaf = Column(String(64), nullable=False, unique=True)
+    prev_root = Column(String(64), nullable=False)
+    chain_root = Column(String(64), nullable=False)
+    node_root_sig = Column(Text, nullable=False)
+    ciphertext = Column(Text, nullable=False)
+    iv = Column(String(32), nullable=False)
+    auth_tag = Column(String(32), nullable=False)
+    wrapped_dk = Column(Text, nullable=False)
+    node_pubkey = Column(String(64), nullable=True)
+    manifest_hash = Column(String(64), nullable=True)
+    received_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    decrypted_at = Column(DateTime(timezone=True), nullable=True)

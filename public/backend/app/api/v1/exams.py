@@ -18,7 +18,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, UserRole, Exam, ExamStatus, ExamBody, ExamType
+from app.models import User, UserRole, Exam, ExamStatus, ExamBody, ExamType, Question
 from app.schemas import ExamCreate, ExamResponse, ExamListResponse
 from app.services.auth import get_current_user, require_role
 
@@ -131,15 +131,83 @@ async def get_exam(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get detailed exam information."""
-    stmt = select(Exam).where(Exam.id == exam_id)
-    result = await db.execute(stmt)
-    exam = result.scalar_one_or_none()
+    """
+    Get detailed exam information, scoped exactly like the list.
 
+    This endpoint had NO scoping: the list correctly showed a setter only their
+    own exams, but anyone holding any token could read any exam in full by id —
+    name, schedule, subject blueprint, IRT targets, authoring setter. A rival
+    setter with a guessed or leaked id learned the shape of a paper they have
+    no part in, which is precisely the compartmentalisation the design relies
+    on. Scoping is now identical on both routes.
+
+    404 rather than 403 for an exam you may not see: telling a stranger that a
+    given id exists is itself a disclosure.
+    """
+    stmt = select(Exam).where(Exam.id == exam_id)
+    role = current_user["role"]
+    if role == UserRole.SETTER:
+        stmt = stmt.where(Exam.setter_id == current_user["user_id"])
+    elif role == UserRole.CANDIDATE:
+        from app.models import Enrollment
+
+        stmt = stmt.join(Enrollment).where(Enrollment.candidate_id == current_user["user_id"])
+
+    exam = (await db.execute(stmt)).scalar_one_or_none()
     if not exam:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
 
     return ExamResponse.model_validate(exam)
+
+
+@router.get(
+    "/{exam_id}/questions",
+    summary="List an exam's questions (setter/admin)",
+    description="The question bank for one exam, with IRT parameters. Visible to "
+                "the owning SETTER or an ADMIN only — never to candidates.",
+)
+async def list_exam_questions(
+    exam_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    exam = (await db.execute(select(Exam).where(Exam.id == exam_id))).scalar_one_or_none()
+    if not exam:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
+    role = current_user["role"]
+    if role == UserRole.CANDIDATE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    if role == UserRole.SETTER and exam.setter_id != current_user["user_id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your exam")
+
+    rows = (await db.execute(
+        select(Question)
+        .where(Question.exam_id == exam_id)
+        .order_by(Question.set_label, Question.sequence_number)
+    )).scalars().all()
+
+    return {
+        "exam_id": str(exam_id),
+        "exam_name": exam.name,
+        "total": len(rows),
+        "questions": [
+            {
+                "id": q.id,
+                "set_label": q.set_label,
+                "sequence_number": q.sequence_number,
+                "text": q.text,
+                "subject": q.subject,
+                "topic": q.topic,
+                "blooms_level": q.blooms_level,
+                "irt_a": q.irt_a,
+                "irt_b": q.irt_b,
+                "irt_c": q.irt_c,
+                "is_accepted": q.is_accepted,
+                "source": q.source,
+            }
+            for q in rows
+        ],
+    }
 
 
 @router.patch(

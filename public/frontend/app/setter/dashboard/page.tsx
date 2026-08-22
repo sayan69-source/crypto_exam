@@ -1,30 +1,60 @@
 /**
  * CryptoExam Core — Setter Dashboard
- * Dark sidebar layout, 4 KPI cards, exam pipeline
+ * Wired to the live backend (/exams, scoped server-side to this setter). KPIs,
+ * the exam pipeline and on-chain activity are all DERIVED from the setter's real
+ * exams — no fabricated figures.
  */
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { mockExams, mockBlockchainEvents } from '@/lib/api/mock-data';
+import { setterApi, EXAM_PIPELINE, type SetterExam } from '@/lib/api/setter';
 import styles from './dashboard.module.css';
 
-const STATUS_PIPELINE = ['DRAFT', 'GENERATING', 'PROOF_PENDING', 'LOCKED', 'DISTRIBUTED', 'LIVE', 'COMPLETED', 'AUDITED'];
-
 export default function SetterDashboard() {
+  const [exams, setExams] = useState<SetterExam[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setterApi
+      .exams()
+      .then((r) => setExams(r.items))
+      .catch((e) => setError(e.message));
+  }, []);
+
+  const byStatus = (exams ?? []).reduce<Record<string, number>>((a, e) => {
+    a[e.status] = (a[e.status] ?? 0) + 1;
+    return a;
+  }, {});
+  const anchored = (exams ?? []).filter((e) => e.polygon_exam_tx).length;
+  const zkProofs = (exams ?? []).filter((e) => e.zk_proof_hash || e.polygon_zkproof_tx);
+  const totalSets = (exams ?? []).reduce((a, e) => a + (e.sets_count ?? 0), 0);
+  const statusSummary =
+    Object.entries(byStatus)
+      .map(([s, n]) => `${n} ${s.toLowerCase()}`)
+      .join(', ') || '—';
+
+  const kpis = [
+    { label: 'My Exams', value: exams ? String(exams.length) : '…', trend: statusSummary },
+    { label: 'Sets Configured', value: exams ? String(totalSets) : '…', trend: 'across all exams' },
+    { label: 'ZK Proofs Generated', value: exams ? String(zkProofs.length) : '…', trend: zkProofs.length ? 'verifiable on-chain' : 'none yet' },
+    { label: 'Anchored On-Chain', value: exams ? String(anchored) : '…', trend: anchored ? 'Polygon commitments' : 'pending lock' },
+  ];
+
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>Setter Dashboard</h1>
 
+      {error && (
+        <div style={{ padding: 16, borderRadius: 10, background: '#fef2f2', color: '#991b1b', marginBottom: 20, fontSize: 14 }}>
+          Could not load your exams: {error}
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className={styles.kpiGrid}>
-        {[
-          { label: 'Questions in Bank', value: '2,847', icon: '', trend: '+124 this week' },
-          { label: 'Exams This Cycle', value: '3', icon: '', trend: '1 live, 1 locked' },
-          { label: 'ZK Proofs Generated', value: '7', icon: '', trend: 'All verified ✓' },
-          { label: 'Avg IRT Accuracy', value: '97.3%', icon: '', trend: '↑ 2.1% from last' },
-        ].map(kpi => (
+        {kpis.map((kpi) => (
           <div key={kpi.label} className={styles.kpiCard}>
-            <span className={styles.kpiIcon}>{kpi.icon}</span>
             <div className={styles.kpiContent}>
               <span className={styles.kpiValue}>{kpi.value}</span>
               <span className={styles.kpiLabel}>{kpi.label}</span>
@@ -41,7 +71,7 @@ export default function SetterDashboard() {
           <Link href="/setter/create" className={styles.createBtn}>+ New Exam</Link>
         </div>
         <div className={styles.pipeline}>
-          {STATUS_PIPELINE.map(status => (
+          {EXAM_PIPELINE.map((status) => (
             <div key={status} className={styles.pipelineStep}>
               <span className={styles.pipelineDot} />
               <span className={styles.pipelineLabel}>{status.replace('_', ' ')}</span>
@@ -49,20 +79,28 @@ export default function SetterDashboard() {
           ))}
         </div>
         <div className={styles.examList}>
-          {mockExams.map(exam => (
+          {exams === null && !error && <p style={{ color: '#9ca3af', fontSize: 14 }}>Loading your exams…</p>}
+          {exams !== null && exams.length === 0 && (
+            <p style={{ color: '#9ca3af', fontSize: 14 }}>
+              No exams yet. <Link href="/setter/create" style={{ color: 'var(--color-india-saffron)' }}>Create your first exam →</Link>
+            </p>
+          )}
+          {(exams ?? []).map((exam) => (
             <div key={exam.id} className={styles.examRow}>
               <div className={styles.examInfo}>
                 <span className={styles.examName}>{exam.name}</span>
-                <span className={styles.examBody}>{exam.exam_body}</span>
+                <span className={styles.examBody}>{exam.exam_body ?? '—'}</span>
               </div>
-              <span className={`${styles.statusPill} ${styles[`pill-${exam.status}`]}`}>
+              <span className={`${styles.statusPill} ${styles[`pill-${exam.status}`] ?? ''}`}>
                 {exam.status}
               </span>
               <span className={styles.examCandidates}>
-                {exam.candidate_count?.toLocaleString('en-IN')} candidates
+                {exam.sets_count ?? 0} {exam.sets_count === 1 ? 'set' : 'sets'}
               </span>
               <span className={styles.examDate}>
-                {new Date(exam.scheduled_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                {exam.scheduled_at
+                  ? new Date(exam.scheduled_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+                  : '—'}
               </span>
               <div className={styles.examActions}>
                 <Link href={`/setter/proofs/${exam.id}`} className={styles.actionBtn}>ZK Proof</Link>
@@ -73,44 +111,50 @@ export default function SetterDashboard() {
         </div>
       </section>
 
-      {/* Recent Activity */}
+      {/* On-chain activity — derived from the setter's real exams */}
       <div className={styles.activityGrid}>
         <section className={styles.section}>
-          <h2>Recent ZK Proofs</h2>
+          <h2>On-Chain Commitments</h2>
           <div className={styles.activityList}>
-            {mockBlockchainEvents.filter(e => e.type === 'ZKProofSubmitted' || e.type === 'PaperLocked').map(ev => (
-              <div key={ev.tx_hash} className={styles.activityItem}>
-                <span className={styles.activityIcon}>{ev.type === 'ZKProofSubmitted' ? '' : ''}</span>
+            {zkProofs.length === 0 && (
+              <p style={{ color: '#9ca3af', fontSize: 13, padding: '4px 2px' }}>
+                No ZK proofs anchored yet — they appear here once an exam is locked.
+              </p>
+            )}
+            {zkProofs.map((e) => (
+              <div key={e.id} className={styles.activityItem}>
                 <div>
-                  <span className={styles.activityType}>{ev.type}</span>
-                  <span className={styles.activityTime}>
-                    {new Date(ev.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })} IST
+                  <span className={styles.activityType}>{e.name}</span>
+                  <span className={styles.activityTime} style={{ fontFamily: 'var(--font-mono)' }}>
+                    {e.polygon_zkproof_tx ? `${e.polygon_zkproof_tx.slice(0, 18)}…` : `hash ${(e.zk_proof_hash ?? '').slice(0, 16)}…`}
                   </span>
                 </div>
-                <span className={styles.activityStatus}>✓ Confirmed</span>
+                <span className={styles.activityStatus}>✓ {e.polygon_zkproof_tx ? 'On-chain' : 'Proven'}</span>
               </div>
             ))}
           </div>
         </section>
 
         <section className={styles.section}>
-          <h2>Agent Activity</h2>
+          <h2>Recent Exams</h2>
           <div className={styles.activityList}>
-            {[
-              { agent: 'GeneratorAgent', action: 'Generated 45 Physics questions', time: '2m ago' },
-              { agent: 'IRTScorerAgent', action: 'Scored batch — 42/45 accepted', time: '5m ago' },
-              { agent: 'BalancerAgent', action: 'Rebalanced Set A ↔ Set C (2 swaps)', time: '8m ago' },
-              { agent: 'ValidatorAgent', action: 'Rejected 3 questions (IRT out-of-range)', time: '12m ago' },
-            ].map((item, i) => (
-              <div key={i} className={styles.activityItem}>
-                <span className={styles.activityIcon}></span>
-                <div>
-                  <span className={styles.activityType}>{item.agent}</span>
-                  <span className={styles.activityTime}>{item.action}</span>
+            {[...(exams ?? [])]
+              .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+              .slice(0, 4)
+              .map((e) => (
+                <div key={e.id} className={styles.activityItem}>
+                  <div>
+                    <span className={styles.activityType}>{e.name}</span>
+                    <span className={styles.activityTime}>
+                      created {e.created_at ? new Date(e.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                    </span>
+                  </div>
+                  <span className={styles.activityMeta}>{e.status}</span>
                 </div>
-                <span className={styles.activityMeta}>{item.time}</span>
-              </div>
-            ))}
+              ))}
+            {exams !== null && exams.length === 0 && (
+              <p style={{ color: '#9ca3af', fontSize: 13, padding: '4px 2px' }}>Nothing yet.</p>
+            )}
           </div>
         </section>
       </div>

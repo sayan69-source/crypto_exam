@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "../legal.module.css";
@@ -16,8 +15,6 @@ const LAST_UPDATED = "2026-06-09";
 export default function TermsPage() {
   return (
     <main>
-      <Navbar />
-
       <section className={s.hero}>
         <div className="wrap">
           <span className="eyebrow">Terms</span>
@@ -33,7 +30,7 @@ export default function TermsPage() {
         </div>
       </section>
 
-      <section className={s.bodySection}>
+      <section className={`${s.bodySection} reveal reveal-rise`}>
         <div className="wrap-narrow">
           <div className={s.callout}>
             <span className="icon-chip"><Icon name="scale" size={18} strokeWidth={1.7} /></span>
@@ -164,12 +161,13 @@ export default function TermsPage() {
           </Article>
 
           <Article number="12" title="Contact">
+            {/* legal@cryptoexam.core was unreachable — ".core" is not a valid
+                TLD, so that mailbox cannot be created at all. */}
             <p>
-              For questions about these terms, write to{" "}
-              <a className={s.link} href="mailto:legal@cryptoexam.core">legal@cryptoexam.core</a>.
-              For privacy-specific requests, see our{" "}
-              <Link className={s.link} href="/privacy">Privacy Policy</Link>. For everything else,
-              see <Link className={s.link} href="/contact">/contact</Link>.
+              For questions about these terms, use the{" "}
+              <Link className={s.link} href="/contact">enquiry form</Link> — it reaches the
+              programme team and gives you a reference to quote. For privacy-specific
+              requests see our <Link className={s.link} href="/privacy">Privacy Policy</Link>.
             </p>
           </Article>
         </div>

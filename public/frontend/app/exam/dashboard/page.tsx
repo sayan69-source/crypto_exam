@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import DemoBanner from '@/components/marketing/DemoBanner';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { examCatalog, getExamsByCategory } from '@/lib/api/exam-catalog';
@@ -42,6 +43,7 @@ export default function CandidateDashboard() {
 
   return (
     <div className={styles.page}>
+      <DemoBanner />
       {/* Top Bar */}
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>
@@ -108,9 +110,9 @@ export default function CandidateDashboard() {
                   <div className={styles.metaCell}>
                     <div className={styles.metaLabel}>Marking</div>
                     <div className={styles.metaVal}>
-                      <span style={{ color: '#16a34a' }}>+{exam.positive_marks}</span>
+                      <span style={{ color: '#3f6f4a' }}>+{exam.positive_marks}</span>
                       {' / '}
-                      <span style={{ color: '#dc2626' }}>-{exam.negative_marking}</span>
+                      <span style={{ color: '#9b2226' }}>-{exam.negative_marking}</span>
                     </div>
                   </div>
                 </div>
