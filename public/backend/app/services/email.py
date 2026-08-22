@@ -230,13 +230,9 @@ async def send_email(to: str, subject: str, body: str, critical: bool = False) -
 
 
 async def _send_smtp(to: str, subject: str, body: str, allow_dev_fallback: bool = True) -> EmailResult:
-    """Real SMTP send (synchronous in a thread-pool would be ideal; kept simple here)."""
+    """Real SMTP send (run in a thread-pool to avoid blocking the event loop)."""
     s = get_settings()
-    smtp_host: str = getattr(s, "SMTP_HOST", "")
-    smtp_port: int = int(getattr(s, "SMTP_PORT", 587))
-    smtp_user: str = getattr(s, "SMTP_USER", "")
-    smtp_pass: str = getattr(s, "SMTP_PASS", "")
-    smtp_from: str = getattr(s, "SMTP_FROM", smtp_user)
+    smtp_from: str = getattr(s, "SMTP_FROM", getattr(s, "SMTP_USER", ""))
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -245,12 +241,7 @@ async def _send_smtp(to: str, subject: str, body: str, allow_dev_fallback: bool 
     msg.set_content(body)
 
     try:
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.ehlo()
-            server.starttls(context=ctx)
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
+        await asyncio.to_thread(_send_blocking, msg)
         logger.info("Email sent to %s subject=%r", mask_email(to), subject)
         return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
     except Exception as exc:
