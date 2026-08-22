@@ -42,7 +42,7 @@ import {
   RollNotPresentError,
 } from "./services/assignment-service.ts";
 import { GENESIS, nextRoot } from "./lib/merkle-chain.ts";
-import { makeNodeSigner } from "./lib/node-sign.ts";
+import { makeNodeSigner, verifyRootSig } from "./lib/node-sign.ts";
 import { sha256, toHex, constantTimeEqual, utf8, canonicalJson } from "./lib/crypto.ts";
 import * as repo from "./repo.ts";
 import { ingestBundle, type ProvisioningBundle } from "./services/provisioning.ts";
@@ -350,6 +350,44 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }
     const body = req.body as ProvisioningBundle;
     if (!body?.centre?.id || !body?.centre?.name) return deny(reply, 400, "MISSING_CENTRE");
+
+    // ── the bundle's ORIGIN, which the shared secret does not establish ────
+    //
+    // `x-provisioning-key` says the caller holds this centre's credential. On
+    // the production path that credential travels to the admin station on its
+    // ESP — a FAT partition outside dm-verity — because the courier that pulls
+    // the bundle from HQ runs there and has no human to log in as. So the key
+    // alone would let anyone who steals that stick write their own candidates,
+    // their own staff and their own papers into the centre's Edge.
+    //
+    // HQ therefore signs the canonical bundle bytes with a key that never
+    // leaves HQ, and the Edge checks that signature here. The courier keeps
+    // exactly the power it should have: it can carry the envelope and it cannot
+    // write one.
+    //
+    // Required, not optional, whenever a key is configured — a bundle arriving
+    // without a signature is refused rather than accepted on the strength of
+    // the transport credential.
+    if (config.hqProvisioningPubkey) {
+      const presentedSig = req.headers["x-hq-signature"];
+      if (typeof presentedSig !== "string" || !presentedSig.trim()) {
+        return deny(reply, 401, "HQ_SIGNATURE_REQUIRED");
+      }
+      let sig: Uint8Array;
+      try {
+        sig = hexStrict(presentedSig.trim(), "x-hq-signature", 64);
+      } catch {
+        return deny(reply, 400, "HQ_SIGNATURE_MALFORMED");
+      }
+      // Over the SHA-256 of the canonical bundle, the same shape the centre
+      // node uses for a chain root — so both sides of the link sign a digest of
+      // canonical JSON and there is one convention to get right, not two.
+      const digest = sha256(utf8.encode(canonicalJson(body as unknown as Record<string, unknown>)));
+      if (!verifyRootSig(config.hqProvisioningPubkey, digest, sig)) {
+        return deny(reply, 401, "HQ_SIGNATURE_INVALID");
+      }
+    }
+
     try {
       const counts = await ingestBundle(pool, config, body);
       await withTx(pool, (c) =>
@@ -1089,21 +1127,30 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // and node-signs the manifest so HQ can detect any tamper in transit. GATED:
   // refuses until egress has been authorised for this exam (window closed + all
   // present candidates submitted), so answers cannot leak mid-exam (§6, INV-3).
-  app.post("/api/admin/ledger/export", async (req, reply) => {
-    const claims = await auth(req);
-    if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
-    const examId = (req.body as { examId?: string })?.examId;
-    if (!examId) return deny(reply, 400, "MISSING_EXAM");
-    const status = await repo.egressStatus(pool, claims.centre, examId, now());
-    if (!status) return deny(reply, 404, "UNKNOWN_EXAM");
+  /**
+   * Produce the sealed sync bundle for one exam, or say why not.
+   *
+   * Shared by the Centre Admin's console and by the courier daemon on the admin
+   * station, deliberately: the gate that keeps a live paper off the internet
+   * must not have two implementations that can drift apart. `actorId` is the
+   * only difference — a person for the console, null for the daemon, and the
+   * audit row records which.
+   */
+  const exportLedgerBundle = async (
+    centreId: string,
+    examId: string,
+    actorId: string | null,
+  ): Promise<{ code: number; body: Record<string, unknown> }> => {
+    const status = await repo.egressStatus(pool, centreId, examId, now());
+    if (!status) return { code: 404, body: { ok: false, reason: "UNKNOWN_EXAM" } };
     if (!status.egressOpenedAt && !status.mayOpen) {
-      return reply.code(409).send({ ok: false, reason: "EGRESS_NOT_OPEN", pending: status.pendingCount });
+      return { code: 409, body: { ok: false, reason: "EGRESS_NOT_OPEN", pending: status.pendingCount } };
     }
-    const records = await repo.listSealedForExport(pool, claims.centre, examId);
-    if (records.length === 0) return { ok: true, bundle: null, exported: 0 };
+    const records = await repo.listSealedForExport(pool, centreId, examId);
+    if (records.length === 0) return { code: 200, body: { ok: true, bundle: null, exported: 0 } };
 
     const manifest = {
-      centreId: claims.centre,
+      centreId,
       count: records.length,
       records,
       exportedAt: now(),
@@ -1115,24 +1162,104 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const sig = signer.signRoot(manifestHash);
 
     const exported = await withTx(pool, async (c) => {
-      const n = await repo.markSynced(c, claims.centre!, records.map((r) => r.leaf));
+      const n = await repo.markSynced(c, centreId, records.map((r) => r.leaf));
       await appendAudit(c, {
-        centerId: claims.centre, actorId: claims.sub, action: "LEDGER_EXPORTED",
-        target: null, details: { count: n, manifestHash: toHex(manifestHash) },
+        centerId: centreId, actorId, action: "LEDGER_EXPORTED",
+        target: null, details: { count: n, manifestHash: toHex(manifestHash), via: actorId ? "CONSOLE" : "COURIER" },
       });
       return n;
     });
 
     return {
-      ok: true,
-      exported,
-      bundle: {
-        manifest,
-        manifestHash: toHex(manifestHash),
-        nodeSig: toHex(sig),
-        nodePubkey: toHex(signer.publicKey),
+      code: 200,
+      body: {
+        ok: true,
+        exported,
+        bundle: {
+          manifest,
+          manifestHash: toHex(manifestHash),
+          nodeSig: toHex(sig),
+          nodePubkey: toHex(signer.publicKey),
+        },
       },
     };
+  };
+
+  app.post("/api/admin/ledger/export", async (req, reply) => {
+    const claims = await auth(req);
+    if (!claims || claims.role !== "CENTER_ADMIN" || !claims.centre) return deny(reply, 403, "FORBIDDEN");
+    const examId = (req.body as { examId?: string })?.examId;
+    if (!examId) return deny(reply, 400, "MISSING_EXAM");
+    const r = await exportLedgerBundle(claims.centre, examId, claims.sub);
+    return reply.code(r.code).send(r.body);
+  });
+
+  // ════════════════════ the courier surface (§6, §12, §13.4) ═══════════════
+  //
+  // The admin station is the centre's one uplink, and the machine at each end
+  // of that uplink is a program, not a person: a bundle has to be pulled from
+  // HQ before exam day and a sealed ledger pushed back after it, on a timer,
+  // with nobody logged in. Every route below therefore authenticates with the
+  // centre's provisioning credential rather than a session token.
+  //
+  // That credential is the same one HQ has always used to push a bundle in, and
+  // it is deliberately NOT a general admin credential. What it grants is
+  // exactly the courier's job:
+  //
+  //   • read what is waiting to leave (counts, not answers);
+  //   • take the sealed, ciphertext-only bundle for an exam whose egress gate
+  //     has already opened — the gate is the shared one above, so a daemon
+  //     cannot extract a paper the console could not.
+  //
+  // It cannot read an answer, seat a candidate, approve an identity or open the
+  // egress gate itself. Opening the gate stays with the Centre Admin, in person.
+  const courierAuth = (req: FastifyRequest): boolean => {
+    if (!config.provisioningKey) return false;
+    const presented = req.headers["x-provisioning-key"];
+    return (
+      typeof presented === "string" &&
+      constantTimeEqual(utf8.encode(presented), utf8.encode(config.provisioningKey))
+    );
+  };
+
+  /**
+   * Is there anything to carry, and may it leave yet?
+   *
+   * One read the daemon can make cheaply on every tick. It reports the same
+   * gate the export enforces, so a courier that finds `mayExport:false` has
+   * learned the true reason (a window still open, candidates still sitting)
+   * rather than guessing from a 409.
+   */
+  app.get("/api/courier/state", async (req, reply) => {
+    if (!courierAuth(req)) return deny(reply, 401, "BAD_PROVISIONING_KEY");
+    const centreId = config.centreId;
+    const [exams, unsynced] = await Promise.all([
+      repo.centreExams(pool, centreId),
+      repo.unsyncedByExam(pool, centreId),
+    ]);
+    const t = now();
+    const out = [];
+    for (const x of exams) {
+      const st = await repo.egressStatus(pool, centreId, x.id, t);
+      out.push({
+        examId: x.id,
+        name: x.name,
+        unsynced: unsynced[x.id] ?? 0,
+        windowClosed: st?.windowClosed ?? false,
+        pending: st?.pendingCount ?? 0,
+        egressOpenedAt: st?.egressOpenedAt ?? null,
+        mayExport: Boolean(st && (st.egressOpenedAt || st.mayOpen)),
+      });
+    }
+    return { ok: true, centre: centreId, exams: out };
+  });
+
+  app.post("/api/courier/ledger/export", async (req, reply) => {
+    if (!courierAuth(req)) return deny(reply, 401, "BAD_PROVISIONING_KEY");
+    const examId = (req.body as { examId?: string })?.examId;
+    if (!examId) return deny(reply, 400, "MISSING_EXAM");
+    const r = await exportLedgerBundle(config.centreId, examId, null);
+    return reply.code(r.code).send(r.body);
   });
 
   // ════════════════════ §13.2 invigilator console ════════════════════════

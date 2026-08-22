@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     EMAIL_OTP_MAX_SENDS_PER_HOUR: int = 5
     EMAIL_OTP_SECRET: str = "default_unsafe_secret_for_dev_only"
     EMAIL_OTP_DEV_MODE: bool = True
+    # Resolve the domain's MX (then A/AAAA) records before spending a send, so a
+    # typed-wrong domain is refused in the form rather than a week later when no
+    # reply has arrived. Only a definitive answer refuses — a resolver timeout
+    # lets the address through. Set false for an environment with no DNS egress.
+    EMAIL_CHECK_DELIVERABILITY: bool = True
 
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
@@ -124,6 +129,21 @@ class Settings(BaseSettings):
     # is simulated. The ceremony routes now refuse unless this is set, and no
     # production environment sets it.
     ALLOW_SIMULATED_ENCLAVE: bool = False
+
+    # ── Centre uplink (ZUUP-OS §12/§13.4) ──
+    #
+    # The Ed25519 seed HQ signs provisioning bundles with, 64 hex characters
+    # (`openssl rand -hex 32`). A centre's Edge is configured with the matching
+    # public key and refuses any bundle that is not signed by it — which is what
+    # stops a stolen Admin Station, whose ESP necessarily carries the centre's
+    # transport credential, from writing its own candidates and its own papers
+    # into a centre's database.
+    #
+    # Empty means unsigned bundles: acceptable only where the Edge has no
+    # public key configured either (the all-in-one demo, the test suite). A
+    # production HQ sets it, and `zuup-hqsync` on the station carries whatever
+    # signature arrives without inspecting it.
+    HQ_PROVISIONING_SIGNING_SEED: str = ""
 
     # ── AI / LLM ──
     LLM_BASE_URL: str = "http://localhost:11434/v1"

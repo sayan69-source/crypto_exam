@@ -66,6 +66,20 @@ services:
       - key: CORS_ALLOW_ORIGINS
         value: https://cryptoexam-frontend.onrender.com
 
+      # ── Centre uplink (ZUUP-OS courier, §12/§13.4) ───────────────────────
+      #
+      # HQ signs every provisioning bundle with this Ed25519 seed, and each
+      # centre's Edge is configured with the matching public key
+      # (GET /api/v1/centre-sync/hq-pubkey → HQ_PROVISIONING_PUBKEY).
+      #
+      # It is what stops possession of a centre's transport credential — which
+      # necessarily sits in plaintext on the Admin Station's ESP — from being
+      # the power to write that centre's roster. Generated per deployment and
+      # never printed: rotating it re-keys every Edge, so it changes only
+      # deliberately.
+      - key: HQ_PROVISIONING_SIGNING_SEED
+        generateValue: true
+
       # ── Cryptography ──────────────────────────────────────────────────────
       - key: DRAND_CHAIN_HASH
         value: "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"

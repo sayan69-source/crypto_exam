@@ -34,6 +34,7 @@ const FAST_ARGON = { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 };
 const config: EdgeConfig = {
   host: "127.0.0.1", port: 0, databaseUrl: DB ?? "", centreId: "test",
   provisioningKey: null,
+  hqProvisioningPubkey: null,
   systemAdminPublicKeyPem: null,
   argon: FAST_ARGON,
   tokenSecret: new Uint8Array(32).fill(1),

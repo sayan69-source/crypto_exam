@@ -179,10 +179,12 @@ export default function SiteHeader() {
             <kbd className="hdr-kbd">{isMac ? "⌘K" : "Ctrl K"}</kbd>
           </button>
 
-          <Link className="hdr-cta" href="/contact">
-            <Icon name="plus" size={16} strokeWidth={2.4} />
-            Add exam
-          </Link>
+          {pathname === "/" && (
+            <Link className="hdr-cta" href="/contact">
+              <Icon name="plus" size={16} strokeWidth={2.4} />
+              Add exam
+            </Link>
+          )}
 
           {/* Mobile hamburger (Problem 6 - mobile support) */}
           <button

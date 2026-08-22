@@ -42,11 +42,36 @@ export interface DecryptResult {
   quarantined?: { examId: string; seatNo: string | null; leafIndex: number; reason: string }[];
 }
 
+export interface OpenResult {
+  ok: boolean;
+  opened: number;
+  failed?: { examId: string; seatNo: string | null; leafIndex: number; reason: string }[];
+  note?: string;
+}
+
 export const sysLedgerApi = {
+  /**
+   * Decrypt what a centre's courier already delivered — server-side.
+   *
+   * Preferred over ingest+decrypt+store: those returned the plaintext to this
+   * browser so it could post it back, which put the only plaintext copy of a
+   * paper through a console. This returns counts.
+   */
+  open: (body: { examId?: string; centreIdHash?: string }) =>
+    post<OpenResult>('/ledger/open', body),
   /** Verify only — signature + hash chain. Never decrypts. */
   ingest: (bundle: unknown) => post<IngestResult>('/ledger/ingest', bundle),
   /** Verify, then HSM-unwrap. The only place a plaintext answer exists. */
   decrypt: (bundle: unknown) => post<DecryptResult>('/ledger/decrypt', bundle),
   /** Publish the answer root on-chain — roots and counts only, never PII. */
   anchor: (payload: unknown) => post<{ ok: boolean; txHash?: string }>('/ledger/anchor', payload),
+  /**
+   * Anchor a delivered centre's root, DERIVED from what HQ received.
+   *
+   * `anchor` above publishes whatever root it is handed. This one re-walks the
+   * stored chain and publishes the root that walk produces, so the number an
+   * auditor later checks a paper against describes the answers HQ actually holds.
+   */
+  anchorReceived: (body: { examId: string; centreIdHash: string }) =>
+    post<{ ok: boolean; tx: string; answerRoot: string; count: number }>('/ledger/anchor-received', body),
 };

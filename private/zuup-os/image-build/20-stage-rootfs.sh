@@ -159,6 +159,8 @@ for u in security/systemd/zuup-identity.service \
          security/systemd/zuup-session.target \
          security/systemd/zuup-heartbeatd.service \
          security/systemd/zuup-egressd.service \
+         security/systemd/zuup-hqsync.service \
+         security/systemd/zuup-hqsync.timer \
          security/systemd/zuup-enrol.service \
          security/systemd/zuup-survey.service \
          biometric/zuup-biometric.service \
@@ -170,6 +172,7 @@ done
 # ── 4. daemons + scripts ───────────────────────────────────────────────────
 inst 0755 "$ZOS/security/systemd/zuup-heartbeatd.sh"  usr/lib/zuup/zuup-heartbeatd.sh
 inst 0755 "$ZOS/security/systemd/zuup-egressd.sh"     usr/lib/zuup/zuup-egressd.sh
+inst 0755 "$ZOS/security/systemd/zuup-hqsync.sh"      usr/lib/zuup/zuup-hqsync.sh
 inst 0755 "$ZOS/security/systemd/zuup-identity.sh"    usr/lib/zuup/zuup-identity.sh
 inst 0755 "$ZOS/security/systemd/zuup-enrol.sh"       usr/lib/zuup/zuup-enrol.sh
 inst 0755 "$ZOS/security/systemd/zuup-survey.sh"      usr/lib/zuup/zuup-survey.sh
@@ -311,6 +314,7 @@ UNITS=(seatd.service systemd-networkd.service
        zuup-identity.service zuup-firewall.service zuup-wireguard.service
        zuup-attest.service zuup-biometric.service
        zuup-heartbeatd.service zuup-egressd.service zuup-enrol.service
+       zuup-hqsync.timer
        zuup-survey.service
        zuup-kiosk.service usbguard.service apparmor.service)
 for u in "${UNITS[@]}"; do

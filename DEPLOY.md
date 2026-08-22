@@ -86,6 +86,49 @@ The frontend Dockerfile uses a **multi-stage build** with `output: "standalone"`
 
 ---
 
+## Turning on the centre uplink (ZUUP-OS courier, §12/§13.4)
+
+The public deployment is HQ for every exam centre: the Admin Station inside each
+centre's locked OS pulls that centre's bundle from it before exam day and
+delivers the sealed answer ledger back afterwards, with nobody logged in. Two
+settings turn that on, and until both are done a production Edge will refuse
+everything the courier brings it — deliberately.
+
+**1. Give HQ a bundle-signing key** (Render dashboard → the API service →
+Environment):
+
+```
+HQ_PROVISIONING_SIGNING_SEED = <openssl rand -hex 32>
+```
+
+Without it `GET /api/v1/centre-sync/hq-pubkey` answers `"signed": false`, and any
+Edge configured with `HQ_PROVISIONING_PUBKEY` rejects its bundles with
+`HQ_SIGNATURE_REQUIRED`. That is the correct failure: the signature is what stops
+possession of a centre's transport credential — which necessarily sits in
+plaintext on the station's USB stick — from being the power to write that
+centre's roster.
+
+Then read the public half back and put it on every centre's Edge:
+
+```
+curl https://<api>/api/v1/centre-sync/hq-pubkey
+```
+
+**2. Mint each centre's credential.** From the tier-0 console (Centre uplinks →
+Issue), or from a shell when no System Admin is enrolled yet:
+
+```
+python scripts/centre_uplink.py --list
+python scripts/centre_uplink.py --mint <centre-id>
+```
+
+Shown once — only its SHA-256 is stored. It goes into that centre's
+`centre.conf` as `HQ_CENTRE_KEY`, alongside `HQ_BASE_URL=https://<api-host>`,
+before `tools/provision-terminal.sh` signs the Admin Station's UKI. The full
+sequence is in `private/zuup-os/docs/PRODUCTION-BRINGUP.md` §6.
+
+---
+
 ## Notes / limits
 
 - Free Render web services **sleep after ~15 min idle** — the first request after

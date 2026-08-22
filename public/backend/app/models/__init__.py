@@ -287,6 +287,22 @@ class Center(Base):
     isp = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
+    # ── the centre's own uplink credential (ZUUP-OS §12) ──────────────────
+    #
+    # A centre's Admin Station is the one machine in the hall permitted to
+    # reach the internet, and it does so with no human logged in: a daemon
+    # pulls this centre's bundle before exam day and pushes the sealed ledger
+    # back afterwards. It cannot present a System Admin session, and it must
+    # not be given one — a stolen station would then hold tier-0 authority
+    # over the whole platform rather than over one centre's courier traffic.
+    #
+    # So the centre gets a credential of its own, scoped to itself. Only the
+    # SHA-256 is stored: HQ never needs the plaintext again after handing it
+    # to the operator once, and a database read must not yield a working key.
+    sync_key_hash = Column(String(64), nullable=True)
+    sync_key_issued_at = Column(DateTime(timezone=True), nullable=True)
+    last_sync_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     hardware_nodes = relationship("HardwareNode", back_populates="center")
     enrollments = relationship("Enrollment", back_populates="center")
@@ -1380,3 +1396,42 @@ class DecryptedAnswerRecord(Base):
     chain_root = Column(String(64), nullable=True)  # final chain root
     polygon_tx = Column(String(66), nullable=True)  # anchor tx hash
     ingested_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class CentreSealedRecord(Base):
+    """A sealed answer as it arrived from a centre — ciphertext only (§13.4).
+
+    ``/api/v1/sys/ledger/ingest`` verified a sync bundle and threw it away, so
+    a centre could complete the whole courier round-trip and leave nothing at
+    HQ: the answers were proven intact and then dropped on the floor. This is
+    where the envelopes actually land, still sealed.
+
+    Nothing here can be read without the System Admin's private key, which
+    lives in the HSM and never enters this process — the row holds the wrapped
+    data key, not the data key. Decryption is a separate, tier-0 act that
+    writes ``DecryptedAnswerRecord``.
+
+    ``leaf`` is unique because it IS the envelope's digest: re-posting the same
+    bundle (a courier that retried after a timeout it never saw answered) must
+    be idempotent rather than duplicate a candidate's paper.
+    """
+    __tablename__ = "centre_sealed_records"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    centre_id = Column(GUID, nullable=True, index=True)
+    centre_id_hash = Column(String(64), nullable=False, index=True)
+    exam_id = Column(String(36), nullable=False, index=True)
+    seat_no = Column(String(20), nullable=True)
+    leaf_index = Column(Integer, nullable=False)
+    leaf = Column(String(64), nullable=False, unique=True)
+    prev_root = Column(String(64), nullable=False)
+    chain_root = Column(String(64), nullable=False)
+    node_root_sig = Column(Text, nullable=False)
+    ciphertext = Column(Text, nullable=False)
+    iv = Column(String(32), nullable=False)
+    auth_tag = Column(String(32), nullable=False)
+    wrapped_dk = Column(Text, nullable=False)
+    node_pubkey = Column(String(64), nullable=True)
+    manifest_hash = Column(String(64), nullable=True)
+    received_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    decrypted_at = Column(DateTime(timezone=True), nullable=True)

@@ -616,6 +616,27 @@ export async function listSealedForExport(q: Q, centerId: string, examId?: strin
 }
 
 /** Mark exported bundles SYNCED (idempotent re-export skips them). */
+/**
+ * How many sealed answers at this centre are still waiting to leave, per exam.
+ *
+ * The courier on the admin station has no human to tell it there is work: it
+ * wakes on a timer, and without this it would have to attempt an export of
+ * every exam the centre has ever run to discover that all of them are empty.
+ * One grouped count answers "is there anything to carry" for the whole centre.
+ */
+export async function unsyncedByExam(q: Q, centerId: string): Promise<Record<string, number>> {
+  const res = await q.query(
+    `SELECT exam_id, count(*)::int AS n
+       FROM answer_ledger
+      WHERE center_id=$1 AND sync_state='SEALED'
+      GROUP BY exam_id`,
+    [centerId],
+  );
+  const out: Record<string, number> = {};
+  for (const r of res.rows) out[r.exam_id as string] = Number(r.n);
+  return out;
+}
+
 export async function markSynced(client: pg.PoolClient, centerId: string, leaves: string[]): Promise<number> {
   if (leaves.length === 0) return 0;
   const res = await client.query(

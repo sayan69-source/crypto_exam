@@ -64,7 +64,7 @@ if [[ "$VARIANT" == "allinone" ]]; then
 fi
 
 # ── parse the signed cmdline ────────────────────────────────────────────────
-TERMINAL_ID=""; CAPABILITY=""; SEAT=""; EDGE_IP=""; HQ_LIST=""; CENTRE=""
+TERMINAL_ID=""; CAPABILITY=""; SEAT=""; EDGE_IP=""; HQ_LIST=""; CENTRE=""; HQ_URL=""
 for arg in $(cat "$CMDLINE_FILE"); do
   case "$arg" in
     zuup.terminal_id=*) TERMINAL_ID="${arg#zuup.terminal_id=}" ;;
@@ -72,6 +72,12 @@ for arg in $(cat "$CMDLINE_FILE"); do
     zuup.seat=*)        SEAT="${arg#zuup.seat=}" ;;
     zuup.edge=*)        EDGE_IP="${arg#zuup.edge=}" ;;
     zuup.hq=*)          HQ_LIST="${arg#zuup.hq=}" ;;
+    # The public platform's base URL, e.g. https://exam.example.gov.in.
+    # Carried SEPARATELY from zuup.hq because the two say different things:
+    # zuup.hq is the address the firewall pins, this is the name TLS is
+    # verified against. The courier joins them with `curl --resolve` and so
+    # never resolves anything.
+    zuup.hq_url=*)      HQ_URL="${arg#zuup.hq_url=}" ;;
     zuup.centre=*)      CENTRE="${arg#zuup.centre=}" ;;
   esac
 done
@@ -143,8 +149,10 @@ else
     CAPABILITY="CANDIDATE_SEAT"
   fi
   # Belt and braces: even if the capability above were somehow honoured, an
-  # unverified boot must never carry HQ destinations.
+  # unverified boot must never carry HQ destinations — nor the URL a courier
+  # would aim at them.
   HQ_LIST=""
+  HQ_URL=""
 fi
 printf '%s
 ' "$BOOT_TRUST" > "$IDENTITY_DIR/boot-trust"
@@ -187,6 +195,42 @@ if [[ "$CAPABILITY" == "ADMIN_STATION" && -n "$HQ_LIST" ]]; then
   if [[ -n "$ELEMENTS" ]]; then
     printf 'add element inet zuup hq_dest { %s }\n' "$ELEMENTS" > "$NFT_DIR/20-hq-egress.nft"
     log "ADMIN_STATION: HQ destinations pinned ($ELEMENTS). The window itself stays SHUT until zuup-egressd opens it."
+
+    # ── the courier's half: a name, bound to those same addresses ──────────
+    #
+    # There is no resolver on this machine and there must not be one: DNS is an
+    # unauthenticated answer from the network about where HQ lives, and this
+    # image's entire argument is that the network cannot move a terminal. So
+    # the hostname and the address are supplied separately by the authority,
+    # both inside the signed cmdline, and joined here into the `--resolve`
+    # lines the courier hands curl. TLS then authenticates the NAME while the
+    # connection is pinned to the ADDRESS, and neither comes from the wire.
+    if [[ -n "$HQ_URL" ]]; then
+      if [[ "$HQ_URL" =~ ^https://[A-Za-z0-9._-]+(:[0-9]+)?/?$ ]]; then
+        HQ_URL="${HQ_URL%/}"
+        printf '%s\n' "$HQ_URL" > "$IDENTITY_DIR/hq-url"
+        hostport="${HQ_URL#https://}"
+        host="${hostport%%:*}"
+        urlport="${hostport#"$host"}"; urlport="${urlport#:}"
+        : > "$IDENTITY_DIR/hq-resolve"
+        for e in "${ENTRIES[@]}"; do
+          ip="${e%%:*}"
+          [[ "$ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || continue
+          # An HQ entry on a port the URL does not name would produce a
+          # --resolve line curl never consults; pin the URL's port instead so
+          # the two halves cannot disagree silently.
+          printf '%s:%s:%s\n' "$host" "${urlport:-443}" "$ip" >> "$IDENTITY_DIR/hq-resolve"
+        done
+        log "HQ endpoint published for the courier: $HQ_URL -> $(tr '\n' ' ' < "$IDENTITY_DIR/hq-resolve")"
+      else
+        # Refused rather than trimmed. `http://` would carry this centre's
+        # credential in clear text across the internet, and a URL with a path
+        # would silently break every endpoint the courier appends.
+        log "zuup.hq_url='${HQ_URL}' is not a bare https://host[:port] — refusing it; the courier will not run." err
+      fi
+    else
+      log "ADMIN_STATION has HQ addresses but no zuup.hq_url — the firewall is open to HQ and nothing knows how to talk to it." warning
+    fi
   else
     log "zuup.hq had no usable entries — this admin station has no HQ destination." err
   fi
@@ -257,6 +301,26 @@ load_esp_material() {
     log "WireGuard config loaded from the ESP"
   else
     log "no /zuup/wg0.conf on the ESP — the tunnel cannot come up." err
+  fi
+
+  # ── the courier's two credentials ─────────────────────────────────────
+  #
+  # Loaded only on an ADMIN_STATION — and the capability was already demoted to
+  # CANDIDATE_SEAT above if the boot could not be verified, so an unsigned BIOS
+  # boot never reaches this branch. They are the centre's credential at HQ and
+  # at its own Edge: transport secrets, not keys to anything. HQ's signature is
+  # what the Edge actually trusts a bundle on, and every answer that leaves is
+  # ciphertext wrapped to the HSM.
+  if [[ "$CAPABILITY" == "ADMIN_STATION" ]]; then
+    for pair in "hq-centre.key:the HQ uplink credential" "edge-provisioning.key:the Edge write credential"; do
+      f="${pair%%:*}"; what="${pair#*:}"
+      if [[ -r "$mnt/zuup/$f" ]]; then
+        install -m 0600 "$mnt/zuup/$f" "$IDENTITY_DIR/$f"
+        log "$what loaded from the ESP"
+      else
+        log "no /zuup/$f on the ESP — $what is missing, so the courier will not run." warning
+      fi
+    done
   fi
 
   if [[ -r "$mnt/zuup/biometric-attest.key" ]]; then
