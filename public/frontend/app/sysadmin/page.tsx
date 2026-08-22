@@ -443,8 +443,11 @@ function CentreUplinks() {
   const [minted, setMinted] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    // A silent pass is the poll below. It must not flip the panel back to its
+    // skeleton every fifteen seconds, or the operator watching for a delivery
+    // sees the table they are reading disappear underneath them.
+    if (!silent) setLoading(true);
     try {
       const [list, rec] = await Promise.all([
         centreSyncApi.list(),
@@ -461,7 +464,17 @@ function CentreUplinks() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Polls, on the same cadence as the approvals queue above and the bell in the
+  // header. The courier that fills this table runs unattended, so a panel that
+  // only loaded once on mount showed a state that could be hours stale and gave
+  // no sign of it — the operator had to know to press Refresh to find out that
+  // a centre's papers had landed. Now the notification and the row it refers to
+  // appear together.
+  useEffect(() => {
+    load();
+    const t = setInterval(() => load(true), POLL_MS);
+    return () => clearInterval(t);
+  }, [load]);
 
   async function mint(id: string) {
     setBusy(id);
@@ -526,9 +539,12 @@ function CentreUplinks() {
   const opened = groups.reduce((n, g) => n + g.decrypted, 0);
 
   return (
+    // `() => load()` rather than `load`: passing the handler directly would hand
+    // the click event in as `silent`, and a truthy event would make the one
+    // button whose whole job is to show it is working do so invisibly.
     <Card
       title="Centre uplinks"
-      actions={<Button onClick={load} disabled={loading}>Refresh</Button>}
+      actions={<Button onClick={() => load()} disabled={loading}>Refresh</Button>}
     >
       <p style={{ marginTop: 0, marginBottom: 'var(--space-lg)', fontSize: 13, color: 'var(--color-navy-400)' }}>
         One credential per centre. The Admin Station inside the locked OS uses it to pull that

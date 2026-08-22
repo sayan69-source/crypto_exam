@@ -27,8 +27,10 @@ from app.models import (
     DPDPAuditLog, AdminAuditLog, HardwareNode, Center,
     StaffRegistrationRequest, StaffApprovalStatus,
     CandidateApprovalStatus,
+    NotificationKind, NotificationSeverity,
 )
 from app.services.auth import require_role
+from app.services.notifications import notify
 from app.services.health import system_health
 from app.services.email import send_email
 
@@ -440,6 +442,44 @@ async def issue_staff_code(
     r.activation_code_expires_at = expires
     r.status = StaffApprovalStatus.APPROVED
     r.approved_at = datetime.now(timezone.utc)
+
+    # Close the loop the public registration opened.
+    #
+    # The code itself is returned to the approver's browser exactly once and is
+    # stored only as a hash — so it must never reach a feed that a second
+    # administrator can read minutes later. What goes here is that the decision
+    # happened and who it was about; the code stays in the response body.
+    #
+    # This event matters because the queue is SHARED. Two administrators can
+    # have the approvals page open at once, and without this the second one
+    # sees a row silently vanish on their next poll with no record of who
+    # actioned it or when.
+    notify(
+        db,
+        kind=NotificationKind.STAFF_REGISTRATION_APPROVED,
+        severity=NotificationSeverity.SUCCESS,
+        # Back to the same queue the application was addressed to, so the
+        # submission and its outcome sit together in one feed rather than
+        # landing in two different consoles.
+        recipient_role=r.approver_role,
+        title=f"{r.full_name} approved — activation code issued",
+        body=(
+            f"A one-time code was issued for {r.center_name or 'their centre'} and shown "
+            f"once to the approver. It expires in {_CODE_TTL_MIN} minutes and is redeemed "
+            "in person at the centre with a live fingerprint. This record holds the "
+            "decision, never the code."
+        ),
+        source_feature="staff-approvals",
+        subject_type="staff_registration_request",
+        subject_id=r.id,
+        payload={
+            "applicantName": r.full_name,
+            "role": r.role,
+            "centreName": r.center_name,
+            "ttlMinutes": _CODE_TTL_MIN,
+        },
+    )
+
     await db.commit()
 
     return {"ok": True, "code": code, "expiresAt": expires.isoformat(), "ttlMinutes": _CODE_TTL_MIN}

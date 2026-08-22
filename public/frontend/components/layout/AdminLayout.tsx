@@ -12,6 +12,7 @@ import Icon from '@/components/marketing/LucideIcon';
 import styles from './AdminLayout.module.css';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { adminApi } from '@/lib/api/admin';
+import NotificationBell from '@/components/admin/NotificationBell';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Mission Control', icon: 'radar' },
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/admin/answer-vault', label: 'Answer Vault', icon: 'lock' },
   { href: '/admin/candidates', label: 'Candidates', icon: 'users-round' },
   { href: '/admin/enquiries', label: 'Enquiries', icon: 'mail' },
+  { href: '/admin/notifications', label: 'Notifications', icon: 'bell' },
   { href: '/admin/emergency', label: 'Emergency', icon: 'siren', emergency: true },
   { href: '/admin/roles', label: 'Roles', icon: 'key-round' },
   { href: '/admin/reports', label: 'Reports', icon: 'file-check' },
@@ -131,6 +133,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               {alerts}
             </Link>
           )}
+          {/* Beside the enquiries badge, not replacing it. That badge counts ONE
+              thing an administrator must answer; this one carries events raised
+              by other features entirely — an enrolment from the public site, an
+              application landing in this tier's queue — which had nowhere to
+              surface before. Both are real counts; neither invents a number. */}
+          <NotificationBell />
           <div className={styles.adminUser}>
             <div className={styles.adminAvatar}>{userName.charAt(0)}</div>
             <span className={styles.adminName}>{userName}</span>

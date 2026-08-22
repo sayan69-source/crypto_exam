@@ -30,7 +30,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Center, Exam, StaffRegistrationRequest, StaffApprovalStatus
+from app.models import (
+    Center,
+    Exam,
+    NotificationKind,
+    NotificationSeverity,
+    StaffApprovalStatus,
+    StaffRegistrationRequest,
+    UserRole,
+)
+from app.services.notifications import notify
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -110,6 +119,58 @@ async def register(
         approver_role="SYSTEM_ADMIN" if body.role == "CENTER_ADMIN" else "CENTER_ADMIN",
     )
     db.add(req)
+
+    # Tell the admin console that its queue just grew.
+    #
+    # This is the second crossing point in this feature, and the one with the
+    # widest gap between the two sides. The caller here is a member of the
+    # public with no account, no session and no token — by construction,
+    # because a centre's LAN has no route to the internet and a new Centre
+    # Admin therefore has to register from outside it. The reader is an
+    # authenticated administrator on a console that may not be open for hours.
+    #
+    # Before this, the ONLY trace of an application was a row that appeared in
+    # the approvals table if somebody happened to load that page, so an
+    # application submitted on a Friday evening was indistinguishable from no
+    # application at all until someone went looking.
+    #
+    # Staged, not committed: the notification rides the same transaction as the
+    # registration it describes, so a registration that fails to commit cannot
+    # leave behind a notification claiming somebody applied.
+    notify(
+        db,
+        kind=NotificationKind.STAFF_REGISTRATION_SUBMITTED,
+        severity=NotificationSeverity.INFO,
+        # Addressed to whoever actually holds this approval, which is NOT one
+        # fixed role: a Centre Admin applicant is tier-0's decision, an
+        # Invigilator is their own centre's. Addressing both to ADMIN would put
+        # Centre Admin applications in front of a tier-1 operator who is
+        # forbidden from approving them (403 SYSTEM_ADMIN_REQUIRED) while the
+        # tier-0 console that must act never hears about them — a notification
+        # sent to someone who cannot act on it is worse than none, because it
+        # looks handled.
+        recipient_role=req.approver_role,
+        title=f"{req.full_name} applied as {'Centre Admin' if req.role == 'CENTER_ADMIN' else 'Invigilator'}",
+        body=(
+            f"Registered on the public site for {centre.name}. "
+            f"Approval is held by {req.approver_role.replace('_', ' ').title()}. "
+            "Approving issues a one-time code handed over in person — a web "
+            "registration alone can never become an active identity."
+        ),
+        source_feature="staff-registration",
+        subject_type="staff_registration_request",
+        subject_id=req.id,
+        payload={
+            "applicantName": req.full_name,
+            "role": req.role,
+            "centreName": centre.name,
+            "centreId": centre.id,
+            "approverRole": req.approver_role,
+            # Deliberately NOT the face embedding hash: the biometric material
+            # stays in the row the approver opens, never in a feed.
+        },
+    )
+
     await db.commit()
     await db.refresh(req)
 

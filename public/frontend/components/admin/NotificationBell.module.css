@@ -1,0 +1,202 @@
+/* The tier-0 notification bell and its drawer.
+   Same light palette and token set as the console chrome around it — the feed
+   is part of the console, not a widget bolted onto it. */
+
+.wrap { position: relative; display: inline-flex; }
+
+.bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  color: var(--color-navy-700, #26355E);
+  cursor: pointer;
+}
+.bell:hover { border-color: var(--color-navy-400, #7C8AB8); }
+
+/* The count sits on the bell rather than beside it: the operator is scanning
+   for "is there anything", not reading a number in a row of numbers. */
+.badge {
+  position: absolute;
+  top: -5px; right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #C8102E;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  border: 2px solid #fff;
+}
+
+.drawer {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(560px, 70vh);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(13, 21, 38, 0.16);
+  z-index: 60;
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border-bottom: 1px solid var(--border-soft);
+}
+.headTitle {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13.5px; font-weight: 650;
+  color: var(--color-navy-900, #0D1526);
+}
+.headCount {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(200, 16, 46, 0.10);
+  color: #9B0C23;
+}
+
+.linkBtn {
+  border: none; background: none; padding: 0;
+  font-size: 12.5px; font-weight: 550;
+  color: var(--color-navy-600, #1E2C55);
+  cursor: pointer;
+}
+.linkBtn:hover { text-decoration: underline; }
+.linkBtn:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.row {
+  display: flex;
+  gap: 11px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  /* Unread carries a left rule; read does not. The difference has to survive a
+     grayscale print and a colour-blind reader, so it is position + weight, not
+     hue alone. */
+  border-left: 3px solid var(--color-navy-900, #0D1526);
+  background: #fff;
+}
+.rowRead { border-left-color: transparent; background: #FCFCFD; }
+.rowRead .rowTitle { font-weight: 500; color: var(--color-navy-600, #1E2C55); }
+
+.dot {
+  flex: none;
+  display: grid; place-items: center;
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  margin-top: 1px;
+}
+.sevInfo    { background: rgba(30, 44, 85, 0.09);  color: #1E2C55; }
+.sevSuccess { background: rgba(17, 122, 71, 0.11); color: #0F7A47; }
+.sevWarning { background: rgba(224, 112, 32, 0.14); color: #A85410; }
+.sevCritical{ background: rgba(200, 16, 46, 0.12); color: #9B0C23; }
+
+.rowBody { min-width: 0; flex: 1; }
+
+.rowTop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.rowTitle {
+  font-size: 13px; font-weight: 620;
+  color: var(--color-navy-900, #0D1526);
+  line-height: 1.35;
+}
+.rowTime {
+  flex: none;
+  font-size: 11px;
+  color: var(--color-navy-400, #7C8AB8);
+  white-space: nowrap;
+}
+
+.rowText {
+  margin: 5px 0 0;
+  font-size: 12.25px;
+  line-height: 1.55;
+  color: var(--color-navy-600, #1E2C55);
+}
+
+.rowMeta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 8px;
+}
+
+.source {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(13, 21, 38, 0.06);
+  color: var(--color-navy-700, #26355E);
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(13, 21, 38, 0.045);
+  color: var(--color-navy-600, #1E2C55);
+}
+.chipWarn { background: rgba(224, 112, 32, 0.13); color: #A85410; }
+.chipCrit { background: rgba(200, 16, 46, 0.11); color: #9B0C23; }
+
+.ack { font-size: 11px; color: var(--color-navy-400, #7C8AB8); }
+
+.ackBtn {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  font-size: 11.5px; font-weight: 550;
+  color: var(--color-navy-700, #26355E);
+  cursor: pointer;
+}
+.ackBtn:hover { border-color: var(--color-navy-400, #7C8AB8); }
+.ackBtn:disabled { opacity: 0.6; cursor: default; }
+
+.empty, .err {
+  margin: 0;
+  padding: 18px 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-navy-400, #7C8AB8);
+}
+.err { color: #9B0C23; }
+
+.foot {
+  position: sticky; bottom: 0;
+  padding: 10px 14px;
+  background: #fff;
+  border-top: 1px solid var(--border-soft);
+  text-align: right;
+}
+.foot a {
+  font-size: 12.5px; font-weight: 550;
+  color: var(--color-navy-600, #1E2C55);
+  text-decoration: none;
+}
+.foot a:hover { text-decoration: underline; }
+
+@media (max-width: 520px) {
+  .drawer { width: calc(100vw - 24px); right: -8px; }
+}

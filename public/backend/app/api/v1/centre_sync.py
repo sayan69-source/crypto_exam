@@ -58,8 +58,16 @@ from app.api.v1.sys_ledger import (
 )
 from app.config import get_settings
 from app.database import get_db
-from app.models import Center, CentreSealedRecord, DecryptedAnswerRecord, UserRole
+from app.models import (
+    Center,
+    CentreSealedRecord,
+    DecryptedAnswerRecord,
+    NotificationKind,
+    NotificationSeverity,
+    UserRole,
+)
 from app.services.auth import require_role
+from app.services.notifications import notify
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -257,6 +265,51 @@ async def pull_bundle(
     }
 
 
+async def _refuse(
+    db: AsyncSession,
+    centre: Center,
+    *,
+    code: str,
+    http_status: int,
+    what_happened: str,
+) -> HTTPException:
+    """Record a refused delivery for tier-0, then hand back the error to raise.
+
+    A bundle that fails verification is the single most operationally important
+    thing this endpoint can produce, and it was previously invisible to anyone
+    not reading server logs: the courier gets a 4xx it cannot interpret and
+    retries on its next tick, forever, while HQ shows nothing wrong.
+
+    This is the one place in this module that commits a notification on its own
+    rather than letting the caller's transaction carry it, and the reason is
+    that there IS no caller transaction to join — every refusal below happens
+    before the first ``db.add`` of a record, so the session holds no pending
+    write of ours to be made consistent with. The alternative, staging it and
+    then raising, would roll the notification back with the request and record
+    nothing at all, which is the bug this function exists to prevent.
+    """
+    notify(
+        db,
+        kind=NotificationKind.CENTRE_DELIVERY_REJECTED,
+        severity=NotificationSeverity.CRITICAL,
+        recipient_role=UserRole.SYSTEM_ADMIN,
+        title=f"Delivery REFUSED from {centre.name}",
+        body=(
+            f"{what_happened} The bundle was refused whole and nothing was stored. "
+            "A centre whose deliveries keep failing verification needs looking at: "
+            "either its node key has been rotated without HQ being told, or the "
+            "bundle was altered between the terminal that sealed it and here."
+        ),
+        source_feature="centre-uplink",
+        subject_type="centre",
+        subject_id=centre.id,
+        payload={"centreName": centre.name, "reason": code, "httpStatus": http_status},
+    )
+    await db.commit()
+    logger.warning("centre-sync: refused delivery from centre %s — %s", centre.id, code)
+    return HTTPException(http_status, code)
+
+
 @router.post("/ledger", summary="Deliver a centre's sealed answer bundle (§13.4)")
 async def deliver_ledger(
     payload: SyncBundle,
@@ -279,17 +332,44 @@ async def deliver_ledger(
     centre B and have it stored under B's hash.
     """
     if payload.manifest.centreId != centre.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "CENTRE_MISMATCH")
+        raise await _refuse(
+            db, centre, code="CENTRE_MISMATCH", http_status=status.HTTP_403_FORBIDDEN,
+            what_happened=(
+                f"A credential belonging to {centre.name} presented a bundle claiming to be "
+                f"centre {payload.manifest.centreId}."
+            ),
+        )
 
     manifest_bytes = _canonical_json(payload.manifest.model_dump())
     if _sha256(manifest_bytes).hex() != payload.manifestHash:
-        raise HTTPException(status.HTTP_409_CONFLICT, "MANIFEST_HASH_MISMATCH")
+        raise await _refuse(
+            db, centre, code="MANIFEST_HASH_MISMATCH", http_status=status.HTTP_409_CONFLICT,
+            what_happened="The manifest did not hash to the digest the station said it would.",
+        )
     if not _verify_node_sig(payload.nodePubkey, _sha256(manifest_bytes), payload.nodeSig):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "NODE_SIGNATURE_INVALID")
+        raise await _refuse(
+            db, centre, code="NODE_SIGNATURE_INVALID", http_status=status.HTTP_401_UNAUTHORIZED,
+            what_happened="The centre node's signature over the manifest did not verify.",
+        )
     if payload.manifest.count != len(payload.manifest.records):
-        raise HTTPException(status.HTTP_409_CONFLICT, "MANIFEST_COUNT_MISMATCH")
+        raise await _refuse(
+            db, centre, code="MANIFEST_COUNT_MISMATCH", http_status=status.HTTP_409_CONFLICT,
+            what_happened=(
+                f"The manifest declared {payload.manifest.count} record(s) but carried "
+                f"{len(payload.manifest.records)}."
+            ),
+        )
 
-    _verify_chain(payload.manifest.records)
+    # `_verify_chain` raises on the first broken link. Catching it here is what
+    # turns "the courier got a 409" into something tier-0 can see; the original
+    # error is re-raised unchanged so the courier's behaviour does not alter.
+    try:
+        _verify_chain(payload.manifest.records)
+    except HTTPException as exc:
+        raise await _refuse(
+            db, centre, code=str(exc.detail), http_status=exc.status_code,
+            what_happened="The record chain did not re-walk: a leaf did not digest to its own envelope.",
+        )
 
     centre_id_hash = _sha256(centre.id.encode("utf-8")).hex()
 
@@ -327,6 +407,47 @@ async def deliver_ledger(
         stored += 1
 
     centre.last_sync_at = datetime.now(timezone.utc)
+
+    # Tell tier-0 that a centre's papers landed.
+    #
+    # This is the whole reason the console can stop being a page somebody has to
+    # remember to refresh. The courier runs unattended — no session, no operator,
+    # frequently outside working hours — so until now the only trace of a
+    # delivery was a log line on the server and a row count that changed if
+    # someone happened to press Refresh afterwards.
+    #
+    # Only when something was actually STORED. A courier that retries a bundle
+    # it already delivered answers stored=0/duplicate=N, and that is the same
+    # delivery arriving twice, not news. Notifying on it would let one stuck
+    # courier drive the badge up forever — see services/notifications.py.
+    if stored:
+        notify(
+            db,
+            kind=NotificationKind.CENTRE_DELIVERY_RECEIVED,
+            severity=NotificationSeverity.SUCCESS,
+            recipient_role=UserRole.SYSTEM_ADMIN,
+            title=f"{stored} sealed record(s) delivered by {centre.name}",
+            body=(
+                f"{centre.name} delivered a verified bundle of {payload.manifest.count} record(s) "
+                f"for exam {payload.manifest.records[0].examId if payload.manifest.records else '—'}. "
+                "The chain, the manifest hash and the centre node's signature all verified. "
+                "The records are sealed — opening them needs the HSM."
+            ),
+            source_feature="centre-uplink",
+            subject_type="centre",
+            subject_id=centre.id,
+            payload={
+                "centreIdHash": centre_id_hash,
+                "centreName": centre.name,
+                "examId": payload.manifest.records[0].examId if payload.manifest.records else None,
+                "delivered": payload.manifest.count,
+                "stored": stored,
+                "duplicate": payload.manifest.count - stored,
+                "manifestHash": payload.manifestHash,
+                "nodePubkey": payload.nodePubkey,
+            },
+        )
+
     await db.commit()
 
     logger.info(
@@ -368,6 +489,31 @@ async def mint_centre_key(
     rotated = centre.sync_key_hash is not None
     centre.sync_key_hash = hash_sync_key(key)
     centre.sync_key_issued_at = datetime.now(timezone.utc)
+
+    # Rotation silently stops the old station syncing. That is the intended
+    # behaviour for a credential that may have walked out of the building, but
+    # it also means the next thing an operator sees is a centre that has quietly
+    # stopped delivering — so the rotation itself goes in the feed, where it
+    # sits immediately above the failures it is about to cause.
+    notify(
+        db,
+        kind=NotificationKind.CENTRE_CREDENTIAL_ISSUED,
+        severity=NotificationSeverity.WARNING if rotated else NotificationSeverity.INFO,
+        recipient_role=UserRole.SYSTEM_ADMIN,
+        title=f"Uplink credential {'rotated' if rotated else 'issued'} for {centre.name}",
+        body=(
+            "The previous credential stopped working the moment this was issued. "
+            "That centre's Admin Station cannot sync until it is re-provisioned with the new key."
+            if rotated else
+            "This centre can now pull its bundle and deliver sealed answers. "
+            "The key is shown once and only its hash is stored here."
+        ),
+        source_feature="centre-uplink",
+        subject_type="centre",
+        subject_id=centre.id,
+        payload={"centreName": centre.name, "rotated": rotated},
+    )
+
     await db.commit()
 
     logger.info("centre-sync: %s uplink credential for centre %s",

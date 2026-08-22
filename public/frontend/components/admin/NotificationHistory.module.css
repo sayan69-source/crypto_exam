@@ -1,0 +1,39 @@
+/* Tier-0 notification history. The rows themselves are rendered by
+   NotificationRow and carry their own styles — this file is the page furniture
+   around them. */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--color-navy-600, #1E2C55);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--color-navy-400, #7C8AB8); }
+
+.chipOn {
+  background: var(--color-navy-900, #0D1526);
+  border-color: var(--color-navy-900, #0D1526);
+  color: #fff;
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.note {
+  margin-top: var(--space-lg);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--color-navy-400, #7C8AB8);
+}

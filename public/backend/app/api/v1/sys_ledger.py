@@ -40,8 +40,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import UserRole
+from app.models import NotificationKind, NotificationSeverity, UserRole
 from app.services.auth import require_role
+from app.services.notifications import notify
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -405,6 +406,40 @@ async def open_received(
         r.decrypted_at = now
         opened += 1
 
+    # The second step of the centre's journey, recorded where the first one is.
+    # A quarantined envelope is the part worth escalating: it means a record
+    # arrived intact enough to store and still would not open, so the feed says
+    # so at WARNING rather than folding it into a success count.
+    if opened or failed:
+        notify(
+            db,
+            kind=NotificationKind.SEALED_RECORDS_OPENED,
+            severity=NotificationSeverity.WARNING if failed else NotificationSeverity.SUCCESS,
+            recipient_role=UserRole.SYSTEM_ADMIN,
+            title=(
+                f"{opened} record(s) opened"
+                + (f", {len(failed)} quarantined" if failed else "")
+            ),
+            body=(
+                "Sealed records delivered by a centre were decrypted with the HSM key. "
+                + (
+                    f"{len(failed)} envelope(s) could not be opened and were LEFT SEALED "
+                    "rather than discarded — they are still on disk and still verifiable."
+                    if failed else
+                    "Every envelope in the set opened."
+                )
+            ),
+            source_feature="answer-vault",
+            subject_type="exam",
+            subject_id=req.examId,
+            payload={
+                "examId": req.examId,
+                "centreIdHash": req.centreIdHash,
+                "opened": opened,
+                "quarantined": len(failed),
+            },
+        )
+
     await db.commit()
     logger.info("tier-0 opened %d sealed record(s); %d quarantined", opened, len(failed))
     return {"ok": True, "opened": opened, "failed": failed}
@@ -496,6 +531,32 @@ async def anchor_received(
                DecryptedAnswerRecord.centre_id_hash == req.centreIdHash)
         .values(polygon_tx=tx, chain_root=final.chain_root)
     )
+
+    # The end of the journey, and the only step with a consequence outside this
+    # database: the root is now on a public chain and cannot be taken back.
+    notify(
+        db,
+        kind=NotificationKind.ANSWER_ROOT_ANCHORED,
+        severity=NotificationSeverity.SUCCESS,
+        recipient_role=UserRole.SYSTEM_ADMIN,
+        title=f"Answer root anchored for exam {req.examId[:8]}…",
+        body=(
+            f"The chain root covering {len(rows)} record(s) was published on-chain. "
+            "This is public and permanent — an auditor can now check any candidate's "
+            "paper against it without this platform's cooperation."
+        ),
+        source_feature="answer-vault",
+        subject_type="exam",
+        subject_id=req.examId,
+        payload={
+            "examId": req.examId,
+            "centreIdHash": req.centreIdHash,
+            "answerRoot": final.chain_root,
+            "count": len(rows),
+            "tx": tx,
+        },
+    )
+
     await db.commit()
 
     logger.info("anchored centre %s exam %s root %s count %d tx %s",

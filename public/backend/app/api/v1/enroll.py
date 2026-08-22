@@ -31,9 +31,10 @@ from app.database import get_db
 from app.models import (
     CandidateChoice, Center, Enrollment, EnrollmentStatus, Exam, ExamLocation,
     ExamOffering, ExamStatus, ExamSubject, User, UserRole, CandidateApprovalStatus,
-    EmailVerificationGrant,
+    EmailVerificationGrant, NotificationKind, NotificationSeverity,
 )
 from app.services.auth import hash_password
+from app.services.notifications import notify
 from app.services.email import send_email
 from app.services.exam_registration import (
     LocationChoiceError, SubjectChoiceError, allot_location, normalise,
@@ -395,6 +396,44 @@ async def enrol_candidate(
         allotted_at=datetime.now(timezone.utc),
         subject_ids=subject_ids,
     ))
+
+    # The third crossing, and the one with the most volume.
+    #
+    # A candidate has no account and never will: this endpoint deliberately
+    # sets an unusable password because the only "login" is a biometric check
+    # at the centre. So the candidate cannot be told anything through the
+    # platform and cannot check anything — which leaves the admin console as
+    # the only place an enrolment can surface at all. The roster page shows the
+    # row; this shows that it ARRIVED.
+    #
+    # INFO, not SUCCESS: enrolments are routine and arrive in bulk. Marking
+    # every one as a success event would bury the approvals and vault events
+    # that actually need a decision, which is how a feed stops being read.
+    notify(
+        db,
+        kind=NotificationKind.CANDIDATE_ENROLLED,
+        severity=NotificationSeverity.INFO,
+        recipient_role=UserRole.ADMIN,
+        title=f"{candidate.full_name} enrolled — {roll}",
+        body=(
+            f"Enrolled for {exam.name} at {location.name}, their #{rank + 1} choice. "
+            "Approval is pending; verification is biometric at the centre on exam day, "
+            "so there is no online login to grant."
+        ),
+        source_feature="candidate-enrolment",
+        subject_type="enrollment",
+        subject_id=roll,
+        payload={
+            "candidateName": candidate.full_name,
+            "rollNumber": roll,
+            "examName": exam.name,
+            "locationName": location.name,
+            "preferenceRank": rank + 1,
+            # No face descriptor and no date of birth: the roster row the admin
+            # opens holds those, behind its own authorisation.
+        },
+    )
+
     await db.commit()
 
     logger.info(

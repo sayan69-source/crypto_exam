@@ -7,7 +7,7 @@ DPDP Act 2023 compliance annotations preserved.
 """
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -487,6 +487,128 @@ class DPDPAuditLog(Base):
     data_categories = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class NotificationKind(str, enum.Enum):
+    """What happened. Named for the event, not for how it looks in a list.
+
+    A kind is a contract with the reader: ``CENTRE_DELIVERY_RECEIVED`` means a
+    centre's sealed papers reached HQ and the counts in ``payload`` describe
+    that delivery. Renaming one orphans stored rows, so add rather than
+    repurpose.
+    """
+    # ── tier-0's feed: the centre uplink and the answer vault ──
+    # Raised by a courier with no user session, or by tier-0 acting on what it
+    # delivered.
+    CENTRE_DELIVERY_RECEIVED = "CENTRE_DELIVERY_RECEIVED"
+    CENTRE_DELIVERY_REJECTED = "CENTRE_DELIVERY_REJECTED"
+    CENTRE_CREDENTIAL_ISSUED = "CENTRE_CREDENTIAL_ISSUED"
+    SEALED_RECORDS_OPENED = "SEALED_RECORDS_OPENED"
+    ANSWER_ROOT_ANCHORED = "ANSWER_ROOT_ANCHORED"
+
+    # ── tier-1's feed: the public site and the approvals queue ──
+    # Raised by members of the public who have no account at all, and by the
+    # administrator who acts on them.
+    STAFF_REGISTRATION_SUBMITTED = "STAFF_REGISTRATION_SUBMITTED"
+    STAFF_REGISTRATION_APPROVED = "STAFF_REGISTRATION_APPROVED"
+    CANDIDATE_ENROLLED = "CANDIDATE_ENROLLED"
+
+
+class NotificationSeverity(str, enum.Enum):
+    INFO = "INFO"
+    SUCCESS = "SUCCESS"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class Notification(Base):
+    """
+    A durable, recipient-scoped record that something happened in one feature
+    which the operator of ANOTHER feature needs to know about.
+
+    WHY THIS TABLE EXISTS
+    ---------------------
+    Until now the platform had no way for one feature to tell another that
+    anything had occurred. The three things that looked like notifications were
+    each structurally unable to serve this purpose:
+
+      * the WebSocket rooms (``app/websocket_manager.py``) deliver to whoever is
+        connected AT THAT INSTANT and store nothing — an operator who was not
+        watching has no way to learn what they missed, which is the exact case
+        that matters for a courier that syncs unattended at 03:00;
+      * ``AdminAuditLog`` records what an ADMIN DID, keyed by the actor. A
+        centre's Admin Station has no user and no session, so the events that
+        most need surfacing cannot be written there at all;
+      * ``Enquiry`` backs the one real badge in the product, but it IS the
+        feature it counts — it cannot carry an event from somewhere else.
+
+    So: ``recipient_role`` (not ``recipient_id``) is the scope, because the
+    audience for these events is a duty rather than a person — whoever is
+    holding tier-0 needs to see a delivery land, not one named administrator
+    who may be off shift. ``read_at`` makes "new since anyone last looked"
+    answerable across sessions, reloads and shift changes, which a toast or a
+    socket frame cannot do.
+
+    ONE TABLE, TWO FEEDS
+    --------------------
+    Both consoles read this table and neither can see the other's rows, because
+    every query is filtered by the caller's own role and there is no parameter
+    to override it. Tier-0 gets the centre uplink and the answer vault; tier-1
+    gets the public registration queue and the enrolment roster. That split is
+    not cosmetic — a tier-1 administrator learning that a specific centre's
+    sealed papers arrived is exactly the leak the two-tier separation exists to
+    prevent.
+
+    DPDP note: what may appear here is decided per event, not globally. The
+    tier-0 events carry counts, hashes and record identifiers only — never a
+    candidate's name, roll number, seat or answer content, because what moves
+    through them is sealed ciphertext and the row describes the movement, not
+    the contents. The tier-1 events DO carry an applicant's or candidate's
+    name, because the queue the notification points at already displays exactly
+    that to the same reader; the row carries no more than its destination does.
+    What is never permitted in either is biometric material — a face-embedding
+    hash, a fingerprint template — or an activation code. Tests assert both.
+    """
+    __tablename__ = "notifications"
+
+    id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
+
+    kind = Column(Enum(NotificationKind, name="notification_kind", create_type=True), nullable=False)
+    severity = Column(
+        Enum(NotificationSeverity, name="notification_severity", create_type=True),
+        nullable=False, default=NotificationSeverity.INFO,
+    )
+
+    # The duty that should see this, e.g. SYSTEM_ADMIN. Stored as the plain role
+    # string rather than a FK to users, so an event raised by an
+    # unauthenticated courier still has a valid audience.
+    recipient_role = Column(String(32), nullable=False, index=True)
+
+    title = Column(String(200), nullable=False)
+    body = Column(Text, nullable=True)
+
+    # Which feature raised it, and the thing it concerns — enough for the UI to
+    # deep-link back to the originating feature.
+    source_feature = Column(String(64), nullable=False)
+    subject_type = Column(String(50), nullable=True)
+    subject_id = Column(String(100), nullable=True)
+
+    # Counts/hashes describing the event. Never personal data — see the DPDP
+    # note above.
+    payload = Column(JSON, nullable=True)
+
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    __table_args__ = (
+        # The feed query is always "rows for this duty, unread first or not,
+        # newest first".
+        Index("ix_notifications_role_read", "recipient_role", "read_at", "created_at"),
+    )
 
 
 class BiometricEnrollment(Base):

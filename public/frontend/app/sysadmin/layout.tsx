@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import Icon from '@/components/marketing/LucideIcon';
+import NotificationBell from '@/components/admin/NotificationBell';
 import s from './shell.module.css';
 
 export default function SysAdminLayout({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,10 @@ export default function SysAdminLayout({ children }: { children: React.ReactNode
         </div>
 
         <div className={s.right}>
+          {/* Lives in the chrome, not on the console page: a delivery that
+              lands while the operator is on any other tier-0 screen still has
+              to reach them. */}
+          <NotificationBell />
           <span className={s.who} title={session?.identifier}>
             <span className={s.avatar}>{name.charAt(0).toUpperCase()}</span>
             {name}

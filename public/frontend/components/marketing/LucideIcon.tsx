@@ -94,6 +94,17 @@ const paths: Record<string, string> = {
     "M12 5v14 M19 12l-7 7-7-7",
   "bell-ring":
     "M10.3 21a2 2 0 0 0 3.4 0 M22 8c0-2.3-.8-4.3-2-6 M3.3 15.3A1 1 0 0 0 4 17h16a1 1 0 0 0 .7-1.7C19.4 14 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.4 6-2.7 7.3 M4 2C2.8 3.7 2 5.7 2 8",
+  // `Icon` returns null for a name it does not know, so a missing entry is an
+  // invisible control rather than a wrong-looking one. `alert-triangle` was
+  // already being asked for in five places — the admin header's unhealthy
+  // state and the error banner on three public forms — and every one of them
+  // was drawing nothing next to its warning text.
+  bell:
+    "M10.3 21a2 2 0 0 0 3.4 0 M3.3 15.3A1 1 0 0 0 4 17h16a1 1 0 0 0 .7-1.7C19.4 14 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.4 6-2.7 7.3",
+  "alert-triangle":
+    "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01",
+  "shield-alert":
+    "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M12 8v4 M12 16h.01",
   "bot":
     "M12 8V4H8 M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M2 14h2 M20 14h2 M15 13v2 M9 13v2",
   "calendar-days":

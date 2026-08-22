@@ -272,7 +272,7 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters, contact, email_verify, centre_sync
+from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters, contact, email_verify, centre_sync, notifications
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
 from app.database import commit_before_response
@@ -291,6 +291,7 @@ for _router in (
     staff_reg.router, provisioning.router, enroll.router, exam_requests.router, exam_setters.router,
     item_pool.router, item_pool_forms.router, exam_pattern_api.router,
     centre_sync.router,
+    notifications.router,
 ):
     commit_before_response(_router)
 
@@ -325,5 +326,6 @@ app.include_router(exam_requests.router, prefix="/api/v1/exam-requests", tags=["
 app.include_router(exam_setters.router, prefix="/api/v1/exam-setters", tags=["Exam Setters (nominate → tier-0 approve → email-verified)"])
 app.include_router(contact.router, prefix="/api/v1/contact", tags=["Contact Form (public)"])
 app.include_router(centre_sync.router, prefix="/api/v1/centre-sync", tags=["Centre uplink (ZUUP-OS courier, §12/§13.4)"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications (cross-feature event feed)"])
 
 
