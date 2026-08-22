@@ -111,7 +111,6 @@ class AboutDocument(BaseModel):
     roles: list[Role]
     milestones: list[Milestone]
     stats: list[Stat]
-    languages: list[str]
     public_endpoints: dict[str, str]
     generated_at: str
     note: str
@@ -257,14 +256,8 @@ _MILESTONES = [
 
 _STATS = [
     Stat(value="4", label="Cryptographic guarantees on every exam"),
-    Stat(value="11", label="Indian languages supported end to end"),
     Stat(value="0 trust", label="Required in any single party or device"),
     Stat(value="100%", label="Of submissions publicly verifiable"),
-]
-
-_LANGUAGES = [
-    "English", "Hindi", "Bengali", "Tamil", "Telugu", "Kannada",
-    "Malayalam", "Marathi", "Gujarati", "Odia", "Punjabi",
 ]
 
 _FAQ = [
@@ -287,10 +280,6 @@ _FAQ = [
             answer="Yes. CryptoExam Core is built to comply with the Digital Personal Data "
                    "Protection Act, 2023. Biometric data is processed on-device and never leaves "
                    "the candidate's hardware in raw form."),
-    FAQItem(question="Which languages are supported?",
-            answer="The candidate interface supports 11 Indian languages with native script "
-                   "rendering, including Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, "
-                   "Gujarati and Odia."),
 ]
 
 _PUBLIC_ENDPOINTS = {
@@ -340,7 +329,6 @@ async def get_about() -> AboutDocument:
         roles=_ROLES,
         milestones=_MILESTONES,
         stats=_STATS,
-        languages=_LANGUAGES,
         public_endpoints=_PUBLIC_ENDPOINTS,
         generated_at=datetime.now(timezone.utc).isoformat(),
         note="This document is served publicly and without authentication so that anyone may "

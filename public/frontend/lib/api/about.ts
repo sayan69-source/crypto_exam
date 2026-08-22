@@ -38,7 +38,6 @@ export interface AboutDocument {
   roles: Role[];
   milestones: Milestone[];
   stats: Stat[];
-  languages: string[];
   public_endpoints: Record<string, string>;
   generated_at: string;
   note: string;
@@ -92,7 +91,7 @@ const FALLBACK_ABOUT: AboutDocument = {
   values: [
     { code: 'VALUE 01', title: 'Verifiability before convenience.', description: 'We will not ship a feature that cannot be independently checked. Every claim we make about an examination must produce evidence.' },
     { code: 'VALUE 02', title: 'Transparency without exposure.', description: 'Proofs are public. Personal data is not. Biometrics are processed on-device. Question content stays sealed until T₀.' },
-    { code: 'VALUE 03', title: 'Built for India, not retrofitted.', description: 'Eleven languages, on-device biometric processing, DPDP Act 2023 alignment, and centres designed for the operating reality of Indian examination halls.' },
+    { code: 'VALUE 03', title: 'Built for India, not retrofitted.', description: 'On-device biometric processing, DPDP Act 2023 alignment, and centres designed for the operating reality of Indian examination halls.' },
   ],
   guarantees: FALLBACK_GUARANTEES,
   lifecycle: [
@@ -110,7 +109,7 @@ const FALLBACK_ABOUT: AboutDocument = {
   ],
   roles: [
     { name: 'Candidate', summary: 'A focused exam environment with biometric check-in, autosave, and a printable cryptographic receipt for every submission.' },
-    { name: 'Setter', summary: 'An authoring portal for composing papers, generating ZK difficulty proofs, and sealing under lock.' },
+    { name: 'Setter', summary: 'An authoring portal for composing papers, generating ZK difficulty proofs, and running red-team review.' },
     { name: 'Invigilator', summary: 'Biometric verification of candidates at the centre, live roster management, and a one-tap channel to raise alerts and incident reports.' },
     { name: 'Administrator', summary: 'A real-time command console for centres, candidates, nodes and emergencies — with dual-control authorisation for every sensitive action.' },
   ],
@@ -122,11 +121,9 @@ const FALLBACK_ABOUT: AboutDocument = {
   ],
   stats: [
     { value: '4', label: 'Cryptographic guarantees on every exam' },
-    { value: '11', label: 'Indian languages supported end to end' },
     { value: '0 trust', label: 'Required in any single party or device' },
     { value: '100%', label: 'Of submissions publicly verifiable' },
   ],
-  languages: ['English', 'Hindi', 'Bengali', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Marathi', 'Gujarati', 'Odia', 'Punjabi'],
   public_endpoints: FALLBACK_PUBLIC_ENDPOINTS,
   generated_at: new Date().toISOString(),
   note: 'This document is served publicly and without authentication so that anyone may read, archive and machine-check it. No trust in CryptoExam Core is required.',
