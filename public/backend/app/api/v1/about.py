@@ -111,7 +111,6 @@ class AboutDocument(BaseModel):
     roles: list[Role]
     milestones: list[Milestone]
     stats: list[Stat]
-    languages: list[str]
     public_endpoints: dict[str, str]
     generated_at: str
     note: str
@@ -137,7 +136,7 @@ _VALUES = [
           description="Proofs are public. Personal data is not. Biometrics are processed "
                       "on-device. Question content stays sealed until T₀."),
     Value(code="VALUE 03", title="Built for India, not retrofitted.",
-          description="Eleven languages, on-device biometric processing, DPDP Act 2023 "
+          description="On-device biometric processing, DPDP Act 2023 "
                       "alignment, and centres designed for the operating reality of Indian "
                       "examination halls."),
 ]
@@ -230,8 +229,8 @@ _ROLES = [
          summary="A focused exam environment with biometric check-in, autosave, and a printable "
                  "cryptographic receipt for every submission."),
     Role(name="Setter",
-         summary="An authoring workbench for composing papers, generating ZK difficulty proofs, "
-                 "red-team review, and sealing question banks under lock."),
+         summary="An authoring portal for composing papers, generating ZK difficulty proofs, "
+                 "and running red-team review."),
     Role(name="Invigilator",
          summary="Biometric verification of candidates at the centre, live roster management, and "
                  "a one-tap channel to raise alerts and incident reports."),
@@ -257,15 +256,11 @@ _MILESTONES = [
 
 _STATS = [
     Stat(value="4", label="Cryptographic guarantees on every exam"),
-    Stat(value="11", label="Indian languages supported end to end"),
     Stat(value="0 trust", label="Required in any single party or device"),
     Stat(value="100%", label="Of submissions publicly verifiable"),
 ]
 
-_LANGUAGES = [
-    "English", "Hindi", "Bengali", "Tamil", "Telugu", "Kannada",
-    "Malayalam", "Marathi", "Gujarati", "Odia", "Punjabi",
-]
+
 
 _FAQ = [
     FAQItem(question="Do I have to trust CryptoExam Core?",
@@ -287,10 +282,6 @@ _FAQ = [
             answer="Yes. CryptoExam Core is built to comply with the Digital Personal Data "
                    "Protection Act, 2023. Biometric data is processed on-device and never leaves "
                    "the candidate's hardware in raw form."),
-    FAQItem(question="Which languages are supported?",
-            answer="The candidate interface supports 11 Indian languages with native script "
-                   "rendering, including Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, "
-                   "Gujarati and Odia."),
 ]
 
 _PUBLIC_ENDPOINTS = {
@@ -340,7 +331,6 @@ async def get_about() -> AboutDocument:
         roles=_ROLES,
         milestones=_MILESTONES,
         stats=_STATS,
-        languages=_LANGUAGES,
         public_endpoints=_PUBLIC_ENDPOINTS,
         generated_at=datetime.now(timezone.utc).isoformat(),
         note="This document is served publicly and without authentication so that anyone may "
