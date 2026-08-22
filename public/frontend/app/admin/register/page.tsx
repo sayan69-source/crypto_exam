@@ -20,6 +20,7 @@ export default function AdminRegistrationPage() {
   const [formData, setFormData] = useState<FormData | null>(null);
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailOtp, setEmailOtp] = useState('');
+  const [resendCount, setResendCount] = useState(0);
 
   const [timeLeft, setTimeLeft] = useState(120);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -29,8 +30,8 @@ export default function AdminRegistrationPage() {
     timerRef.current = null;
   }
 
-  async function handleRequestOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleRequestOtp(e: React.FormEvent | null, isResend = false) {
+    if (e) e.preventDefault();
     if (!formRef.current?.checkValidity()) {
       formRef.current?.reportValidity();
       return;
@@ -51,14 +52,14 @@ export default function AdminRegistrationPage() {
       setEmailChallengeId(res.challenge_id);
       setStep('OTP');
       setTimeLeft(120);
+      if (isResend) setResendCount(prev => prev + 1);
+      else setResendCount(0);
 
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timerRef.current!);
-            setStep('FORM');
-            setSubmitError('OTP expired. Please try again.');
             return 0;
           }
           return prev - 1;
@@ -192,9 +193,19 @@ export default function AdminRegistrationPage() {
                       required 
                       autoFocus 
                     />
-                    <p style={{ fontSize: 12, color: 'var(--color-navy-600)', marginTop: 8 }}>
-                      Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                    </p>
+                    {timeLeft > 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--color-navy-600)', marginTop: 8 }}>
+                        Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                      </p>
+                    ) : (
+                      <div style={{ marginTop: 8 }}>
+                        {resendCount < 5 ? (
+                          <button type="button" onClick={() => handleRequestOtp(null, true)} style={{ background: 'none', border: 'none', color: '#0056b3', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 }}>Resend Verification Code</button>
+                        ) : (
+                          <p style={{ color: '#d93025', fontSize: 13, margin: 0 }}>Maximum OTP resend attempts reached. Please restart the registration process.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className={s.formActions}>
                     <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>

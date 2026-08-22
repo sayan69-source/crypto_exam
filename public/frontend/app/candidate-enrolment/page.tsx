@@ -51,6 +51,41 @@ export default function CandidateEnrolment() {
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [resendCount, setResendCount] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (otpStep !== 'sent' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
+
+  const handleRequestEmailOtp = async (isResend = false) => {
+    setOtpError(null); setBusy(true);
+    try {
+      const res = await api.requestEmailVerification({ email: email.trim(), purpose: 'CANDIDATE_REGISTRATION' });
+      setEmailChallengeId(res.challenge_id);
+      setOtpStep('sent');
+      setTimeLeft(120);
+      if (isResend) setResendCount(prev => prev + 1);
+      else setResendCount(0);
+      
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (e) {
+      setOtpError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     enrollApi.organisations().then(setOrgs).catch(() => setDown(true));
@@ -192,18 +227,7 @@ export default function CandidateEnrolment() {
             <button 
               type="button"
               disabled={!email || busy}
-              onClick={async () => {
-                setOtpError(null); setBusy(true);
-                try {
-                  const res = await api.requestEmailVerification({ email: email.trim(), purpose: 'CANDIDATE_REGISTRATION' });
-                  setEmailChallengeId(res.challenge_id);
-                  setOtpStep('sent');
-                } catch (e) {
-                  setOtpError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
+              onClick={() => handleRequestEmailOtp(false)}
               style={{ ...ghostBtn, width: 'auto', whiteSpace: 'nowrap' }}
             >
               Verify
@@ -249,6 +273,17 @@ export default function CandidateEnrolment() {
                 Confirm
               </button>
             </div>
+            {timeLeft > 0 ? (
+              <p style={{ fontSize: 11, color: '#166534', marginTop: 8 }}>Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+            ) : (
+              <div style={{ marginTop: 8 }}>
+                {resendCount < 5 ? (
+                  <button type="button" onClick={() => handleRequestEmailOtp(true)} style={{ background: 'none', border: 'none', color: '#166534', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 }}>Resend Verification Code</button>
+                ) : (
+                  <p style={{ color: '#d93025', fontSize: 13, margin: 0 }}>Maximum OTP resend attempts reached. Please restart the registration process.</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
