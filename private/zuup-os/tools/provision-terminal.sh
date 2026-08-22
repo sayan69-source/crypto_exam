@@ -395,12 +395,15 @@ cat <<EOF
   written to  ${DEST}/
     BOOTX64.EFI    → the stick's /EFI/BOOT/BOOTX64.EFI
     wg0.conf       → the stick's ESP as /zuup/wg0.conf   (mode 0600)
-    registry.json  → merge into the centre bundle$( [[ "$CAPABILITY" == "ADMIN_STATION" ]] && cat <<'ADMIN'
-
-    hq-centre.key          → the stick's ESP as /zuup/hq-centre.key         (0600)
-    edge-provisioning.key  → the stick's ESP as /zuup/edge-provisioning.key (0600)
-ADMIN
-)
+    registry.json  → merge into the centre bundle
+$( for f in hq-centre.key edge-provisioning.key; do
+     # Only what was actually written. Listing both unconditionally told an
+     # operator a credential was on the stick when the centre config had none —
+     # the one fact they would carry to the hall and only discover in the
+     # journal, at the moment the courier declined to run.
+     [[ -s "$DEST/$f" ]] && printf '    %-22s → the stick'"'"'s ESP as /zuup/%s (0600)
+' "$f" "$f"
+   done )
 
   NEXT: this terminal has no attestation key and no golden PCRs yet, so every
   privileged login on it will deny. Re-run this command with --enrol, boot the

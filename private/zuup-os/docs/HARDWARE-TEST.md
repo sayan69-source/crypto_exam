@@ -153,8 +153,15 @@ EDGE_LAN_IP=<this machine's LAN address>
 EDGE_TUNNEL_IP=10.9.0.1
 TUNNEL_SUBNET=10.9.0
 CENTRE_NAME="Test Centre"
-HQ_ENDPOINTS=203.0.113.10:443     # a placeholder unless testing admin egress
+HQ_BASE_URL=https://<the public platform>   # ADMIN_STATION only; blank is fine
+HQ_ENDPOINTS=                               # left blank: resolved at provisioning
+HQ_CENTRE_KEY=<minted at HQ>                # ADMIN_STATION only
 ```
+
+`HQ_BASE_URL` and `HQ_CENTRE_KEY` matter only if you are testing the uplink
+(§5e). An invigilator station or a candidate seat is provisioned without them and
+gets no HQ destination at all — which is the property worth confirming: check
+that `BOOTX64.EFI.cmdline` for those two capabilities contains no `zuup.hq`.
 
 ### 5c. Provision one terminal
 
@@ -216,6 +223,40 @@ was correctly refused because nobody has enrolled it.
 **That single audit row is the most valuable result of this entire exercise.** It
 proves the network path, the firewall, the identity mechanism and the attestation
 handshake all work on real hardware.
+
+### 5e. The uplink — only for an ADMIN_STATION
+
+Provision one with `--capability ADMIN_STATION --seat ADM-1` and a filled-in
+`HQ_BASE_URL` / `HQ_CENTRE_KEY`. Then, before you boot it, read the cmdline it
+was signed with:
+
+```bash
+grep -o 'zuup\.hq[^ ]*' provisioned/ADM-1/BOOTX64.EFI.cmdline
+```
+
+You should see the platform's hostname in `zuup.hq_url` and its **addresses** in
+`zuup.hq` — resolved here, on this machine, and frozen into the signature. The
+terminal never resolves anything; `zuup-hqsync` calls `curl --resolve` so TLS
+authenticates the name while the socket is pinned to the address the authority
+signed. Copy the two extra ESP files (`hq-centre.key`,
+`edge-provisioning.key`) alongside `wg0.conf`; neither is inside the signed UKI,
+so a credential minted later can simply be dropped in without re-signing.
+
+On the booted station, the whole uplink is one journal tag:
+
+```bash
+journalctl -t zuup-hqsync -b        # if you have a console; otherwise the Edge audit log
+```
+
+What each outcome means:
+
+| Line | Meaning |
+|---|---|
+| `capability=… only an ADMIN_STATION carries traffic` | you booted the wrong stick; correct |
+| `HQ not reachable (window shut, or no uplink)` | the ordinary state — `zuup-egressd` opens the window only when no paper is in flight |
+| `bundle ingested into the Edge` | the full inbound path worked |
+| `Edge REFUSED … HQ_SIGNATURE_REQUIRED` | HQ has no `HQ_PROVISIONING_SIGNING_SEED` set — fix it at HQ, not here |
+| `N sealed record(s) delivered to HQ` | results left the centre |
 
 ---
 
