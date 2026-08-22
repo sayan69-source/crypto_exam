@@ -1,7 +1,14 @@
-import { redirect } from "next/navigation";
+/**
+ * CryptoExam Core — Interface D entry point.
+ * Routes to the dashboard (AuthContext redirects to login if unauthenticated).
+ */
+'use client';
 
-/** The Invigilators hub is the public landing for this role; the portal
- *  lives under /invigilator/*. Old links land on the hub, not a login wall. */
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function InvigilatorIndex() {
-  redirect("/invigilators");
+  const router = useRouter();
+  useEffect(() => { router.replace('/invigilator/dashboard'); }, [router]);
+  return null;
 }

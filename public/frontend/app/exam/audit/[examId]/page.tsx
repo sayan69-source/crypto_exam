@@ -1,5 +1,4 @@
 import Link from "next/link";
-import CandidateInclusion from "./CandidateInclusion";
 import styles from "./audit-detail.module.css";
 
 export const metadata = {
@@ -69,7 +68,10 @@ export default function AuditDetailPage({ params }: { params: { examId: string }
           <div className={styles.candidateAudit}>
             <h3>Candidate Specific Verification</h3>
             <p>To verify if a specific candidate's answers were included in the Merkle Root without tampering, enter their Roll Number.</p>
-            <CandidateInclusion examId={examId} />
+            <div className={styles.candidateForm}>
+              <input type="text" placeholder="Enter Roll Number" className={styles.input} />
+              <button className={styles.verifyBtn}>Verify Inclusion</button>
+            </div>
           </div>
 
         </div>

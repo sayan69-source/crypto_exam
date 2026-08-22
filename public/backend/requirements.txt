@@ -19,4 +19,3 @@ pyotp>=2.9.0
 email-validator>=2.0.0
 numpy>=1.26.0
 pillow>=10.0.0
-pymupdf>=1.24  # real PDF text extraction for the three paper modes (mode1/2/3); without it the pipeline fails closed rather than inventing questions

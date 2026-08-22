@@ -25,63 +25,8 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# The Hardhat artifact, once `npx hardhat compile` has run. app/services →
-# app → backend → public, then into contracts/ — the sibling package, not a
-# directory under backend/ (which is where this used to look, so the full ABI
-# was never found and the minimal fallback was always used).
-ABI_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "contracts" / "artifacts" / "src" / "CryptoExamCore.sol" / "CryptoExamCore.json"
-)
-
-
-class ChainUnavailable(Exception):
-    """
-    Something the chain layer needs is not configured or not reachable.
-
-    Carries a machine-readable `reason` so the API can answer "nothing is
-    deployed" differently from "the RPC timed out", instead of collapsing both
-    into a 500. Mirrors CapabilityUnavailable in services/exam_lifecycle.py.
-    """
-
-    def __init__(self, reason: str, message: str, **context):
-        super().__init__(message)
-        self.reason = reason
-        self.message = message
-        self.context = {k: v for k, v in context.items() if v is not None}
-
-
-class ContractNotDeployed(ChainUnavailable):
-    """No usable CryptoExamCore address is configured."""
-
-
-def _as_bytes32(value: bytes | str) -> bytes:
-    """
-    Coerce a root/hash to the 32 bytes the contract expects.
-
-    Callers reach these methods from three directions — the ORM (bytes), the
-    sealing pipeline (`0x…` hex) and Celery payloads (JSON, so always a string).
-    The old code assumed bytes and called `.hex()` on whatever it got, so a
-    perfectly good hex root raised `'str' object has no attribute 'hex'` and the
-    lock went un-anchored.
-    """
-    if isinstance(value, str):
-        raw = bytes.fromhex(value[2:] if value.startswith(("0x", "0X")) else value)
-    else:
-        raw = bytes(value)
-    if len(raw) != 32:
-        raise ValueError(f"Expected a 32-byte hash, got {len(raw)} bytes")
-    return raw
-
-
-def _is_address(value: Optional[str]) -> bool:
-    """True for a 20-byte hex address — not a placeholder like `<deployed_address>`."""
-    if not value:
-        return False
-    v = value.strip()
-    if v.startswith("0x") or v.startswith("0X"):
-        v = v[2:]
-    return len(v) == 40 and all(ch in "0123456789abcdefABCDEF" for ch in v)
+# ABI will be loaded from Hardhat artifacts after compilation
+ABI_PATH = Path(__file__).parent.parent.parent / "contracts" / "artifacts" / "src" / "CryptoExamCore.sol" / "CryptoExamCore.json"
 
 
 class BlockchainService:
@@ -94,7 +39,6 @@ class BlockchainService:
 
     def __init__(self):
         settings = get_settings()
-        self.rpc_url = settings.POLYGON_RPC_URL
         self.w3 = AsyncWeb3(AsyncHTTPProvider(settings.POLYGON_RPC_URL))
         # Polygon is a POA chain — without this middleware get_block() raises on
         # the 97-byte extraData field ("should be 32 bytes") and status reports
@@ -107,26 +51,11 @@ class BlockchainService:
         self.chain_id = settings.POLYGON_CHAIN_ID
         self.contract_address = settings.CRYPTOEXAM_CONTRACT_ADDRESS
 
-        # Signer.
-        #
-        # `.env.example` ships DEPLOYER_PRIVATE_KEY=<wallet_private_key> as a
-        # placeholder, and `Account.from_key` raises on anything that is not
-        # 32 hex bytes. Because this runs at import time, a config file the
-        # operator has not finished filling in took down the ENTIRE API — every
-        # endpoint, including the ones with nothing to do with the chain.
-        # An unconfigured signer disables writes; it must not stop the server.
-        self.account: Optional[LocalAccount] = None
-        raw_key = (settings.DEPLOYER_PRIVATE_KEY or "").strip()
-        if raw_key:
-            try:
-                self.account = Account.from_key(raw_key)
-            except Exception as exc:
-                logger.warning(
-                    "DEPLOYER_PRIVATE_KEY is set but not a valid key (%s) — blockchain "
-                    "writes disabled. Expected 64 hex characters, optionally 0x-prefixed.",
-                    type(exc).__name__,
-                )
+        # Signer
+        if settings.DEPLOYER_PRIVATE_KEY:
+            self.account: Optional[LocalAccount] = Account.from_key(settings.DEPLOYER_PRIVATE_KEY)
         else:
+            self.account = None
             logger.warning("No DEPLOYER_PRIVATE_KEY — blockchain write operations disabled")
 
         self._contract: Optional[AsyncContract] = None
@@ -135,22 +64,6 @@ class BlockchainService:
         """Lazy-load the contract ABI and return the contract instance."""
         if self._contract is not None:
             return self._contract
-
-        # `.env` ships CRYPTOEXAM_CONTRACT_ADDRESS as a placeholder, and web3
-        # then failed deep inside checksumming with "Unknown format ''" — an
-        # HTTP 500 that reads like a bug rather than "nothing is deployed yet".
-        # Say what is actually missing.
-        if not _is_address(self.contract_address):
-            raise ContractNotDeployed(
-                "CONTRACT_NOT_DEPLOYED",
-                (
-                    "No CryptoExamCore address is configured, so there is nothing on "
-                    "chain to read. Deploy it and set CRYPTOEXAM_CONTRACT_ADDRESS: "
-                    "cd public/contracts && npx hardhat run deploy/01_deploy.ts --network amoy"
-                ),
-                configured=self.contract_address or None,
-                rpc=self.rpc_url,
-            )
 
         if ABI_PATH.exists():
             with open(ABI_PATH) as f:
@@ -205,7 +118,7 @@ class BlockchainService:
     async def lock_exam(
         self,
         exam_id: str,
-        question_hash: bytes | str,
+        question_hash: bytes,
         drand_round: int,
         constraint_spec_ipfs: str = "",
     ) -> str:
@@ -222,7 +135,7 @@ class BlockchainService:
             Transaction hash (hex string).
         """
         exam_id_bytes = self.w3.keccak(text=exam_id)
-        qhash = _as_bytes32(question_hash)
+        qhash = question_hash if len(question_hash) == 32 else bytes.fromhex(question_hash.hex()[:64])
 
         tx_hash = await self._send_tx(
             "lockExam",
@@ -238,67 +151,34 @@ class BlockchainService:
     async def submit_zk_proof(
         self,
         exam_id: str,
-        proof: dict,
-        public_signals: list,
-        proof_ipfs: str = "",
+        proof_hash: str,
+        proof_ipfs: str,
     ) -> str:
         """
-        Submit the Groth16 proof itself; the chain runs the pairing check.
-
-        The contract used to take a hash and record `zkVerified = true` on the
-        submitter's word. It now takes the proof and calls the deployed
-        Groth16Verifier, so this transaction REVERTS on a proof that does not
-        verify — which is the only version of the guarantee worth claiming.
+        Submit ZK proof hash to the blockchain.
 
         Args:
             exam_id: UUID string.
-            proof: snarkjs Groth16 proof dict (pi_a / pi_b / pi_c).
-            public_signals: The five public inputs, as decimal strings.
-            proof_ipfs: Content address of the full proof for independent checking.
+            proof_hash: SHA-256 hash of the Groth16 proof.
+            proof_ipfs: IPFS CID of the full proof.
 
         Returns:
             Transaction hash.
         """
-        if len(public_signals) != 5:
-            raise ValueError(
-                f"The circuit declares 5 public signals, got {len(public_signals)} — "
-                "the proving key and the contract are out of step."
-            )
-
         exam_id_bytes = self.w3.keccak(text=exam_id)
-        a, b, c = self.format_for_contract(proof)
+        proof_hash_bytes = bytes.fromhex(proof_hash) if isinstance(proof_hash, str) else proof_hash
 
         return await self._send_tx(
             "submitZKProof",
             exam_id_bytes,
-            a,
-            b,
-            c,
-            [int(s) for s in public_signals],
+            proof_hash_bytes,
             proof_ipfs,
         )
-
-    @staticmethod
-    def format_for_contract(proof: dict) -> tuple[list, list, list]:
-        """
-        snarkjs proof → Solidity calldata.
-
-        π_b's G2 coordinates come out of snarkjs in the opposite order to the
-        one the generated verifier reads, so each pair is swapped here. Getting
-        this wrong produces a well-formed proof that simply never verifies.
-        """
-        a = [int(proof["pi_a"][0]), int(proof["pi_a"][1])]
-        b = [
-            [int(proof["pi_b"][0][1]), int(proof["pi_b"][0][0])],
-            [int(proof["pi_b"][1][1]), int(proof["pi_b"][1][0])],
-        ]
-        c = [int(proof["pi_c"][0]), int(proof["pi_c"][1])]
-        return a, b, c
 
     async def commit_merkle_root(
         self,
         exam_id: str,
-        merkle_root: bytes | str,
+        merkle_root: bytes,
         candidate_count: int,
     ) -> str:
         """
@@ -316,18 +196,17 @@ class BlockchainService:
             Transaction hash.
         """
         exam_id_bytes = self.w3.keccak(text=exam_id)
-        root = _as_bytes32(merkle_root)
 
         tx_hash = await self._send_tx(
             "commitAnswerMerkleRoot",
             exam_id_bytes,
-            root,
+            merkle_root,
             candidate_count,
         )
 
         logger.info(
             f"Merkle root committed: exam={exam_id[:8]}..., "
-            f"root={root.hex()[:16]}..., "
+            f"root={merkle_root.hex()[:16]}..., "
             f"candidates={candidate_count}, tx={tx_hash[:16]}..."
         )
         return tx_hash
@@ -504,7 +383,7 @@ class BlockchainService:
                 "type": "function"
             },
             {
-                "inputs": [{"name": "examId", "type": "bytes32"}, {"name": "a", "type": "uint256[2]"}, {"name": "b", "type": "uint256[2][2]"}, {"name": "c", "type": "uint256[2]"}, {"name": "publicSignals", "type": "uint256[5]"}, {"name": "zkProofIPFS", "type": "string"}],
+                "inputs": [{"name": "examId", "type": "bytes32"}, {"name": "zkProofHash", "type": "bytes32"}, {"name": "zkProofIPFS", "type": "string"}],
                 "name": "submitZKProof",
                 "outputs": [],
                 "stateMutability": "nonpayable",

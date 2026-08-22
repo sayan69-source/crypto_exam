@@ -29,13 +29,11 @@ from sqlalchemy import select
 from app.models import (
     User, UserRole, Exam, ExamStatus, ExamBody, ExamType,
     Question, QuestionSource, Center, HardwareNode, NodeStatus,
-    Enrollment, EnrollmentStatus, CandidateApprovalStatus, ConnectivityTier,
+    Enrollment, EnrollmentStatus, ConnectivityTier,
     Session, Anomaly, AnomalyType,
     BiometricEnrollment, CandidateVerification, VerificationResultEnum,
-    ExamOffering, ExamLocation, ExamSubject,
 )
 from app.services.auth import hash_password
-from app.services.exam_registration import REGISTERABLE_EXAM_STATES, normalise
 
 
 def _synthetic_embedding(seed: str, dim: int = 256) -> list[float]:
@@ -110,57 +108,31 @@ async def seed_database(db: AsyncSession) -> dict:
     logger.info("CryptoExam Core — Seeding Database")
     logger.info("═" * 60)
 
-    # Every phase below is flushed before the next one starts. Several models
-    # here (ExamOffering→Exam, BiometricEnrollment→User, and others) have a
-    # bare ForeignKey column with no ORM relationship() declared — and without
-    # one, SQLAlchemy's automatic insert-ordering does not reliably see the
-    # dependency, so a parent created earlier in the SAME flush can be ordered
-    # after a child that references it. SQLite doesn't enforce foreign keys by
-    # default, so this was invisible in every local/CI run; Postgres — what
-    # Render actually runs — correctly rejects the out-of-order INSERT, which
-    # aborts this whole transaction and rolls back EVERYTHING, silently
-    # emptying the database on every restart while the log below claims
-    # "Seeding complete". Flushing between phases means each phase's rows are
-    # already committed-within-transaction (and therefore FK-visible) before
-    # the next phase can reference them, regardless of which models declare a
-    # relationship() and which don't.
-
     # ── 1. Users ──
     users = await _seed_users(db)
-    await db.flush()
     summary["users"] = len(users)
 
     # ── 2. Centers ──
     centers = await _seed_centers(db)
-    await db.flush()
     summary["centers"] = len(centers)
 
     # ── 3. Hardware Nodes ──
     nodes = await _seed_hardware_nodes(db, centers)
-    await db.flush()
     summary["hardware_nodes"] = len(nodes)
 
     # ── 4. Exams ──
     exams = await _seed_exams(db, users)
-    await db.flush()
     summary["exams"] = len(exams)
 
     # ── 5. Questions ──
     questions_count = await _seed_questions(db, exams)
-    await db.flush()
     summary["questions"] = questions_count
 
-    # ── 6. Public registration offerings ──
-    offerings = await _seed_exam_offerings(db, exams, centers)
-    await db.flush()
-    summary["exam_offerings"] = len(offerings)
-
-    # ── 7. Enrollments ──
+    # ── 6. Enrollments ──
     enrollments = await _seed_enrollments(db, users, exams, centers)
-    await db.flush()
     summary["enrollments"] = len(enrollments)
 
-    # ── 8. § 29 Invigilator + biometric enrollments ──
+    # ── 7. § 29 Invigilator + biometric enrollments ──
     bio = await _seed_invigilator_biometrics(db, users, centers, enrollments)
     summary["biometric_enrollments"] = bio
 
@@ -425,7 +397,6 @@ async def _seed_exams(db: AsyncSession, users: list[User]) -> list[Exam]:
             exam_body=ed["body"],
             exam_type=ed["type"],
             duration_minutes=ed["duration"],
-            year=2026,  # Problem 3: exam cycle year
             scheduled_at=ed["scheduled"],
             status=ed["status"],
             setter_id=setters[i % len(setters)].id,
@@ -525,20 +496,6 @@ async def _seed_questions(db: AsyncSession, exams: list[Exam]) -> int:
         if exam.status == ExamStatus.DRAFT:
             continue
 
-        # Draw IRT parameters INSIDE the exam's own declared constraints. They
-        # used to come from fixed ranges that ignored irt_config, so a seeded
-        # exam declaring min_a=1.0 could contain a question with a=0.93 — and
-        # the difficulty proof then correctly refused to prove the paper, making
-        # the demo look broken when it was in fact working.
-        cfg = exam.irt_config or {}
-        target_b = float(cfg.get("target_mean_b", 0.0))
-        min_a = float(cfg.get("min_a", 0.8))
-        max_c = float(cfg.get("max_c", 0.25))
-        tolerance = float(cfg.get("tolerance", 1.0))
-        # Keep the spread comfortably inside the tolerance so the mean lands in
-        # range for every set, not just on average.
-        spread = min(0.8, tolerance / 2)
-
         for i, sq in enumerate(sample_questions):
             for set_label in ["A", "B", "C", "D"]:
                 question = Question(
@@ -553,9 +510,9 @@ async def _seed_questions(db: AsyncSession, exams: list[Exam]) -> int:
                     subject=sq["subject"],
                     topic=sq["topic"],
                     blooms_level=sq["blooms"],
-                    irt_b=round(max(-3.0, min(3.0, random.gauss(target_b, spread / 2))), 3),
-                    irt_a=round(random.uniform(min_a, max(min_a + 0.1, 2.5)), 3),
-                    irt_c=round(random.uniform(max(0.0, max_c - 0.1), max_c), 3),
+                    irt_b=round(random.gauss(0.2, 0.8), 3),
+                    irt_a=round(random.uniform(0.8, 2.5), 3),
+                    irt_c=round(random.uniform(0.15, 0.25), 3),
                     source=QuestionSource.AI_GENERATED,
                     generation_model="mock-bank",
                     is_accepted=True,
@@ -598,18 +555,6 @@ async def _seed_invigilator_biometrics(
     )
     db.add(invig)
 
-    # BiometricEnrollment has no ORM relationship() back to User — only a bare
-    # FK column — so SQLAlchemy's automatic unit-of-work insert ordering does
-    # not know to insert `invig` first. On SQLite this is invisible (FK
-    # enforcement is off by default there), which is why every local
-    # reproduction of this seeder passed; on Postgres — what Render actually
-    # runs — the out-of-order INSERT is a real ForeignKeyViolationError that
-    # rolls back the ENTIRE seed_database transaction, silently emptying the
-    # database on every restart while the log claims "Seeding complete".
-    # candidates further below don't need this: they're existing User rows
-    # from an earlier phase, already flushed by an intervening query.
-    await db.flush()
-
     db.add(BiometricEnrollment(
         id=str(uuid4()),
         user_id=invig.id,
@@ -640,126 +585,6 @@ async def _seed_invigilator_biometrics(
     return count
 
 
-# Which conducting body each seeded exam belongs to, spelled the way a
-# candidate would recognise it. `ExamBody` is an internal enum ("NTA"); the
-# registration form asks a human who is conducting their exam.
-_BODY_NAMES = {
-    ExamBody.NTA: "National Testing Agency",
-    ExamBody.UPSC: "Union Public Service Commission",
-    ExamBody.SSC: "Staff Selection Commission",
-    ExamBody.IBPS: "Institute of Banking Personnel Selection",
-    ExamBody.STATE_PSC: "State Public Service Commission",
-    ExamBody.CBSE: "Central Board of Secondary Education",
-    ExamBody.CUSTOM: "CryptoExam Core",
-}
-
-
-async def _seed_exam_offerings(
-    db: AsyncSession,
-    exams: list[Exam],
-    centers: list[Center],
-) -> list[ExamOffering]:
-    """
-    Make the seeded exams publicly registerable.
-
-    `/enroll/organisations` and `/enroll/exams` read `ExamOffering`, not `Exam`
-    — registration is deliberately driven by the approved, public face of an
-    exam so an unapproved paper is never offered to anybody. Nothing seeded
-    that table, so on a freshly seeded database both endpoints returned empty
-    and the candidate-enrolment form had nothing to select: the first dropdown
-    was blank, so the exam and centre selects below it never populated. The
-    page rendered correctly and was impossible to use.
-
-    Only exams in an enrollable state get an offering. A LIVE or COMPLETED
-    paper is intentionally absent — registration for a sitting already under
-    way is closed, and the form saying so is the correct behaviour.
-    """
-    offerings: list[ExamOffering] = []
-    now = datetime.now(timezone.utc)
-
-    for exam in exams:
-        if exam.status not in REGISTERABLE_EXAM_STATES:
-            continue
-
-        organisation = _BODY_NAMES.get(exam.exam_body, "CryptoExam Core")
-        offering = ExamOffering(
-            id=str(uuid4()),
-            exam_id=exam.id,
-            organisation=organisation,
-            organisation_norm=normalise(organisation),
-            exam_name_norm=normalise(exam.name),
-            is_active=True,
-            registration_opens_at=now - timedelta(days=30),
-            registration_closes_at=exam.scheduled_at,
-        )
-        db.add(offering)
-        offerings.append(offering)
-
-        # Locations: real seeded centres, so a chosen location resolves to a
-        # commissioned centre rather than a place-name with nothing behind it.
-        for order, center in enumerate(centers[:6]):
-            db.add(ExamLocation(
-                id=str(uuid4()),
-                offering_id=offering.id,
-                name=center.name,
-                city=center.city,
-                state=center.state,
-                address=center.address,
-                capacity=center.capacity,
-                display_order=order,
-                center_id=center.id,
-            ))
-
-        # Subjects come from the exam's own taxonomy, so the choice offered at
-        # registration is the paper's actual structure.
-        subjects = (exam.subject_taxonomy or {}).get("subjects", [])
-        for order, subject in enumerate(subjects):
-            db.add(ExamSubject(
-                id=str(uuid4()),
-                offering_id=offering.id,
-                name=subject.get("name", f"Subject {order + 1}"),
-                is_compulsory=True,
-                display_order=order,
-            ))
-
-    logger.info(f"Created {len(offerings)} exam offerings (registerable exams)")
-    return offerings
-
-
-async def backfill_exam_offerings(db: AsyncSession) -> list[ExamOffering]:
-    """
-    Create offerings for any registerable exam that does not have one yet.
-
-    `seed_database` only runs its full pass on an EMPTY database — the guard
-    at its top returns early the moment a single User row exists. That guard
-    is correct for the users/centres/exams themselves (re-running would
-    duplicate them), but it meant a database seeded before
-    `_seed_exam_offerings` existed stayed on the old, offering-less shape
-    forever: `seed_database` kept reporting "already_seeded" and the exam
-    the offerings backfill was meant to fix never got backfilled. This is
-    exactly what happened on the Render deployment — confirmed live,
-    `/enroll/organisations` returned `[]` after the code fix had already
-    shipped, because nothing had told the EXISTING database about it.
-
-    Runs on every startup and is cheap when there is nothing to do: one query
-    for exams missing an offering, short-circuiting before touching Center at
-    all if that query is empty.
-    """
-    missing = (await db.execute(
-        select(Exam)
-        .outerjoin(ExamOffering, ExamOffering.exam_id == Exam.id)
-        .where(ExamOffering.id.is_(None), Exam.status.in_(REGISTERABLE_EXAM_STATES))
-    )).scalars().all()
-    if not missing:
-        return []
-
-    centers = (await db.execute(select(Center))).scalars().all()
-    created = await _seed_exam_offerings(db, missing, centers)
-    if created:
-        logger.info(f"Backfilled {len(created)} exam offering(s) missing on an existing database")
-    return created
-
-
 async def _seed_enrollments(
     db: AsyncSession,
     users: list[User],
@@ -769,7 +594,6 @@ async def _seed_enrollments(
     """Enroll candidates in exams with center assignments."""
     enrollments = []
     candidates = [u for u in users if u.role == UserRole.CANDIDATE]
-    now = datetime.now(timezone.utc)
 
     for exam in exams:
         if exam.status == ExamStatus.DRAFT:
@@ -784,11 +608,6 @@ async def _seed_enrollments(
                 set_label=chr(65 + i % 4),  # A, B, C, D
                 roll_number=f"{exam.exam_body.value}-2026-{candidate.state[:3].upper()}-{i+1:07d}",
                 status=EnrollmentStatus.ENROLLED,
-                # Problem 3: registration year + audit timestamp
-                registration_year=exam.year or 2026,
-                enrolled_at=now,
-                # Problem 2: default approval status
-                approval_status=CandidateApprovalStatus.PENDING,
             )
             db.add(enrollment)
             enrollments.append(enrollment)

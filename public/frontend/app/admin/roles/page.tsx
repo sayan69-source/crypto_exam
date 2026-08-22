@@ -5,67 +5,43 @@
  */
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminApi, type AdminRole } from '@/lib/api/admin';
-import {
-  AdminPage, PageHeader, Card, CardGrid, Badge, Button,
-  ErrorState, EmptyState,
-} from '@/components/admin/AdminUI';
 
 export default function AdminRolesPage() {
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    let alive = true;
     adminApi.roles()
-      .then((r) => setRoles(r.roles))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load roles'))
-      .finally(() => setLoading(false));
+      .then((r) => { if (alive) setRoles(r.roles); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : 'Failed to load roles'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []);
 
-  useEffect(load, [load]);
-
   return (
-    <AdminPage>
-      <PageHeader
-        eyebrow="Access control"
-        title="Roles & Permissions"
-        subtitle={
-          loading
-            ? 'Loading roles…'
-            : 'Every role in the exam chain, with the number of accounts currently holding it. Roles are fixed in code — they are part of the security model, not configuration.'
-        }
-        actions={<Button onClick={load} disabled={loading}>Refresh</Button>}
-      />
+    <div style={{ animation: 'fadeIn 300ms ease forwards' }}>
+      <h1 style={{ fontSize: 22, color: 'var(--color-navy-900)', marginBottom: 8 }}>Roles &amp; Permissions</h1>
+      <p style={{ fontSize: 13, color: 'var(--color-navy-500)', marginBottom: 24 }}>
+        {loading ? 'Loading roles…' : 'Live platform roles with assigned-user counts.'}
+      </p>
 
-      {error && <ErrorState message={error} onRetry={load} />}
-
-      {!loading && !error && roles.length === 0 && (
-        <EmptyState title="No roles returned" hint="The backend responded, but with an empty role list." />
+      {error && (
+        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)' }}>{error}</div>
       )}
 
-      {!error && (
-        <CardGrid minColumn={300}>
-          {roles.map((role) => (
-            <Card key={role.role}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <strong style={{ fontSize: 14.5, color: 'var(--color-navy-900)' }}>{role.role}</strong>
-                  <Badge tone={role.users > 0 ? 'info' : 'neutral'}>
-                    {role.users} {role.users === 1 ? 'account' : 'accounts'}
-                  </Badge>
-                </div>
-                <p style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-navy-600)', margin: 0 }}>
-                  {role.permissions}
-                </p>
-              </div>
-            </Card>
-          ))}
-        </CardGrid>
-      )}
-    </AdminPage>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+        {roles.map((role) => (
+          <div key={role.role} style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-navy-900)' }}>{role.role}</span>
+            <span style={{ fontSize: 12, color: 'var(--color-navy-600)' }}>{role.permissions}</span>
+            <span style={{ fontSize: 11, color: 'var(--color-navy-400)' }}>{role.users} user(s) assigned</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

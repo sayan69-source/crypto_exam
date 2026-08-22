@@ -1,19 +1,19 @@
 /* Admin Centers — Premium minimalistic */
 .page { animation: fadeIn 300ms ease forwards; }
-.title { font-size: 22px; font-weight: 700; color: var(--color-navy-900, #201515); margin: 0 0 4px; letter-spacing: -0.02em; }
-.subtitle { font-size: 13px; color: var(--color-navy-500, #605d52); margin-bottom: 28px; }
+.title { font-size: 22px; font-weight: 700; color: var(--color-navy-900, #0D1526); margin: 0 0 4px; letter-spacing: -0.02em; }
+.subtitle { font-size: 13px; color: var(--color-navy-500, #5B6478); margin-bottom: 28px; }
 
 .layout { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }
 
 .mapPanel {
-  background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8);
+  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
   border-radius: 12px; padding: 20px;
 }
 
 .mapArea {
   position: relative; width: 100%; aspect-ratio: 3/4; max-height: 500px;
-  background: linear-gradient(135deg, var(--color-navy-50, #f8f4f0), rgba(96, 93, 82,0.06));
-  border-radius: 12px; border: 1px dashed var(--color-navy-200, #c5c0b1);
+  background: linear-gradient(135deg, var(--color-navy-50, #EFF1FA), rgba(41,66,166,0.06));
+  border-radius: 10px; border: 1px dashed var(--color-navy-200, #A8B3D8);
 }
 
 .dot {
@@ -21,32 +21,32 @@
   transform: translate(-50%, -50%); cursor: pointer; transition: all 200ms ease;
 }
 .dot:hover { transform: translate(-50%, -50%) scale(1.6); z-index: 2; }
-.dot-healthy { background: #3f6f4a; box-shadow: 0 0 8px rgba(63, 111, 74,0.3); }
-.dot-degraded { background: #b07d1a; box-shadow: 0 0 8px rgba(176, 125, 26,0.3); animation: pulse 2s ease-in-out infinite; }
-.dot-incident { background: #9b2226; box-shadow: 0 0 10px rgba(155, 34, 38,0.3); animation: pulse 1.5s ease-in-out infinite; }
+.dot-healthy { background: #059669; box-shadow: 0 0 8px rgba(5,150,105,0.3); }
+.dot-degraded { background: #D97706; box-shadow: 0 0 8px rgba(217,119,6,0.3); animation: pulse 2s ease-in-out infinite; }
+.dot-incident { background: #DC2626; box-shadow: 0 0 10px rgba(220,38,38,0.3); animation: pulse 1.5s ease-in-out infinite; }
 
 .listPanel { display: flex; flex-direction: column; gap: 8px; max-height: 600px; overflow-y: auto; }
 
 .centerCard {
-  background: #fffefb; border: 1px solid var(--border-soft, #e8e2d8);
+  background: #fff; border: 1px solid var(--border-soft, #E3E7F2);
   border-radius: 12px; padding: 16px;
   border-left: 3px solid transparent; transition: all 150ms ease;
 }
-.centerCard:hover { box-shadow: 0 2px 8px rgba(32, 21, 21,0.04); }
-.card-healthy { border-left-color: #3f6f4a; }
-.card-degraded { border-left-color: #b07d1a; }
-.card-incident { border-left-color: #9b2226; }
+.centerCard:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.card-healthy { border-left-color: #059669; }
+.card-degraded { border-left-color: #D97706; }
+.card-incident { border-left-color: #DC2626; }
 
 .centerHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.centerName { font-size: 14px; font-weight: 600; color: var(--color-navy-800, #201515); }
+.centerName { font-size: 14px; font-weight: 600; color: var(--color-navy-800, #132040); }
 
-.statusBadge { font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 12px; text-transform: uppercase; }
-.badge-healthy { background: #eef3ea; color: #2f5438; }
-.badge-degraded { background: #fdf6e8; color: #7d5610; }
-.badge-incident { background: #fbeeea; color: #7a1a1d; }
+.statusBadge { font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; }
+.badge-healthy { background: #ECFDF5; color: #065F46; }
+.badge-degraded { background: #FFFBEB; color: #92400E; }
+.badge-incident { background: #FEF2F2; color: #991B1B; }
 
-.centerMeta { display: flex; gap: 16px; font-size: 12px; color: var(--color-navy-500, #605d52); flex-wrap: wrap; }
-.centerContact { display: flex; gap: 16px; font-size: 11px; color: var(--color-navy-400, #605d52); margin-top: 4px; }
+.centerMeta { display: flex; gap: 16px; font-size: 12px; color: var(--color-navy-500, #5B6478); flex-wrap: wrap; }
+.centerContact { display: flex; gap: 16px; font-size: 11px; color: var(--color-navy-400, #5B6478); margin-top: 4px; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }

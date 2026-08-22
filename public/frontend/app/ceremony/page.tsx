@@ -107,15 +107,15 @@ export default function CeremonyPortal() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <span style={{ fontSize: 30 }}></span>
             <div>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 30, color: '#fffefb', margin: 0 }}>Key Ceremony Portal · CC-SSS</h1>
-              <p style={{ margin: '2px 0 0', color: '#939084', fontSize: 13 }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 30, color: '#fff', margin: 0 }}>Key Ceremony Portal · CC-SSS</h1>
+              <p style={{ margin: '2px 0 0', color: '#6B84D4', fontSize: 13 }}>
                 §§ 49–62 · Shamir's Secret Sharing + AWS Nitro Enclave Attestation (simulated locally)
               </p>
             </div>
           </div>
-          <p style={{ color: '#c5c0b1', fontSize: 14, lineHeight: 1.7, marginTop: 16 }}>
-            The exam encryption key was split into <b style={{ color: '#fffefb' }}>5 mathematical shares</b>.
-            Any <b style={{ color: '#fffefb' }}>3 of 5</b> reconstruct it; fewer reveal <i>zero bits</i>. Reconstruction happens only
+          <p style={{ color: '#A8B9EA', fontSize: 14, lineHeight: 1.7, marginTop: 16 }}>
+            The exam encryption key was split into <b style={{ color: '#fff' }}>5 mathematical shares</b>.
+            Any <b style={{ color: '#fff' }}>3 of 5</b> reconstruct it; fewer reveal <i>zero bits</i>. Reconstruction happens only
             inside a hardware-isolated enclave whose code identity (PCR0) you verify below.
             <br />Public — no login. Anyone can watch the ceremony.
           </p>
@@ -134,14 +134,14 @@ export default function CeremonyPortal() {
             </div>
             <div style={pcrBox}>
               <div style={pcrLabel}>Live attestation PCR0</div>
-              <code style={{ ...pcrCode, color: pcrMatch ? '#a8c9a5' : '#d99a8e' }}>{attestation?.pcr0 ?? '…'}</code>
+              <code style={{ ...pcrCode, color: pcrMatch ? '#86efac' : '#fca5a5' }}>{attestation?.pcr0 ?? '…'}</code>
               <div style={pcrHint}>{attestation?.module_id} · nonce {attestation?.nonce.slice(0, 12)}…</div>
             </div>
           </div>
           <div style={{
             marginTop: 14, padding: '12px 16px', borderRadius: 8, fontWeight: 700, fontSize: 14,
-            background: pcrMatch ? 'rgba(63, 111, 74,0.18)' : 'rgba(155, 34, 38,0.18)',
-            color: pcrMatch ? '#a8c9a5' : '#d99a8e',
+            background: pcrMatch ? 'rgba(22,163,74,0.18)' : 'rgba(220,38,38,0.18)',
+            color: pcrMatch ? '#86efac' : '#fca5a5',
           }}>
             {pcrMatch ? '✓ Enclave verified — safe to submit shares' : 'PCR0 MISMATCH — DO NOT SUBMIT. Alert the exam board.'}
           </div>
@@ -163,19 +163,19 @@ export default function CeremonyPortal() {
               const share = prep?.shares[i];
               const has = submitted.has(o.id);
               return (
-                <div key={o.id} style={{ ...miniCard, borderColor: has ? '#3f6f4a' : '#2b211c' }}>
+                <div key={o.id} style={{ ...miniCard, borderColor: has ? '#16a34a' : '#1A2D5A' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 18 }}>{o.icon}</span>
-                    <b style={{ color: '#fffefb', fontSize: 14 }}>{o.role}</b>
+                    <b style={{ color: '#fff', fontSize: 14 }}>{o.role}</b>
                   </div>
-                  <div style={{ fontSize: 11, color: '#605d52', marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
                     {share ? `Share x=${share.x} · checksum ${share.checksum}` : 'no share yet — start ceremony'}
                   </div>
                   <button
                     onClick={() => share && submitShareAs(o, share)}
                     disabled={!pcrMatch || !share || has || busyShare === o.id}
                     style={{ ...btn, marginTop: 10, width: '100%', padding: '8px 12px', fontSize: 12,
-                             background: has ? '#36342e' : busyShare === o.id ? '#36342e' : '#605d52',
+                             background: has ? '#374151' : busyShare === o.id ? '#374151' : '#2942A6',
                              cursor: has ? 'default' : 'pointer' }}>
                     {has ? '✓ Submitted' : busyShare === o.id ? 'Wrapping & submitting…' : 'Submit Share'}
                   </button>
@@ -188,7 +188,7 @@ export default function CeremonyPortal() {
         {/* PHASE 3 — Decrypt one question */}
         <section style={{ ...card, opacity: thresholdMet ? 1 : 0.55 }}>
           <h2 style={cardH2}>Phase 3 · Decrypt One Question Through the Enclave</h2>
-          <p style={{ color: '#939084', fontSize: 13, marginTop: 0 }}>
+          <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 0 }}>
             With ≥ 3 shares submitted, the enclave can reconstruct the SSS key, derive HKDF(SSS_KEY ‖ drand,
             salt=exam_id, info=qN), and decrypt one question. Plaintext appears only inside enclave memory and
             in the JSON returned over TLS — never on the parent.
@@ -205,7 +205,7 @@ export default function CeremonyPortal() {
 
           {audit.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: '#605d52', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+              <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                 On-chain audit (Polygon Amoy)
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -214,8 +214,8 @@ export default function CeremonyPortal() {
                     <span style={{ color: badgeFor(e.event), fontWeight: 700 }}>
                       {e.event === 'CeremonyShareSubmitted' ? '' : e.event === 'CeremonyCompleted' ? '✓' : ''} {e.event}
                     </span>
-                    <code style={{ color: '#939084', fontSize: 11 }}>{e.tx_hash.slice(0, 18)}…</code>
-                    <span style={{ color: '#605d52', fontSize: 11, marginLeft: 'auto' }}>
+                    <code style={{ color: '#6B84D4', fontSize: 11 }}>{e.tx_hash.slice(0, 18)}…</code>
+                    <span style={{ color: '#64748b', fontSize: 11, marginLeft: 'auto' }}>
                       {new Date(e.timestamp).toLocaleTimeString('en-IN')} → polygonscan ↗
                     </span>
                   </a>
@@ -224,23 +224,23 @@ export default function CeremonyPortal() {
             </div>
           )}
 
-          {logs.length === 0 ? <div style={{ color: '#605d52', fontSize: 13 }}>No events yet.</div> :
+          {logs.length === 0 ? <div style={{ color: '#64748b', fontSize: 13 }}>No events yet.</div> :
             <>
-              <div style={{ fontSize: 11, color: '#605d52', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+              <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                 Portal activity
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                 {logs.map((l, i) => (
-                  <div key={i} style={{ color: l.tone === 'ok' ? '#a8c9a5' : l.tone === 'err' ? '#d99a8e' : '#c5c0b1' }}>
-                    <span style={{ color: '#4a463d' }}>{l.ts}</span>  {l.msg}
+                  <div key={i} style={{ color: l.tone === 'ok' ? '#86efac' : l.tone === 'err' ? '#fca5a5' : '#cbd5e1' }}>
+                    <span style={{ color: '#475569' }}>{l.ts}</span>  {l.msg}
                   </div>
                 ))}
               </div>
             </>}
         </section>
 
-        <p style={{ marginTop: 32, fontSize: 12, color: '#4a463d' }}>
-          <Link href="/" style={{ color: '#939084' }}>← Back to portal</Link>
+        <p style={{ marginTop: 32, fontSize: 12, color: '#475569' }}>
+          <Link href="/" style={{ color: '#6B84D4' }}>← Back to portal</Link>
           {' · '} CryptoExam Core · The key holder is the math. The vault is the hardware.
         </p>
       </div>
@@ -254,12 +254,12 @@ function ProgressBar({ status }: { status: CeremonyStatus | null }) {
   const total = status?.total_officials ?? 5;
   return (
     <div>
-      <div style={{ height: 10, background: '#2b211c', borderRadius: 6, overflow: 'hidden' }}>
+      <div style={{ height: 10, background: '#1A2D5A', borderRadius: 6, overflow: 'hidden' }}>
         <div style={{ width: `${Math.min(100, (count / threshold) * 100)}%`, height: '100%',
-          background: count >= threshold ? 'linear-gradient(90deg, #3f6f4a, #3f6f4a)' : 'linear-gradient(90deg, #605d52, #939084)',
+          background: count >= threshold ? 'linear-gradient(90deg, #16a34a, #22c55e)' : 'linear-gradient(90deg, #2942A6, #6B84D4)',
           transition: 'width 200ms' }} />
       </div>
-      <div style={{ marginTop: 6, fontSize: 12, color: '#939084', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
         <span>{count} / {threshold} required shares received {count >= threshold && '· threshold met'}</span>
         <span>{total - count} remaining officials</span>
       </div>
@@ -267,24 +267,24 @@ function ProgressBar({ status }: { status: CeremonyStatus | null }) {
   );
 }
 
-const page: React.CSSProperties = { minHeight: '100vh', background: '#150e0e', color: '#ddd8cc', padding: 32, fontFamily: 'var(--font-sans)' };
-const card: React.CSSProperties = { background: '#201515', border: '1px solid #2b211c', borderRadius: 14, padding: 22, marginBottom: 18 };
-const cardH2: React.CSSProperties = { color: '#fffefb', fontSize: 16, margin: '0 0 12px' };
-const btn: React.CSSProperties = { padding: '10px 18px', background: '#605d52', color: '#fffefb', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
-const pcrBox: React.CSSProperties = { background: '#150e0e', border: '1px solid #2b211c', borderRadius: 10, padding: 14 };
-const pcrLabel: React.CSSProperties = { color: '#939084', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 };
-const pcrCode: React.CSSProperties = { display: 'block', wordBreak: 'break-all', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c5c0b1', lineHeight: 1.5 };
-const pcrHint: React.CSSProperties = { color: '#605d52', fontSize: 11, marginTop: 6 };
-const errBox: React.CSSProperties = { color: '#d99a8e', background: 'rgba(155, 34, 38,0.12)', padding: 12, borderRadius: 10, marginBottom: 14 };
-const miniCard: React.CSSProperties = { background: '#150e0e', border: '1px solid #2b211c', borderRadius: 10, padding: 12 };
-const decryptedBox: React.CSSProperties = { marginTop: 12, padding: 14, background: '#150e0e', border: '1px solid #3f6f4a',
-  borderRadius: 10, color: '#a8c9a5', fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
+const page: React.CSSProperties = { minHeight: '100vh', background: '#080E1E', color: '#D8DEF4', padding: 32, fontFamily: 'var(--font-sans)' };
+const card: React.CSSProperties = { background: '#0D1526', border: '1px solid #1A2D5A', borderRadius: 14, padding: 22, marginBottom: 18 };
+const cardH2: React.CSSProperties = { color: '#fff', fontSize: 16, margin: '0 0 12px' };
+const btn: React.CSSProperties = { padding: '10px 18px', background: '#2942A6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
+const pcrBox: React.CSSProperties = { background: '#08101F', border: '1px solid #1A2D5A', borderRadius: 10, padding: 14 };
+const pcrLabel: React.CSSProperties = { color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 };
+const pcrCode: React.CSSProperties = { display: 'block', wordBreak: 'break-all', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#cbd5e1', lineHeight: 1.5 };
+const pcrHint: React.CSSProperties = { color: '#64748b', fontSize: 11, marginTop: 6 };
+const errBox: React.CSSProperties = { color: '#fca5a5', background: 'rgba(220,38,38,0.12)', padding: 12, borderRadius: 10, marginBottom: 14 };
+const miniCard: React.CSSProperties = { background: '#08101F', border: '1px solid #1A2D5A', borderRadius: 10, padding: 12 };
+const decryptedBox: React.CSSProperties = { marginTop: 12, padding: 14, background: '#08101F', border: '1px solid #16a34a',
+  borderRadius: 10, color: '#86efac', fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 
 const auditRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
-  background: '#150e0e', border: '1px solid #2b211c', borderRadius: 8, textDecoration: 'none', color: '#c5c0b1', fontSize: 12 };
+  background: '#08101F', border: '1px solid #1A2D5A', borderRadius: 8, textDecoration: 'none', color: '#cbd5e1', fontSize: 12 };
 
 function badgeFor(event: string): string {
-  return event === 'CeremonyShareSubmitted' ? '#939084'
-       : event === 'CeremonyCompleted' ? '#a8c9a5'
-       : '#d9a441';
+  return event === 'CeremonyShareSubmitted' ? '#6B84D4'
+       : event === 'CeremonyCompleted' ? '#86efac'
+       : '#fbbf24';
 }

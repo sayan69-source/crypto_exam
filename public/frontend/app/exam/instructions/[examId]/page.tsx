@@ -6,7 +6,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import DemoBanner from '@/components/marketing/DemoBanner';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { mockExams, mockQuestions } from '@/lib/api/mock-data';
@@ -28,7 +27,6 @@ export default function InstructionsPage() {
 
   return (
     <div className={styles.page}>
-      <DemoBanner />
       {/* Top Bar */}
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>

@@ -20,25 +20,25 @@
 
 .heroIcon {
   width: 72px; height: 72px;
-  border-radius: 12px;
-  background: var(--color-navy-50, #f8f4f0);
-  border: 1px solid var(--border-soft, #e8e2d8);
+  border-radius: 16px;
+  background: var(--color-navy-50, #EFF1FA);
+  border: 1px solid var(--border-soft, #E3E7F2);
   display: grid; place-items: center;
   margin: 0 auto 20px;
-  color: var(--color-navy-700, #2b211c);
+  color: var(--color-navy-700, #1A2D5A);
 }
 
 .title {
   font-size: 32px;
   font-weight: 700;
-  color: var(--color-navy-900, #201515);
+  color: var(--color-navy-900, #0D1526);
   margin-bottom: 12px;
   letter-spacing: -0.02em;
 }
 
 .subtitle {
   font-size: 16px;
-  color: var(--color-navy-500, #605d52);
+  color: var(--color-navy-500, #5B6478);
   line-height: 1.7;
   max-width: 580px;
   margin: 0 auto;
@@ -58,21 +58,21 @@
   text-align: center;
   max-width: 220px;
   padding: 24px 20px;
-  background: #fffefb;
-  border: 1px solid var(--border-soft, #e8e2d8);
+  background: #fff;
+  border: 1px solid var(--border-soft, #E3E7F2);
   border-radius: 12px;
   transition: box-shadow 200ms ease, border-color 200ms ease;
 }
 .step:hover {
-  box-shadow: 0 2px 12px rgba(32, 21, 21,0.04);
-  border-color: var(--color-navy-200, #c5c0b1);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  border-color: var(--color-navy-200, #A8B3D8);
 }
 
 .stepNum {
   width: 36px; height: 36px;
-  border-radius: 12px;
-  background: var(--color-navy-800, #201515);
-  color: #fffefb;
+  border-radius: 10px;
+  background: var(--color-navy-800, #132040);
+  color: #fff;
   font-weight: 700;
   font-size: 16px;
   display: flex; align-items: center; justify-content: center;
@@ -80,20 +80,20 @@
 }
 
 .stepArrow {
-  color: var(--color-navy-300, #939084);
+  color: var(--color-navy-300, #8A92A6);
   margin-top: 36px;
 }
 
 .stepTitle {
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-navy-800, #201515);
+  color: var(--color-navy-800, #132040);
   margin-bottom: 6px;
 }
 
 .stepDesc {
   font-size: 13px;
-  color: var(--color-navy-500, #605d52);
+  color: var(--color-navy-500, #5B6478);
   line-height: 1.5;
 }
 
@@ -106,39 +106,39 @@
 
 .featureCard {
   padding: 24px 20px;
-  background: #fffefb;
-  border: 1px solid var(--border-soft, #e8e2d8);
+  background: #fff;
+  border: 1px solid var(--border-soft, #E3E7F2);
   border-radius: 12px;
   transition: all 200ms ease;
   color: inherit;
 }
 
 .featureCard:hover {
-  border-color: var(--color-navy-200, #c5c0b1);
-  box-shadow: 0 2px 12px rgba(32, 21, 21,0.04);
+  border-color: var(--color-navy-200, #A8B3D8);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
   transform: translateY(-1px);
 }
 
 .featureIcon {
   width: 42px; height: 42px;
-  border-radius: 12px;
+  border-radius: 10px;
   display: grid; place-items: center;
-  background: var(--color-navy-50, #f8f4f0);
-  border: 1px solid var(--border-soft, #e8e2d8);
-  color: var(--color-navy-600, #3d332c);
+  background: var(--color-navy-50, #EFF1FA);
+  border: 1px solid var(--border-soft, #E3E7F2);
+  color: var(--color-navy-600, #213573);
   margin-bottom: 14px;
 }
 
 .featureCard h3 {
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-navy-800, #201515);
+  color: var(--color-navy-800, #132040);
   margin-bottom: 6px;
 }
 
 .featureCard p {
   font-size: 13px;
-  color: var(--color-navy-500, #605d52);
+  color: var(--color-navy-500, #5B6478);
   line-height: 1.5;
 }
 

@@ -83,7 +83,6 @@ export const mockExams: Exam[] = [
     positive_marks: 4,
     negative_marking: 1,
     total_marks: 720,
-    irt_config: { target_mean_b: 0.0, target_std_b: 1.0, min_a: 0.5, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 10, '2': 25, '3': 30, '4': 20, '5': 10, '6': 5 } },
     question_hash: '0xa3f8c2e1d4b5a6978c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2',
     zk_proof_hash: '0x1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
@@ -117,7 +116,6 @@ export const mockExams: Exam[] = [
     positive_marks: 4,
     negative_marking: 1,
     total_marks: 300,
-    irt_config: { target_mean_b: 0.2, target_std_b: 1.1, min_a: 0.5, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 10, '2': 20, '3': 30, '4': 25, '5': 10, '6': 5 } },
     question_hash: '0xb4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4',
     zk_proof_hash: '0xc5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5',
@@ -148,7 +146,6 @@ export const mockExams: Exam[] = [
     positive_marks: 2,
     negative_marking: 0.5,
     total_marks: 200,
-    irt_config: { target_mean_b: -0.2, target_std_b: 0.9, min_a: 0.4, max_c: 0.25, tolerance: 0.15 },
     blooms_config: { targets: { '1': 15, '2': 30, '3': 30, '4': 15, '5': 7, '6': 3 } },
     answer_merkle_root: '0xe2d3c4b5a6978879605a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3',
     polygon_answer_tx: '0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6',
@@ -167,7 +164,7 @@ export const mockQuestions: Question[] = [
     text_hi: '5 kg द्रव्यमान का एक पिंड 20 m/s के वेग से ऊर्ध्वाधर ऊपर की ओर फेंका जाता है। उच्चतम बिंदु पर पिंड की गतिज ऊर्जा है:',
     options: { A: '0 J', B: '500 J', C: '1000 J', D: '250 J' },
     correct_option: 'A', subject: 'Physics', topic: 'Mechanics',
-    blooms_level: 2, irt_b: -0.5, irt_a: 1.2, irt_c: 0.2, source: 'AI_GENERATED', is_accepted: true,
+    blooms_level: 2, source: 'AI_GENERATED', is_accepted: true,
   },
   {
     id: 'q002', exam_id: mockExams[0].id, set_label: 'B', sequence_number: 2,
@@ -175,7 +172,7 @@ export const mockQuestions: Question[] = [
     text_hi: 'निम्नलिखित में से किस अणु का द्विध्रुव आघूर्ण सबसे अधिक है?',
     options: { A: 'CO₂', B: 'H₂O', C: 'NF₃', D: 'NH₃' },
     correct_option: 'D', subject: 'Chemistry', topic: 'Physical Chemistry',
-    blooms_level: 3, irt_b: 0.3, irt_a: 1.5, irt_c: 0.18, source: 'AI_GENERATED', is_accepted: true,
+    blooms_level: 3, source: 'AI_GENERATED', is_accepted: true,
   },
   {
     id: 'q003', exam_id: mockExams[0].id, set_label: 'B', sequence_number: 3,
@@ -183,14 +180,14 @@ export const mockQuestions: Question[] = [
     text_hi: 'DNA से mRNA बनने की प्रक्रिया को कहते हैं:',
     options: { A: 'Translation', B: 'Transcription', C: 'Replication', D: 'Transduction' },
     correct_option: 'B', subject: 'Biology', topic: 'Genetics',
-    blooms_level: 1, irt_b: -1.2, irt_a: 0.8, irt_c: 0.25, source: 'AI_GENERATED', is_accepted: true,
+    blooms_level: 1, source: 'AI_GENERATED', is_accepted: true,
   },
   {
     id: 'q004', exam_id: mockExams[0].id, set_label: 'B', sequence_number: 4,
     text: 'A concave mirror of focal length 15 cm forms an image at a distance of 30 cm from the mirror. The object distance is:',
     options: { A: '30 cm', B: '20 cm', C: '10 cm', D: '45 cm' },
     correct_option: 'A', subject: 'Physics', topic: 'Optics',
-    blooms_level: 3, irt_b: 0.1, irt_a: 1.3, irt_c: 0.22, source: 'AI_GENERATED', is_accepted: true,
+    blooms_level: 3, source: 'AI_GENERATED', is_accepted: true,
   },
   {
     id: 'q005', exam_id: mockExams[0].id, set_label: 'B', sequence_number: 5,
@@ -198,7 +195,7 @@ export const mockQuestions: Question[] = [
     text_hi: 'प्रतिकृति के दौरान DNA द्विकुंडल को खोलने के लिए कौन सा एंजाइम उत्तरदायी है?',
     options: { A: 'DNA Polymerase', B: 'Helicase', C: 'Ligase', D: 'Primase' },
     correct_option: 'B', subject: 'Biology', topic: 'Genetics',
-    blooms_level: 2, irt_b: -0.8, irt_a: 1.0, irt_c: 0.20, source: 'AI_GENERATED', is_accepted: true,
+    blooms_level: 2, source: 'AI_GENERATED', is_accepted: true,
   },
 ];
 
@@ -217,9 +214,6 @@ for (let i = 6; i <= 30; i++) {
     subject: subj,
     topic: subj === 'Physics' ? 'Mechanics' : subj === 'Chemistry' ? 'Organic' : 'Zoology',
     blooms_level: ((i % 6) + 1) as 1 | 2 | 3 | 4 | 5 | 6,
-    irt_b: Math.round((Math.random() * 4 - 2) * 100) / 100,
-    irt_a: Math.round((0.5 + Math.random() * 2) * 100) / 100,
-    irt_c: Math.round((Math.random() * 0.25) * 100) / 100,
     source: 'AI_GENERATED',
     is_accepted: true,
   });

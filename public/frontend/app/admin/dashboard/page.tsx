@@ -53,7 +53,7 @@ export default function AdminDashboard() {
     return (
       <div className={styles.page}>
         <div className={styles.header}><h1>Mission Control</h1></div>
-        <div style={{ padding: 20, border: '1px solid #631518', background: 'rgba(99, 21, 24,0.15)', borderRadius: 12, color: '#d99a8e' }}>
+        <div style={{ padding: 20, border: '1px solid #7f1d1d', background: 'rgba(127,29,29,0.15)', borderRadius: 12, color: '#fca5a5' }}>
           Could not reach the backend: {error ?? 'unknown error'}.
           <br />Ensure the API is running at <code>{process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}</code>.
         </div>
@@ -101,10 +101,10 @@ export default function AdminDashboard() {
       {/* Row 2 — KPI Tiles (real) */}
       <div className={styles.kpiRow}>
         {[
-          { label: 'Candidates Enrolled', value: (dash.users.CANDIDATE ?? 0).toLocaleString(), color: '#6fa678' },
-          { label: 'Active Sessions', value: dash.active_sessions.toLocaleString(), color: '#939084' },
-          { label: 'Nodes Online', value: `${dash.hardware_nodes.online}/${dash.hardware_nodes.total}`, color: dash.hardware_nodes.online < dash.hardware_nodes.total ? '#b07d1a' : '#6fa678' },
-          { label: 'Total Enrollments', value: dash.total_enrollments.toLocaleString(), color: '#939084' },
+          { label: 'Candidates Enrolled', value: (dash.users.CANDIDATE ?? 0).toLocaleString(), color: '#4ade80' },
+          { label: 'Active Sessions', value: dash.active_sessions.toLocaleString(), color: '#60a5fa' },
+          { label: 'Nodes Online', value: `${dash.hardware_nodes.online}/${dash.hardware_nodes.total}`, color: dash.hardware_nodes.online < dash.hardware_nodes.total ? '#f59e0b' : '#4ade80' },
+          { label: 'Total Enrollments', value: dash.total_enrollments.toLocaleString(), color: '#a78bfa' },
         ].map((kpi) => (
           <div key={kpi.label} className={styles.kpiTile}>
             <span className={styles.kpiValue} style={{ color: kpi.color }}>{kpi.value}</span>

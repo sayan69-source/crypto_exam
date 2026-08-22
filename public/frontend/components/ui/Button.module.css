@@ -22,68 +22,63 @@
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--brand-primary);
+  outline: 2px solid var(--color-navy-500);
   outline-offset: 2px;
 }
 
-/* ── Sizes ──
-   Every size keeps the canonical 12px radius: the brand's button is a
-   12px rounded rectangle, never a pill and never square. */
-.sm { padding: var(--space-sm) var(--space-lg); font-size: 14.4px; font-weight: 700; letter-spacing: 0.144px; }
-.md { padding: var(--space-md) var(--space-xl); font-size: 16px; font-weight: 600; }
-.lg { padding: 14px 28px; font-size: var(--fs-body-md); font-weight: 600; }
+/* ── Sizes ── */
+.sm { padding: 6px 12px; font-size: 13px; border-radius: var(--radius-sm); }
+.md { padding: 10px 20px; font-size: 14px; }
+.lg { padding: 14px 28px; font-size: 16px; border-radius: var(--radius-lg); }
 
-/* ── Variants ──
-   primary = the orange conversion CTA · secondary = 1px ink outline
-   ghost = text-only · danger = semantic destructive */
+/* ── Variants ── */
 .primary {
-  background: var(--brand-primary);
-  color: var(--brand-on-primary);
+  background: var(--color-navy-600);
+  color: white;
 }
 .primary:hover:not(:disabled) {
-  background: #e64700;
+  background: var(--color-navy-700);
+  box-shadow: var(--shadow-md);
 }
 .primary:active:not(:disabled) {
-  background: #cc3f00;
+  background: var(--color-navy-800);
 }
 
 .secondary {
-  background: var(--brand-canvas);
-  color: var(--brand-ink);
-  border: 1px solid var(--brand-ink);
+  background: transparent;
+  color: var(--color-navy-700);
+  border: 1.5px solid var(--color-navy-200);
 }
 .secondary:hover:not(:disabled) {
-  background: var(--brand-canvas-soft);
-  border-color: var(--brand-ink);
+  background: var(--color-navy-50);
+  border-color: var(--color-navy-400);
 }
 
 .ghost {
   background: transparent;
-  color: var(--brand-ink);
+  color: var(--color-navy-600);
 }
 .ghost:hover:not(:disabled) {
-  background: var(--brand-canvas-soft);
-  color: var(--brand-primary);
+  background: var(--color-navy-50);
 }
 
 .danger {
   background: var(--color-danger);
-  color: var(--brand-on-primary);
+  color: white;
 }
 .danger:hover:not(:disabled) {
-  background: #7a1a1d;
+  background: #b01c1c;
+  box-shadow: var(--shadow-md);
 }
 
-/* The ink-dark CTA. Formerly a saffron gradient — the design language admits
-   no gradients and exactly one chromatic accent, so this becomes the solid
-   coffee-ink button that pairs with the orange primary. */
 .saffron {
-  background: var(--brand-ink);
-  color: var(--brand-on-primary);
+  background: linear-gradient(135deg, var(--color-india-saffron), var(--color-india-deep-saffron));
+  color: white;
   font-weight: 600;
 }
 .saffron:hover:not(:disabled) {
-  background: var(--brand-ink-soft);
+  background: linear-gradient(135deg, var(--color-saffron-500), var(--color-india-saffron));
+  box-shadow: 0 4px 15px rgba(255, 153, 51, 0.3);
 }
 
 /* ── Full Width ── */
@@ -95,8 +90,8 @@
   position: absolute;
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255,254,251,0.35);
-  border-top-color: var(--brand-on-primary);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
   border-radius: 50%;
   animation: spin 600ms linear infinite;
 }
