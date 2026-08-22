@@ -147,10 +147,7 @@ export default function HomePage() {
               <div className={s.statN}><CountUp to={4} /></div>
               <div className={s.statL}>Cryptographic guarantees on every exam</div>
             </div>
-            <div>
-              <div className={s.statN}><CountUp to={11} /></div>
-              <div className={s.statL}>Indian languages supported end to end</div>
-            </div>
+
             <div>
               <div className={s.statN}><CountUp to={0} /><small> trust</small></div>
               <div className={s.statL}>Required in any single party or device</div>

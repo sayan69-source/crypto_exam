@@ -54,13 +54,7 @@ export default function ExamPortal() {
             <h3>End-to-End Encrypted</h3>
             <p>AES-GCM-256 encryption. No human can see the paper before T₀.</p>
           </div>
-          <div className={styles.featureCard}>
-            <span className={styles.featureIcon}>
-              <Icon name="languages" size={22} strokeWidth={1.7} />
-            </span>
-            <h3>11 Indian Languages</h3>
-            <p>Hindi, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Odia, Marathi, English.</p>
-          </div>
+
           <div className={styles.featureCard}>
             <span className={styles.featureIcon}>
               <Icon name="receipt" size={22} strokeWidth={1.7} />
