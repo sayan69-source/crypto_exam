@@ -206,11 +206,24 @@ assert_observed() {
 
   [[ -s "$OBS_SERIAL" ]] || fail "observed boot produced NO serial output — the UKI never ran (firmware rejected it, or virtio never attached)"
 
+  # ── match against a SANITISED copy, not the raw log ──────────────────────
+  #
+  # systemd colourises its own output, so the banner arrives as
+  #   ESC[0;1;39mWelcome to ESC[0mESC[1mZUUP-OS Examination TerminalESC[0m
+  # and a plain /Welcome to ZUUP-OS/ never matches: the escape run sits in the
+  # middle of the phrase. That failed a boot which had in fact switch_rooted
+  # perfectly and gone on to run every unit — the checker reported the one thing
+  # that had definitely worked as the thing that broke. Carriage returns go too;
+  # the console emits CRLF, so patterns behave differently here than in a file
+  # anyone reads.
+  OBS_PLAIN="$OBS_SERIAL.plain"
+  strip_ansi < "$OBS_SERIAL" | tr -d '\r' > "$OBS_PLAIN"
+
   # Ordered as the boot executes, so the first failure names the stage that
   # broke rather than the symptom three stages later.
   while IFS='|' read -r label pattern; do
     [[ -z "$label" ]] && continue
-    grep -aqE "$pattern" "$OBS_SERIAL" \
+    grep -aqE "$pattern" "$OBS_PLAIN" \
       || fail "observed boot never got past: $label  (expected /$pattern/ in $OBS_SERIAL)"
     printf '  [ok] %s\n' "$label"
   done <<'MARKERS'
@@ -228,30 +241,43 @@ MARKERS
   # terminal MUST see a TPM 2.0 — without one it demotes itself to a candidate
   # seat and no staff can ever log in. A run whose TPM did not attach is not a
   # run that proves anything about the production path.
-  survey="$(grep -aoE 'zuup-survey: firmware=[^\r]*' "$OBS_SERIAL" | strip_ansi | head -1)"
+  survey="$(grep -aoE 'zuup-survey: firmware=[^\r]*' "$OBS_PLAIN" | strip_ansi | head -1)"
   echo "  -> $survey"
-  grep -aqE 'zuup-survey: firmware=UEFI' "$OBS_SERIAL" \
+  grep -aqE 'zuup-survey: firmware=UEFI' "$OBS_PLAIN" \
     || fail "survey did not see UEFI firmware — the observed boot was not the UEFI path"
-  grep -aqE 'zuup-survey: .*tpm=(2\.0|20|yes)' "$OBS_SERIAL" \
+  grep -aqE 'zuup-survey: .*tpm=(2\.0|20|yes)' "$OBS_PLAIN" \
     || fail "survey reported no TPM 2.0 — swtpm did not attach, so this run cannot speak for the production path"
 
   # Fail-closed. An unprovisioned image has no WireGuard identity, so the tunnel
   # must fail, the network target must not be reached, and everything gated on
   # it must be REFUSED rather than started anyway.
-  grep -aqE "Dependency failed for zuup-(session|kiosk)|ZUUP-ATTEST HALT|refusing to open the Gate" "$OBS_SERIAL" \
+  grep -aqE "Dependency failed for zuup-(session|kiosk)|ZUUP-ATTEST HALT|refusing to open the Gate" "$OBS_PLAIN" \
     || fail "no fail-closed evidence: the session path neither halted nor was refused"
   printf '  [ok] %s\n' "session path refused (fail-closed)"
 
   # …and it must fail closed WITHOUT ever offering a surface.
-  if grep -aqE "getty|login:|sh-[0-9]\.[0-9]#|Started .*locked examination surface|Reached target .*[Ee]xamination session" "$OBS_SERIAL"; then
-    grep -aE "getty|login:|sh-[0-9]\.[0-9]#|examination (surface|session)" "$OBS_SERIAL" | strip_ansi | head -5 >&2
+  #
+  # The pattern has to name a surface that CAME UP, not any line containing the
+  # word. A bare /getty/ matched `systemd-getty-g (97) used greatest stack
+  # depth` — a kernel accounting message about the generator, which runs on
+  # every boot and creates nothing — so a correctly fail-closed boot was
+  # reported as having offered a login. Worse, the evidence printed alongside
+  # the failure was the `Dependency failed for zuup-kiosk` lines, i.e. the proof
+  # that it had NOT.
+  #
+  # So: a unit that reached Started/Reached target, an actual getty unit, a
+  # login prompt, or a shell prompt. "Starting" is deliberately absent — systemd
+  # prints it before a job that may still be refused.
+  SURFACE='(Started|Reached target)[^|]*([Gg]etty|locked examination surface|[Ee]xamination session)|getty@tty[0-9]+\.service: (Started|Succeeded)|login:|sh-[0-9]\.[0-9]#'
+  if grep -aqE "$SURFACE" "$OBS_PLAIN"; then
+    grep -aE "$SURFACE" "$OBS_PLAIN" | head -5 >&2
     fail "a login/kiosk surface appeared on an unattested terminal — NOT fail-closed"
   fi
   printf '  [ok] %s\n' "no shell, login or kiosk surface appeared"
 
   # …and it must actually STOP, rather than sitting at the gate forever.
   [[ $rc -eq 124 ]] && fail "observed boot HUNG (timeout) instead of powering off — a terminal stuck at the gate is not fail-closed"
-  grep -aqE "Powering off|Reached target .*[Pp]ower-?[Oo]ff|System is powering down" "$OBS_SERIAL" \
+  grep -aqE "Powering off|Reached target .*[Pp]ower-?[Oo]ff|System is powering down" "$OBS_PLAIN" \
     || fail "no poweroff observed (qemu rc=$rc) — the gate did not halt the machine"
   printf '  [ok] %s\n' "machine powered itself off"
 
