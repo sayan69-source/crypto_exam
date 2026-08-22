@@ -73,7 +73,6 @@ export default function PlatformPage() {
               they wrote cannot be altered.
             </p>
             <ul className={s.featureList}>
-              <Feature icon="languages" title="11 Indian languages" desc="Native script rendering — Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati and more." />
               <Feature icon="fingerprint" title="On-device biometric verification" desc="Raw biometric data never leaves the candidate's hardware — DPDP Act 2023 compliant by design." />
               <Feature icon="save" title="Continuous answer sync" desc="Local-first storage with Merkle hash sync — works through brief network interruptions." />
               <Feature icon="receipt" title="Printable cryptographic receipt" desc="A4 receipt with the candidate's submission root, on-chain transaction, and verification link." />

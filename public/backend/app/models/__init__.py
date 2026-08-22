@@ -1258,6 +1258,7 @@ class ExamAdministrator(Base):
     id = Column(GUID, primary_key=True, default=lambda: str(uuid4()))
     request_id = Column(GUID, ForeignKey("exam_requests.id", ondelete="CASCADE"),
                         nullable=False, index=True)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     # Set when the request is approved and the offering exists.
     offering_id = Column(GUID, ForeignKey("exam_offerings.id", ondelete="CASCADE"),
                          nullable=True, index=True)
