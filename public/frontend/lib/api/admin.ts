@@ -224,7 +224,7 @@ export interface EnquiriesResponse {
   items: Enquiry[];
 }
 
-export type ExamRequestStatus = 'PENDING' | 'SYSADMIN_APPROVED' | 'ADMIN_APPROVED' | 'ACTIVE' | 'REJECTED' | 'WITHDRAWN';
+export type ExamRequestStatus = 'SUBMITTED' | 'PENDING' | 'SYSADMIN_APPROVED' | 'ADMIN_APPROVED' | 'ACTIVE' | 'REJECTED' | 'WITHDRAWN';
 
 export interface ExamRequestItem {
   id: string;
