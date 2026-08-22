@@ -40,7 +40,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # no
 from app.api.v1 import centre_sync  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Center, CentreSealedRecord  # noqa: E402
+from app.models import Center, CentreSealedRecord, DecryptedAnswerRecord  # noqa: E402
 
 _engine = create_async_engine(f"sqlite+aiosqlite:///{_DB.as_posix()}", future=True)
 _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -263,3 +263,152 @@ def test_hello_reports_what_is_waiting_for_this_centre():
     assert set(body["available"]) == {"candidates", "staff", "exams", "question_bundles"}
     # The clock a terminal with no NTP is checking itself against.
     datetime.fromisoformat(body["serverTime"]).astimezone(timezone.utc)
+
+
+# ── the rest of the journey: sealed at the centre → readable at HQ ──────────
+#
+# Delivery is only half the point. These pin the step that turns what arrived
+# into results, and the way it must refuse when it has no key.
+def _rsa_keypair():
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = priv.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    return priv, pem
+
+
+def _real_sealed_bundle(centre_id, pub, answers):
+    """A bundle sealed the way a terminal seals one: AES-GCM under a data key,
+    the data key RSA-OAEP-wrapped to the System Admin.
+
+    The fixtures above use filler bytes, which is right for testing the chain and
+    the transport. Nothing filler-shaped can prove the decrypt path, because the
+    whole question there is whether the bytes open.
+    """
+    import os
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    prev = bytes(32)
+    records = []
+    for i, answer in enumerate(answers):
+        dk = AESGCM.generate_key(bit_length=256)
+        iv = os.urandom(12)
+        blob = AESGCM(dk).encrypt(iv, json.dumps(answer).encode(), None)
+        ct, tag = blob[:-16], blob[-16:]
+        wrapped = pub.encrypt(dk, padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(), label=None))
+        leaf = hashlib.sha256(ct + iv + tag + wrapped).digest()
+        root = hashlib.sha256(prev + leaf).digest()
+        records.append({
+            "examId": EXAM, "seatNo": "B-%02d" % i, "leafIndex": i,
+            "leaf": leaf.hex(), "prevRoot": prev.hex(), "chainRoot": root.hex(),
+            "nodeRootSig": NODE.sign(root).hex(),
+            "ciphertext": ct.hex(), "iv": iv.hex(), "authTag": tag.hex(),
+            "wrappedDk": wrapped.hex(),
+        })
+        prev = root
+
+    manifest = {"centreId": centre_id, "count": len(records), "records": records,
+                "exportedAt": 1_700_000_001_000}
+    mh = hashlib.sha256(_canonical(manifest)).digest()
+    return {"manifest": manifest, "manifestHash": mh.hex(),
+            "nodeSig": NODE.sign(mh).hex(),
+            "nodePubkey": NODE.public_key().public_bytes_raw().hex()}
+
+
+def test_without_the_hsm_key_nothing_can_be_opened():
+    """Fail-closed, and named. A deployment with no key must refuse rather than
+    report zero results as though the centre had sent none."""
+    from app.api.v1 import sys_ledger
+    from fastapi import HTTPException
+
+    class _NoKey:
+        SYSTEM_ADMIN_PRIVATE_KEY_PEM = None
+
+    original = sys_ledger.get_settings if hasattr(sys_ledger, "get_settings") else None
+
+    async def go():
+        async with _Session() as s:
+            return await sys_ledger.open_received(
+                sys_ledger.OpenRequest(examId=EXAM), db=s,
+                current_user={"role": "SYSTEM_ADMIN"},
+            )
+
+    import app.config
+    saved = app.config.get_settings
+    app.config.get_settings = lambda: _NoKey()
+    try:
+        try:
+            asyncio.run(go())
+            raise AssertionError("opened records with no HSM key")
+        except HTTPException as exc:
+            assert exc.status_code == 503
+            assert exc.detail == "HSM_NOT_AVAILABLE"
+    finally:
+        app.config.get_settings = saved
+
+
+def test_open_turns_arrived_ciphertext_into_stored_answers():
+    """The whole point: what the courier delivered becomes readable, server-side.
+
+    Driven at the function rather than over HTTP because the route's auth
+    dependency is constructed per call (`Depends(require_role(...))`), so there
+    is no stable key to override. What is under test is the crypto and the
+    persistence; the gate is asserted by the module's own role dependency.
+    """
+    from app.api.v1 import sys_ledger
+    import app.config
+
+    priv, pem = _rsa_keypair()
+    answers = [{"roll": "OPEN-1", "responses": {"q1": "A"}},
+               {"roll": "OPEN-2", "responses": {"q1": "C"}}]
+    bundle = _real_sealed_bundle(B_CENTRE, priv.public_key(), answers)
+
+    r = client.post("/api/v1/centre-sync/ledger",
+                    headers=_auth(centre=B_CENTRE, key=B_KEY), json=bundle)
+    assert r.status_code == 200 and r.json()["stored"] == 2, r.text
+
+    class _WithKey:
+        SYSTEM_ADMIN_PRIVATE_KEY_PEM = pem
+
+    b_hash = hashlib.sha256(B_CENTRE.encode()).hexdigest()
+
+    async def go():
+        async with _Session() as s:
+            out = await sys_ledger.open_received(
+                sys_ledger.OpenRequest(centreIdHash=b_hash), db=s,
+                current_user={"role": "SYSTEM_ADMIN"},
+            )
+            return out
+
+    saved = app.config.get_settings
+    app.config.get_settings = lambda: _WithKey()
+    try:
+        out = asyncio.run(go())
+        assert out["opened"] == 2, out
+        assert out["failed"] == []
+
+        async def check():
+            from sqlalchemy import select
+            async with _Session() as s:
+                recs = (await s.execute(select(DecryptedAnswerRecord))).scalars().all()
+                sealed = (await s.execute(select(CentreSealedRecord).where(
+                    CentreSealedRecord.centre_id_hash == b_hash))).scalars().all()
+                return recs, sealed
+
+        recs, sealed = asyncio.run(check())
+        assert sorted(x.answers["roll"] for x in recs) == ["OPEN-1", "OPEN-2"]
+        assert all(x.decrypted_at is not None for x in sealed), "sealed rows were not marked opened"
+
+        # Idempotent: a second pass finds nothing left rather than duplicating.
+        assert asyncio.run(go())["opened"] == 0
+    finally:
+        app.config.get_settings = saved

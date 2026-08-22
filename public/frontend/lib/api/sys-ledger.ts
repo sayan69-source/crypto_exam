@@ -42,7 +42,23 @@ export interface DecryptResult {
   quarantined?: { examId: string; seatNo: string | null; leafIndex: number; reason: string }[];
 }
 
+export interface OpenResult {
+  ok: boolean;
+  opened: number;
+  failed?: { examId: string; seatNo: string | null; leafIndex: number; reason: string }[];
+  note?: string;
+}
+
 export const sysLedgerApi = {
+  /**
+   * Decrypt what a centre's courier already delivered — server-side.
+   *
+   * Preferred over ingest+decrypt+store: those returned the plaintext to this
+   * browser so it could post it back, which put the only plaintext copy of a
+   * paper through a console. This returns counts.
+   */
+  open: (body: { examId?: string; centreIdHash?: string }) =>
+    post<OpenResult>('/ledger/open', body),
   /** Verify only — signature + hash chain. Never decrypts. */
   ingest: (bundle: unknown) => post<IngestResult>('/ledger/ingest', bundle),
   /** Verify, then HSM-unwrap. The only place a plaintext answer exists. */

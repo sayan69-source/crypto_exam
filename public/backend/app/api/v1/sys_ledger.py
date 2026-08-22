@@ -31,6 +31,7 @@ the key-ceremony test vector (§18.2).
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -252,63 +253,158 @@ class StoreDecryptedRequest(BaseModel):
 
 @router.post(
     "/ledger/store",
-    summary="Store decrypted answers and mark enrolments as submitted",
-    description="Tier-0 only. Called immediately after /decrypt to persist the plaintext "
-    "answers into the system admin DB and mark the candidate's enrolment as SUBMITTED.",
+    summary="Store decrypted answers (tier-0)",
+    description="Persist plaintext answers into the System Admin store. Prefer "
+    "/ledger/open, which decrypts what a centre already delivered without the "
+    "plaintext ever leaving this process.",
 )
 async def store_decrypted(
     req: StoreDecryptedRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
-    from app.models import DecryptedAnswerRecord, Enrollment, EnrollmentStatus
+    """
+    Gated on SYSTEM_ADMIN, not ADMIN.
 
-    stored_count = 0
-    # Group by exam_id for efficient enrolment lookups
-    by_exam: dict[str, list[dict[str, Any]]] = {}
-    for d in req.decrypted:
-        by_exam.setdefault(d["examId"], []).append(d)
+    Every other route in this module is tier-0 because tier-0 is the only tier
+    that may turn ciphertext into answers. This one was left on ADMIN, which is
+    worse than the read it mirrors: it does not merely let a tier-1 operations
+    administrator READ answers, it lets them WRITE the store — post any JSON
+    they like as candidate X's paper for exam Y, into the table results are
+    computed from.
+    """
+    from app.models import DecryptedAnswerRecord
 
-    for exam_id, answers in by_exam.items():
-        # Insert decrypted records
-        for a in answers:
-            record = DecryptedAnswerRecord(
-                exam_id=exam_id,
-                centre_id_hash=req.centreIdHash,
-                seat_no=a.get("seatNo"),
-                leaf_index=a["leafIndex"],
-                answers=a["record"],
-                chain_root=req.chainRoot,
-                polygon_tx=req.polygonTx,
+    stored = 0
+    for a in req.decrypted:
+        db.add(DecryptedAnswerRecord(
+            exam_id=a["examId"],
+            centre_id_hash=req.centreIdHash,
+            seat_no=a.get("seatNo"),
+            leaf_index=a["leafIndex"],
+            answers=a["record"],
+            chain_root=req.chainRoot,
+            polygon_tx=req.polygonTx,
+        ))
+        stored += 1
+
+    # The enrolment status is deliberately NOT touched here.
+    #
+    # This used to set `EnrollmentStatus.SUBMITTED` "if it exists" and fall back
+    # to the bare string otherwise. It does not exist — the enum is
+    # ENROLLED/PRESENT/ABSENT/DISQUALIFIED — so the fallback always ran and
+    # assigned a value outside the type. On Postgres that is
+    # `invalid input value for enum`, which failed the whole call on the live
+    # deployment for any bundle whose records carried a roll number; on SQLite
+    # it wrote a status nothing else understands.
+    #
+    # The right model is the one the Edge already uses: a candidate stays
+    # PRESENT, and "submitted" is a property of the ledger. The existence of the
+    # row added above IS the record of submission.
+    await db.commit()
+    logger.info("Stored %d decrypted answers for centre %s", stored, req.centreIdHash[:12])
+    return {"ok": True, "stored": stored}
+
+
+class OpenRequest(BaseModel):
+    """Which of the sealed records that have ARRIVED to open."""
+    examId: str | None = None
+    centreIdHash: str | None = None
+    limit: int = 500
+
+
+@router.post(
+    "/ledger/open",
+    summary="Decrypt sealed records a centre already delivered (tier-0 + HSM)",
+    description="Reads what the courier delivered, re-walks the chain, HSM-unwraps "
+    "each data key and persists the plaintext. Returns counts only — the answers "
+    "never leave this process.",
+)
+async def open_received(
+    req: OpenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The step that was missing between "the answers arrived" and "the answers exist".
+
+    Until the courier existed, a bundle reached HQ only by an operator pasting it
+    into a console: /decrypt returned the plaintext to that browser and /store
+    posted it back. That round trip is now avoidable and should be avoided — it
+    put the only plaintext copy of a paper through a browser, and it made the
+    write path accept whatever came back rather than what was decrypted.
+
+    Here the ciphertext is already in the database, so the whole operation is
+    server-side: verify, unwrap, write, mark. What comes back is a count.
+
+    Idempotent: rows already carrying `decrypted_at` are skipped, so re-running
+    after a partial failure resumes rather than duplicating.
+    """
+    from app.config import get_settings
+    from app.models import CentreSealedRecord, DecryptedAnswerRecord
+
+    private_pem = getattr(get_settings(), "SYSTEM_ADMIN_PRIVATE_KEY_PEM", None)
+    if not private_pem:
+        # In production this is an HSM operation and the key never enters this
+        # process; a deployment without one cannot open anything, and says so
+        # rather than half-succeeding.
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "HSM_NOT_AVAILABLE")
+
+    q = select(CentreSealedRecord).where(CentreSealedRecord.decrypted_at.is_(None))
+    if req.examId:
+        q = q.where(CentreSealedRecord.exam_id == req.examId)
+    if req.centreIdHash:
+        q = q.where(CentreSealedRecord.centre_id_hash == req.centreIdHash)
+    rows = (await db.execute(q.order_by(
+        CentreSealedRecord.exam_id, CentreSealedRecord.leaf_index
+    ).limit(max(1, min(req.limit, 5000))))).scalars().all()
+
+    if not rows:
+        return {"ok": True, "opened": 0, "failed": [], "note": "nothing sealed is waiting"}
+
+    # Re-walk the chain before any key is used (INV-9), from what was STORED
+    # rather than from what a caller sent. A record whose envelope no longer
+    # digests to its leaf is refused with the rest of its exam: a chain is only
+    # meaningful whole.
+    as_records = [ExportRecord(
+        examId=r.exam_id, seatNo=r.seat_no, leafIndex=r.leaf_index, leaf=r.leaf,
+        prevRoot=r.prev_root, chainRoot=r.chain_root, nodeRootSig=r.node_root_sig,
+        ciphertext=r.ciphertext, iv=r.iv, authTag=r.auth_tag, wrappedDk=r.wrapped_dk,
+    ) for r in rows]
+    _verify_chain(as_records)
+
+    opened = 0
+    failed: list[dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+    for r in rows:
+        try:
+            dk = _hsm_unwrap(bytes.fromhex(r.wrapped_dk), private_pem)
+            pt = _aes_gcm_open(
+                bytes.fromhex(r.ciphertext), bytes.fromhex(r.iv), bytes.fromhex(r.auth_tag), dk,
             )
-            db.add(record)
-            stored_count += 1
+            answers = json.loads(pt)
+        except Exception as exc:
+            # One unopenable envelope must not abort the exam. It is quarantined
+            # by being left sealed and named here — the previous decrypt path
+            # let a single poisoned row take down every other candidate in the
+            # same call.
+            failed.append({
+                "examId": r.exam_id, "seatNo": r.seat_no, "leafIndex": r.leaf_index,
+                "reason": type(exc).__name__,
+            })
+            continue
 
-        # Update enrolments to SUBMITTED
-        rolls = [a["record"].get("roll") for a in answers if a["record"].get("roll")]
-        if rolls:
-            # Note: We can't use centre_id here because we only have centreIdHash,
-            # but (exam_id, roll_number) is unique anyway.
-            # We must use proper SQLAlchemy Enum setting or string if it's a string column.
-            # Depending on how EnrollmentStatus is defined, we'll try string mapping first.
-            await db.execute(
-                select(Enrollment)
-                .where(Enrollment.exam_id == exam_id, Enrollment.roll_number.in_(rolls))
-            )
-            # A more robust update:
-            for roll in rolls:
-                enrolment = (await db.execute(
-                    select(Enrollment)
-                    .where(Enrollment.exam_id == exam_id, Enrollment.roll_number == roll)
-                )).scalar_one_or_none()
-                if enrolment:
-                    # Depending on how your enum is defined, handle it safely
-                    if hasattr(EnrollmentStatus, "SUBMITTED"):
-                        enrolment.status = EnrollmentStatus.SUBMITTED
-                    else:
-                        # Fallback for string-based or other enum definitions
-                        enrolment.status = "SUBMITTED"
+        db.add(DecryptedAnswerRecord(
+            exam_id=r.exam_id,
+            centre_id_hash=r.centre_id_hash,
+            seat_no=r.seat_no,
+            leaf_index=r.leaf_index,
+            answers=answers,
+            chain_root=r.chain_root,
+        ))
+        r.decrypted_at = now
+        opened += 1
 
     await db.commit()
-    logger.info("Stored %d decrypted answers for centre %s", stored_count, req.centreIdHash[:12])
-    return {"ok": True, "stored": stored_count}
+    logger.info("tier-0 opened %d sealed record(s); %d quarantined", opened, len(failed))
+    return {"ok": True, "opened": opened, "failed": failed}

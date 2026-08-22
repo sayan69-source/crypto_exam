@@ -468,7 +468,34 @@ function CentreUplinks() {
     }
   }
 
+  /**
+   * Turn a centre's delivered ciphertext into answers.
+   *
+   * The decryption happens on the server, against records already in the
+   * database — nothing sealed and nothing plaintext passes through this page.
+   * Without an HSM key configured the API answers 503 HSM_NOT_AVAILABLE, which
+   * is the correct refusal and is surfaced verbatim rather than as a generic
+   * failure.
+   */
+  async function openSealed(g: ReceivedGroup) {
+    setBusy(g.examId);
+    setError(null);
+    try {
+      const r = await sysLedgerApi.open({ examId: g.examId, centreIdHash: g.centreIdHash });
+      const quarantined = r.failed?.length ?? 0;
+      if (quarantined) {
+        setError(`Opened ${r.opened}; ${quarantined} record(s) could not be opened and were left sealed.`);
+      }
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open the sealed records');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const arrived = groups.reduce((n, g) => n + g.count, 0);
+  const opened = groups.reduce((n, g) => n + g.decrypted, 0);
 
   return (
     <Card
@@ -485,7 +512,7 @@ function CentreUplinks() {
       <div style={{ marginBottom: 'var(--space-lg)' }}>
         <CardGrid minColumn={200}>
           <Stat label="Centres provisioned" value={centres.filter((c) => c.provisioned).length} />
-          <Stat label="Sealed records received" value={arrived} />
+          <Stat label="Sealed records received" value={arrived} hint={arrived ? `${opened} opened` : undefined} />
           <Stat
             label="Bundle signing"
             value={hqKey ? 'Armed' : 'Unsigned'}
@@ -537,7 +564,7 @@ function CentreUplinks() {
 
       {groups.length > 0 && (
         <div style={{ marginTop: 'var(--space-lg)' }}>
-          <Table head={['Centre (hashed)', 'Exam', 'Sealed records', 'Decrypted', 'Last delivery']}>
+          <Table head={['Centre (hashed)', 'Exam', 'Sealed records', 'Decrypted', 'Last delivery', '']}>
             {groups.map((g) => (
               <tr key={`${g.centreIdHash}:${g.examId}`}>
                 <td className={cellMono}>{g.centreIdHash.slice(0, 16)}…</td>
@@ -545,6 +572,19 @@ function CentreUplinks() {
                 <td>{g.count}</td>
                 <td>{g.decrypted}</td>
                 <td>{g.lastReceivedAt ? new Date(g.lastReceivedAt).toLocaleString('en-IN', { hour12: false }) : '—'}</td>
+                <td style={{ textAlign: 'right' }}>
+                  {g.decrypted >= g.count ? (
+                    <Badge tone="ok" dot>Opened</Badge>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      disabled={busy === g.examId}
+                      onClick={() => openSealed(g)}
+                    >
+                      {busy === g.examId ? 'Opening…' : `Open ${g.count - g.decrypted}`}
+                    </Button>
+                  )}
+                </td>
               </tr>
             ))}
           </Table>
