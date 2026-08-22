@@ -5,9 +5,9 @@ import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
 
 export const metadata: Metadata = {
-  title: "Setter Workbench — CryptoExam Core",
+  title: "Setter Portal — CryptoExam Core",
   description:
-    "A dense authoring workbench for examination setters — compose papers, generate ZK difficulty proofs, run red-team review, and seal question banks under cryptographic lock.",
+    "A dense authoring portal for examination setters — compose papers, generate ZK difficulty proofs, and seal question banks under cryptographic lock.",
 };
 
 export default function SetterLanding() {
@@ -17,7 +17,7 @@ export default function SetterLanding() {
         <div className="wrap">
           <span className="eyebrow">For setters</span>
           <h1 className={s.h1}>
-            A workbench for sealing papers that <em>cannot leak.</em>
+            A portal for sealing papers that <em>cannot leak.</em>
           </h1>
           <p className={s.lead}>
             CryptoExam Core gives examination setters a dense, focused environment for composing
@@ -26,7 +26,7 @@ export default function SetterLanding() {
           </p>
           <div className={s.cta}>
             <Link className="btn btn-primary btn-lg" href="/setter/login">
-              Open the workbench <Icon name="arrow-right" size={16} />
+              Open the portal <Icon name="arrow-right" size={16} />
             </Link>
             <Link className="btn btn-ghost btn-lg" href="/platform#setter">
               See the setter flow
@@ -45,7 +45,6 @@ export default function SetterLanding() {
             {[
               { icon: "flask-conical", title: "Compose & version", desc: "Author multi-language papers with structured metadata. Every revision is hashed and signed; nothing is silently overwritten." },
               { icon: "binary", title: "ZK difficulty proofs", desc: "Declare a target difficulty distribution; a Groth16 proof attests the paper meets it without revealing a single question." },
-              { icon: "swords", title: "Red-team review", desc: "Run independent reviewers against the paper before sealing. Their findings are attached to the audit trail." },
               { icon: "file-lock-2", title: "Seal under encryption", desc: "AES-GCM-256 encrypts the paper at authoring time. The decryption key only exists at T₀, derived from a public beacon." },
             ].map((c) => (
               <article className={`card ${s.card}`} key={c.title}>
@@ -65,8 +64,7 @@ export default function SetterLanding() {
           <ol className={s.steps}>
             <li><span className={s.stepN}>01</span><div><h4>Draft</h4><p>Compose questions with translations and difficulty tags. Auto-save with hash chaining.</p></div></li>
             <li><span className={s.stepN}>02</span><div><h4>Prove</h4><p>Generate a ZK-SNARK that the paper meets its declared difficulty profile.</p></div></li>
-            <li><span className={s.stepN}>03</span><div><h4>Review</h4><p>Red-team review captures every objection on the audit trail.</p></div></li>
-            <li><span className={s.stepN}>04</span><div><h4>Seal</h4><p>Encrypt under AES-GCM-256. Commit the question hash on-chain. Hand off to the broadcast schedule.</p></div></li>
+            <li><span className={s.stepN}>03</span><div><h4>Seal</h4><p>Encrypt under AES-GCM-256. Commit the question hash on-chain. Hand off to the broadcast schedule.</p></div></li>
           </ol>
         </div>
       </section>
@@ -74,10 +72,10 @@ export default function SetterLanding() {
       <section className={`section-sm ${s.finalCta} reveal reveal-scale`}>
         <div className="wrap">
           <h2>Bring your next paper into the open.</h2>
-          <p>Sign in to the workbench with your setter credentials, or talk to us about onboarding your board.</p>
+          <p>Sign in to the portal with your setter credentials, or talk to us about onboarding your board.</p>
           <div className={s.cta}>
             <Link className="btn btn-primary btn-lg" href="/setter/login">
-              Sign in to the workbench <Icon name="arrow-right" size={16} />
+              Sign in to the portal <Icon name="arrow-right" size={16} />
             </Link>
             <Link className="btn btn-ghost btn-lg" href="/contact">
               Request setter access

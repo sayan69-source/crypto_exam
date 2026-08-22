@@ -110,7 +110,7 @@ const FALLBACK_ABOUT: AboutDocument = {
   ],
   roles: [
     { name: 'Candidate', summary: 'A focused exam environment with biometric check-in, autosave, and a printable cryptographic receipt for every submission.' },
-    { name: 'Setter', summary: 'An authoring workbench for composing papers, generating ZK difficulty proofs, red-team review, and sealing question banks under lock.' },
+    { name: 'Setter', summary: 'An authoring portal for composing papers, generating ZK difficulty proofs, and sealing under lock.' },
     { name: 'Invigilator', summary: 'Biometric verification of candidates at the centre, live roster management, and a one-tap channel to raise alerts and incident reports.' },
     { name: 'Administrator', summary: 'A real-time command console for centres, candidates, nodes and emergencies — with dual-control authorisation for every sensitive action.' },
   ],
