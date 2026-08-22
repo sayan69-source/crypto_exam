@@ -3,8 +3,16 @@ CryptoExam Core — Application Configuration
 Centralized settings via pydantic-settings. All secrets from environment.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+# public/  — this file is public/backend/app/config.py, so up three levels.
+# Resolved from __file__ rather than the working directory so the server picks
+# up the same config whether it is started from the repo root, from
+# public/backend, or by a process manager with its own cwd.
+_REPO_PUBLIC_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -13,7 +21,7 @@ class Settings(BaseSettings):
     # ── Application ──
     APP_NAME: str = "CryptoExam Core"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # ── Database ──
     DATABASE_URL: str = "sqlite+aiosqlite:///./cryptoexam.db"
@@ -37,6 +45,47 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_FROM_NUMBER: str = ""
 
+    # ── OTP by email (login second factor, no gateway cost) ──
+    # The OTP flow was SMS-only, so an account registered with an email and no
+    # phone — which is every self-registered setter — could never receive its
+    # second factor and could never log in. Plain SMTP over STARTTLS fixes that
+    # for free: Gmail with an App Password, Zoho, a university relay, anything.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""                 # e.g. "CryptoExam Core <no-reply@…>"
+
+    # ── Tier-0 System Admin (WebAuthn fingerprint + IP allowlist) ──
+    # Enrolment is possible ONLY from these addresses. Comma-separated, plain
+    # addresses or CIDR. EMPTY MEANS DISABLED, not open — failing closed is the
+    # only safe default for the tier that can decrypt answers. Discover the
+    # address to allowlist with GET /api/v1/sysadmin/status.
+    SYSTEM_ADMIN_ALLOWED_IPS: str = ""
+    # Bootstrap secret for tier-0 enrolment, as an alternative to the address
+    # allowlist. A hosted deployment cannot use an IP allowlist to create its
+    # FIRST admin — the operator's egress address is unknown in advance and
+    # changes — so without this a fresh deploy has no route to a tier-0 account
+    # at all. Gates enrolment only; login still requires the fingerprint.
+    SYSTEM_ADMIN_ENROLMENT_TOKEN: str = ""
+    # WebAuthn relying party. RP ID must be the site's registered domain (or a
+    # parent of it); `localhost` is treated as secure by browsers for testing.
+    WEBAUTHN_RP_ID: str = "localhost"
+    WEBAUTHN_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # ── Email OTP Settings ──
+    EMAIL_OTP_TTL_SECONDS: int = 300
+    EMAIL_OTP_MAX_ATTEMPTS: int = 5
+    EMAIL_OTP_RESEND_COOLDOWN_SECONDS: int = 60
+    EMAIL_OTP_MAX_SENDS_PER_HOUR: int = 5
+    EMAIL_OTP_SECRET: str = "default_unsafe_secret_for_dev_only"
+    EMAIL_OTP_DEV_MODE: bool = True
+    # Resolve the domain's MX (then A/AAAA) records before spending a send, so a
+    # typed-wrong domain is refused in the form rather than a week later when no
+    # reply has arrived. Only a definitive answer refuses — a resolver timeout
+    # lets the address through. Set false for an environment with no DNS egress.
+    EMAIL_CHECK_DELIVERABILITY: bool = True
+
     # ── Blockchain (Polygon Amoy) ──
     POLYGON_RPC_URL: str = "https://rpc-amoy.polygon.technology"
     POLYGON_CHAIN_ID: int = 80002
@@ -46,6 +95,55 @@ class Settings(BaseSettings):
 
     # ── Cryptography ──
     DRAND_CHAIN_HASH: str = "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
+
+    # ── Fail-closed switches (default OFF — a missing capability must be an
+    #    error, never a convincing-looking substitute) ──────────────────────
+    #
+    # Each of these used to be an unconditional silent fallback, which is the
+    # worst possible shape for a security claim: the guarantee disappears and
+    # nothing says so. They are now opt-in, loudly labelled in every response
+    # they touch, and must never be set in a demo that claims the guarantee.
+    #
+    # The time-lock is derived from the drand beacon. Without drand the
+    # fallback was sha256(current_unix_second) — computable by anyone for any
+    # future second, which means the paper unlocks early for whoever bothers.
+    ALLOW_INSECURE_DRAND_FALLBACK: bool = False
+    # Groth16 proving needs a compiled circuit + proving key. Without them the
+    # code returned hardcoded field elements shaped like a proof.
+    ALLOW_SIMULATED_ZK_PROOF: bool = False
+    # On-chain anchoring needs an RPC and a deployed contract. Without them the
+    # code returned sha256(payload) shaped like a transaction hash.
+    ALLOW_SIMULATED_CHAIN_TX: bool = False
+    # Mode 1 question "generation" without an LLM emits one grammatical frame
+    # per topic whose correct answer is always "A", tagged ai_generated=True.
+    ALLOW_TEMPLATE_QUESTIONS: bool = False
+    # The §54-55 key ceremony is meant to run inside an AWS Nitro enclave, so
+    # that HQ itself cannot read a paper it is holding. Without one,
+    # nitro_enclave.py boots a SimulatedNitroEnclave: the "attestation document"
+    # is self-signed by the same process it attests, and PCR0 is a hash of the
+    # source file rather than a measurement of anything.
+    #
+    # It was reachable unauthenticated on the deployment, so
+    # /api/v1/ceremony/health publicly answered {"enclave":"simulated"} — which
+    # is at once a demo surface in production and an invitation to ask what else
+    # is simulated. The ceremony routes now refuse unless this is set, and no
+    # production environment sets it.
+    ALLOW_SIMULATED_ENCLAVE: bool = False
+
+    # ── Centre uplink (ZUUP-OS §12/§13.4) ──
+    #
+    # The Ed25519 seed HQ signs provisioning bundles with, 64 hex characters
+    # (`openssl rand -hex 32`). A centre's Edge is configured with the matching
+    # public key and refuses any bundle that is not signed by it — which is what
+    # stops a stolen Admin Station, whose ESP necessarily carries the centre's
+    # transport credential, from writing its own candidates and its own papers
+    # into a centre's database.
+    #
+    # Empty means unsigned bundles: acceptable only where the Edge has no
+    # public key configured either (the all-in-one demo, the test suite). A
+    # production HQ sets it, and `zuup-hqsync` on the station carries whatever
+    # signature arrives without inspecting it.
+    HQ_PROVISIONING_SIGNING_SEED: str = ""
 
     # ── AI / LLM ──
     LLM_BASE_URL: str = "http://localhost:11434/v1"
@@ -69,10 +167,23 @@ class Settings(BaseSettings):
         "http://localhost:3001",
     ]
 
+    # Look for `.env` in BOTH the backend directory and the repo's `public/`.
+    #
+    # `env_file: ".env"` alone resolves relative to the process's working
+    # directory, so it only ever found `public/backend/.env`. Every document in
+    # this repo — the README, the setup guide, `.env.example` — tells an
+    # operator to configure `public/.env`, which was therefore silently
+    # ignored: SMTP credentials could be filled in correctly and the server
+    # would still report "no gateway configured". Both paths are read, with the
+    # backend-local file winning where they overlap.
     model_config = {
-        "env_file": ".env",
+        "env_file": (
+            str(_REPO_PUBLIC_DIR / ".env"),   # public/.env  — the documented one
+            ".env",                            # public/backend/.env — local override
+        ),
         "env_file_encoding": "utf-8",
         "case_sensitive": True,
+        "extra": "ignore",
     }
 
 

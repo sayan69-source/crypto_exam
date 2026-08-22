@@ -204,7 +204,10 @@ async def get_current_user(
     """
     payload = verify_token(credentials.credentials)
     return {
-        "user_id": UUID(payload["sub"]),
+        # id columns are String(36) (dashed UUID strings) for SQLite; return a
+        # normalised dashed string so `Model.id == user_id` matches. UUID() still
+        # validates the token's sub is a well-formed UUID.
+        "user_id": str(UUID(payload["sub"])),
         "role": UserRole(payload["role"]),
         "email": payload.get("email", ""),
     }

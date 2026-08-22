@@ -9,6 +9,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import DemoBanner from '@/components/marketing/DemoBanner';
 import { useRouter } from 'next/navigation';
 import styles from './session.module.css';
 import { mockQuestions, mockExams } from '@/lib/api/mock-data';
@@ -204,6 +205,7 @@ export default function ExamSessionPage() {
       <PanicButton examId={config.examName} candidateId="self" seatNumber="A-127" centerId="ctr-001" />
       <ExamLockdown onViolation={handleViolation} isSubmitted={isSubmitted}>
       <div className={styles.examRoot}>
+        <DemoBanner />
         {/* ═══ TOP HEADER BAR ═══ */}
         <header className={styles.header}>
           <div className={styles.headerLeft}>

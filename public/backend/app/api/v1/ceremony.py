@@ -23,9 +23,10 @@ from datetime import datetime, timezone
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.config import get_settings
 from app.services.crypto import (
     enclave_proxy, encrypt_share_for_enclave,
     split_aes_key, encode_share,
@@ -34,6 +35,42 @@ from app.services.crypto.nitro_enclave import _pcr0_of_source
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _require_simulation_opt_in() -> None:
+    """
+    Refuse the whole ceremony surface unless simulation is explicitly permitted.
+
+    §54-55 wants this ceremony inside an AWS Nitro enclave, so that HQ cannot read
+    a paper it is merely holding. Without one, `nitro_enclave.py` boots a
+    `SimulatedNitroEnclave` whose attestation document is signed by the same
+    process it attests, and whose PCR0 is a hash of the source file rather than a
+    measurement of anything that ran.
+
+    Simulating it is reasonable while the enclave does not exist. Serving it
+    UNAUTHENTICATED on a public deployment is not: `/api/v1/ceremony/health` was
+    answering `{"enclave":"simulated"}` to anyone who asked, which is a demo
+    surface in production and an open question about what else is simulated.
+
+    Applied as a router-wide dependency rather than per-route, so a ceremony
+    endpoint added later is covered by default instead of by remembering.
+    """
+    if not get_settings().ALLOW_SIMULATED_ENCLAVE:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "reason": "ENCLAVE_NOT_PROVISIONED",
+                "message": (
+                    "The key ceremony requires a real Nitro enclave. This deployment has "
+                    "none, and will not serve a simulated one: an attestation signed by "
+                    "the process it attests proves nothing. Set ALLOW_SIMULATED_ENCLAVE "
+                    "to run the ceremony against the simulator off-production."
+                ),
+            },
+        )
+
+
+router = APIRouter(dependencies=[Depends(_require_simulation_opt_in)])
 
 
 # In-memory ceremony state for the demo. In production this is persisted in

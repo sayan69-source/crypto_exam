@@ -2,28 +2,159 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
+import { api } from "@/lib/api/client";
 import s from "./page.module.css";
+
+// Same origin the rest of the site uses. Not hardcoded to a host: a deployed
+// build sets NEXT_PUBLIC_API_URL and the form follows it.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export default function ContactPage() {
   const formRef = useRef<HTMLFormElement>(null);
   const [sent, setSent] = useState(false);
+  const [reference, setReference] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [devPreview, setDevPreview] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  const [step, setStep] = useState<'FORM' | 'OTP'>('FORM');
+  const [formData, setFormData] = useState<FormData | null>(null);
+  const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
+  const [emailOtp, setEmailOtp] = useState('');
+
+  // Timer state
+  const [timeLeft, setTimeLeft] = useState(120);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear timer when leaving OTP step
+  if (step !== 'OTP' && timerRef.current) {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
+
+  /**
+   * Step 1 — the visitor has typed an email but has not proven they own it.
+   * A string that merely looks like an email must never be treated as
+   * verified, so nothing is sent to the HQ queue yet: only a one-time code
+   * to that address.
+   */
+  async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
     if (!formRef.current?.checkValidity()) {
       formRef.current?.reportValidity();
       return;
     }
-    setSent(true);
+    const data = new FormData(formRef.current!);
+    setFormData(data);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const email = data.get('email') as string;
+      const res = await api.requestEmailVerification({ email, purpose: 'CONTACT' });
+      setEmailChallengeId(res.challenge_id);
+      setStep('OTP');
+      setTimeLeft(120);
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setStep('FORM');
+            setSubmitError('OTP expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Could not send a verification code.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /**
+   * Step 2 — the code matched, so the email is proven. Only now do we act:
+   * /contact/ sends the team notification + the sender's acknowledgement
+   * (both real, via the shared EmailService), and /enquiries records the
+   * lead with a reference the sender can quote later. Neither endpoint does
+   * the other's job, so both are called; this used to be a single
+   * `setSent(true)` with no request behind it at all.
+   */
+  async function handleVerifyAndSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (emailOtp.length < 6) {
+      setSubmitError('Enter the 6-digit OTP.');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const get = (k: string) => String(formData!.get(k) ?? '').trim();
+      const email = get('email');
+
+      const verifyRes = await api.verifyEmailOtp({ challenge_id: emailChallengeId!, email, code: emailOtp });
+      const verificationToken = verifyRes.verification_token;
+
+      const contactRes = await fetch(`${API_BASE}/contact/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: get('first'),
+          lastName: get('last'),
+          email,
+          organisation: get('org'),
+          role: get('role'),
+          scale: get('scale'),
+          message: get('message'),
+          email_verification_token: verificationToken,
+        }),
+      });
+      const contactBody = await contactRes.json().catch(() => ({}));
+      if (!contactRes.ok) {
+        throw new Error(contactBody?.detail?.message ?? contactBody?.detail ?? 'We could not send your enquiry.');
+      }
+
+      const enquiryRes = await fetch(`${API_BASE}/enquiries`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          full_name: [get("first"), get("last")].filter(Boolean).join(" "),
+          email,
+          organisation: get("org") || null,
+          role_title: get("role") || null,
+          topic: "BRIEFING",
+          // The scale question is context for whoever answers, so it travels
+          // with the message rather than being dropped on the floor.
+          message: [get("message"), get("scale") ? `\n\nExpected scale: ${get("scale")}` : ""].join(""),
+        }),
+      });
+      const enquiryBody = await enquiryRes.json().catch(() => ({}));
+      if (!enquiryRes.ok) {
+        throw new Error(
+          enquiryBody?.detail?.message ??
+            (enquiryRes.status === 429
+              ? "Several enquiries have already come from this network in the last hour."
+              : "Your enquiry was emailed but could not be recorded for tracking."),
+        );
+      }
+
+      setReference(enquiryBody.reference ?? null);
+      setDevPreview(contactBody.ackEmailDevPreview ?? contactBody.teamEmailDevPreview ?? null);
+      setSent(true);
+      setStep('FORM');
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'We could not record your enquiry.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <main>
-      <Navbar />
-
       <section className={s.contact}>
         <div className="wrap">
           <div className={s.contactGrid}>
@@ -40,11 +171,17 @@ export default function ContactPage() {
               </p>
 
               <div className={s.channels}>
+                {/* These were three invented mailboxes on a domain nobody owns
+                    and an office address for a company that is not registered.
+                    A contact page whose contacts do not exist is worse than one
+                    with none — someone writes to it and hears nothing back. The
+                    form on this page is the channel that genuinely works: it
+                    lands in the HQ queue with a reference. */}
                 {[
-                  { icon: "mail", label: "Programme enquiries", value: "manabdelhi1@gmail.com" },
-                  { icon: "building-2", label: "Examining bodies", value: "manabdelhi1@gmail.com" },
-                  { icon: "search-check", label: "Audit & press", value: "somab2159@gmail.com" },
-                  { icon: "map-pin", label: "Registered office", value: "Bengaluru · Karnataka · India", isText: true },
+                  { icon: "mail", label: "Programme enquiries", value: "Use the form on this page", isText: true },
+                  { icon: "clock", label: "Response time", value: "Within two working days", isText: true },
+                  { icon: "search-check", label: "Audit & press", value: "Use the form - choose Press", isText: true },
+                  { icon: "shield", label: "Your enquiry", value: "Recorded with a quotable reference", isText: true },
                 ].map((ch) => (
                   <div className={s.channel} key={ch.label}>
                     <span className={`icon-chip ${s.channelChip}`}>
@@ -52,13 +189,11 @@ export default function ContactPage() {
                     </span>
                     <div>
                       <div className={s.ctLabel}>{ch.label}</div>
-                      <div className={s.ctVal}>
-                        {"isText" in ch ? (
-                          ch.value
-                        ) : (
-                          <a href={`mailto:${ch.value}`}>{ch.value}</a>
-                        )}
-                      </div>
+                      {/* No mailto branch any more: every channel here is
+                          descriptive text now that the invented mailboxes are
+                          gone, and TypeScript correctly narrowed the unused
+                          branch to `never`. */}
+                      <div className={s.ctVal}>{ch.value}</div>
                     </div>
                   </div>
                 ))}
@@ -80,13 +215,13 @@ export default function ContactPage() {
                 <p>The more we know about your context, the faster we can respond meaningfully.</p>
               </div>
 
-              {!sent && (
+              {!sent && step === 'FORM' && (
                 <form
                   ref={formRef}
                   className={s.form}
                   id="cec-form"
                   noValidate
-                  onSubmit={handleSubmit}
+                  onSubmit={handleRequestOtp}
                 >
                   <div className={s.field}>
                     <label htmlFor="first">First name</label>
@@ -142,23 +277,80 @@ export default function ContactPage() {
                       enquiry, in line with the DPDP Act, 2023.
                     </span>
                   </label>
+                  {submitError && (
+                    <div className={s.formError} role="alert">
+                      <Icon name="alert-triangle" size={17} strokeWidth={1.8} />
+                      <div>
+                        <strong>Your enquiry was not sent.</strong>
+                        <span>{submitError}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className={s.formActions}>
                     <span className={s.formMeta}>
                       <span className="dot" style={{ background: "var(--color-success)" }} />
                       Encrypted in transit · TLS 1.3
                     </span>
-                    <button className="btn btn-primary btn-lg" type="submit">
-                      Send enquiry <Icon name="arrow-right" size={16} />
+                    <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>
+                      {submitting ? 'Verifying…' : <span>Verify Email & Send <Icon name="arrow-right" size={16} /></span>}
                     </button>
                   </div>
+                </form>
+              )}
+              
+              {!sent && step === 'OTP' && (
+                <form className={s.form} onSubmit={handleVerifyAndSubmit}>
+                  <div className={s.field}>
+                    <label htmlFor="emailOtp">Verification Code</label>
+                    <input 
+                      id="emailOtp" 
+                      name="emailOtp" 
+                      type="text" 
+                      inputMode="numeric" 
+                      maxLength={6} 
+                      placeholder="● ● ● ● ● ●" 
+                      value={emailOtp} 
+                      onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} 
+                      required 
+                      autoFocus 
+                    />
+                    <p style={{ fontSize: 12, color: 'var(--color-navy-600)', marginTop: 8 }}>
+                      Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                    </p>
+                  </div>
+                  <div className={s.formActions}>
+                    <button className="btn btn-primary btn-lg" type="submit" disabled={submitting}>
+                      {submitting ? 'Submitting…' : 'Submit Enquiry'}
+                    </button>
+                  </div>
+                  {submitError && (
+                    <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 8 }}>
+                      ⚠ {submitError}
+                    </p>
+                  )}
+                  <button type="button" onClick={() => setStep('FORM')} style={{ marginTop: 16, background: 'none', border: 'none', color: 'var(--color-navy-500)', cursor: 'pointer', textDecoration: 'underline' }}>
+                    Go back
+                  </button>
                 </form>
               )}
 
               {sent && (
                 <div className={`${s.sentState} ${s.sentStateShow}`}>
                   <Icon name="check-circle-2" size={40} />
-                  <h3>Thank you — your enquiry is on its way.</h3>
+                  <h3>Thank you — your enquiry has been received.</h3>
                   <p>A member of the programme team will be in touch within two working days.</p>
+                  {reference && (
+                    <p className={s.sentRef}>
+                      Your reference is <code>{reference}</code>. Quote it in any follow-up —
+                      it is how we find your enquiry without asking for your details again.
+                    </p>
+                  )}
+                  {devPreview && (
+                    <div className={s.formError} role="status" style={{ textAlign: "left", marginTop: 16 }}>
+                      <strong>Dev mode — no SMTP configured.</strong>
+                      <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 8 }}>{devPreview}</pre>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -167,7 +359,7 @@ export default function ContactPage() {
       </section>
 
       {/* ===== SHORT FAQ ===== */}
-      <section className={s.contactFaq}>
+      <section className={`${s.contactFaq} reveal reveal-rise`}>
         <div className="wrap">
           <div className={s.faqGrid}>
             <div>

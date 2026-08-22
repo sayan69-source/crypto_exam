@@ -10,13 +10,14 @@ POST /api/v1/auth/refresh     — Refresh JWT token
 
 import hashlib
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from pydantic import BaseModel
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -30,6 +31,7 @@ from app.services.auth import (
     get_current_user, require_role,
 )
 from app.services.sms import sms_configured, send_sms, mask_phone
+from app.services.email import email_configured, send_otp_email, mask_email
 
 
 class VerifyOtpRequest(BaseModel):
@@ -37,6 +39,18 @@ class VerifyOtpRequest(BaseModel):
     code: str
 
 logger = logging.getLogger(__name__)
+
+
+def _dev_auth_bypass_allowed() -> bool:
+    """
+    Whether the developer conveniences that WEAKEN AUTHENTICATION may run.
+
+    Deliberately separate from DEBUG. DEBUG is the switch people turn on for
+    logging and error detail; it must not also decide whether the server gives
+    away one-time passwords or accepts any TOTP. Both of those were reachable in
+    production because the two were the same flag.
+    """
+    return os.getenv("ALLOW_DEV_AUTH_BYPASS", "").lower() == "true"
 
 router = APIRouter()
 
@@ -62,18 +76,26 @@ async def login(
     Candidate: identifier=roll_number, dob=YYYY-MM-DD
     Setter/Admin: identifier=email, password=<password>
     """
-    # Find user by email or full name
+    # Find user by email or full name.
+    #
+    # Email is matched case-INSENSITIVELY. Registration lowercases the address
+    # before storing it, so anyone who typed a capital in the login box —
+    # "Setter@x.com", or a phone keyboard auto-capitalising the first letter —
+    # got 401 Invalid credentials against an account that exists and a password
+    # that is correct. Names keep exact matching; they are not identifiers.
+    identifier = request.identifier.strip()
     stmt = select(User).where(
-        (User.email == request.identifier) | (User.full_name == request.identifier)
+        (func.lower(User.email) == identifier.lower()) | (User.full_name == identifier)
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     # Candidate identity is their enrolment roll number — resolve it to the user.
-    # Roll numbers are not guaranteed unique across enrolments, so take the first.
+    # Roll numbers are globally unique (see enroll.py), so this resolves to one
+    # person; the limit is belt-and-braces against legacy rows.
     if not user:
         enr = (await db.execute(
-            select(Enrollment).where(Enrollment.roll_number == request.identifier).limit(1)
+            select(Enrollment).where(Enrollment.roll_number == identifier).limit(1)
         )).scalars().first()
         if enr and enr.candidate_id:
             user = (await db.execute(
@@ -100,6 +122,9 @@ async def login(
                    "Please provide consent through the registration flow.",
         )
 
+    from datetime import timezone
+    from app.models import EmailVerificationGrant
+
     # Role-specific authentication
     if user.role == UserRole.CANDIDATE:
         # Candidates have NO online login by design. They enrol (face) on the
@@ -111,6 +136,27 @@ async def login(
         )
 
     else:
+        # Setter/Admin: verify email verification grant first
+        if not getattr(request, "email_verification_token", None):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email verification token required",
+            )
+            
+        grant = (await db.execute(
+            select(EmailVerificationGrant).where(EmailVerificationGrant.token == request.email_verification_token)
+        )).scalar_one_or_none()
+        
+        now = datetime.now(timezone.utc)
+        if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired email verification token")
+            
+        if grant.email != user.email or grant.purpose != "LOGIN" or grant.role != user.role.value:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification token context mismatch")
+            
+        grant.consumed_at = now
+        await db.commit()
+
         # Setter/Admin: verify password
         if not request.password or not user.password_hash:
             raise HTTPException(
@@ -124,15 +170,37 @@ async def login(
                 detail="Invalid credentials",
             )
 
-    # Password verified — now issue a REAL one-time code to the registered phone.
-    # No JWT is returned here; the caller must complete /auth/verify-otp.
+    # Password verified — now issue a REAL one-time code over whichever channel
+    # this account actually has. No JWT is returned here; the caller must
+    # complete /auth/verify-otp.
+    #
+    # This used to demand `user.phone` and 400 without it. Setter
+    # self-registration takes an email and treats phone as optional, so every
+    # self-registered setter hit that wall: approved by an admin, then
+    # permanently unable to log in because the second factor had no way to
+    # reach them. SMS stays preferred when both a phone and a gateway exist;
+    # email is the fallback that makes email-only accounts work at all.
     settings = get_settings()
-    if not user.phone:
+    can_sms = bool(user.phone) and sms_configured()
+    can_email = bool(user.email) and email_configured()
+
+    if not user.phone and not user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No phone number registered on this account. An OTP cannot be sent.",
+            detail="This account has neither a phone number nor an email address, so no one-time code can be delivered.",
+        )
+    # In production, refusing to authenticate beats handing out a code nobody
+    # can receive — or worse, printing it in the response.
+    if not can_sms and not can_email and not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "reason": "OTP_DELIVERY_NOT_CONFIGURED",
+                "message": "No SMS or email gateway is configured on this server, so a one-time code cannot be delivered. Set SMTP_HOST/SMTP_FROM (or Twilio credentials) and try again.",
+            },
         )
 
+    channel = "sms" if can_sms else "email" if can_email else "dev"
     code = f"{secrets.randbelow(1_000_000):06d}"
     challenge = OtpChallenge(
         id=str(uuid4()),
@@ -140,13 +208,13 @@ async def login(
         code_hash=hashlib.sha256(code.encode()).hexdigest(),
         phone=user.phone,
         expires_at=datetime.now(timezone.utc) + timedelta(seconds=settings.OTP_TTL_SECONDS),
-        delivery="sms" if sms_configured() else "dev",
+        delivery=channel,
     )
     db.add(challenge)
     await db.commit()
 
     delivered = "dev"
-    if sms_configured():
+    if channel == "sms":
         try:
             await send_sms(user.phone, f"Your CryptoExam login code is {code}. Valid for 5 minutes.")
             delivered = "sms"
@@ -156,23 +224,52 @@ async def login(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Could not deliver the OTP SMS. Please try again.",
             )
+    elif channel == "email":
+        try:
+            await send_otp_email(user.email, code, settings.OTP_TTL_SECONDS)
+            delivered = "email"
+        except Exception as exc:
+            logger.warning("OTP email delivery failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not deliver the one-time code by email. Please try again.",
+            )
 
     logger.info(
         f"OTP issued: user={str(user.id)[:8]}..., role={user.role.value}, "
-        f"delivery={delivered}, phone={mask_phone(user.phone)}, ip={req.client.host}"
+        f"delivery={delivered}, to={mask_phone(user.phone) if delivered == 'sms' else mask_email(user.email)}, "
+        f"ip={req.client.host}"
     )
 
     resp: dict = {
         "otp_required": True,
         "challenge_id": challenge.id,
-        "phone_masked": mask_phone(user.phone),
         "delivery": delivered,
+        "sent_to": mask_phone(user.phone) if delivered == "sms" else mask_email(user.email),
+        # Kept for the existing admin login UI, which reads phone_masked.
+        "phone_masked": mask_phone(user.phone),
         "ttl_seconds": settings.OTP_TTL_SECONDS,
     }
-    # Dev convenience ONLY: with no SMS gateway configured AND DEBUG on, return the
-    # code so the flow is testable. Never happens once Twilio creds are set.
-    if delivered == "dev" and settings.DEBUG:
+    # Dev convenience ONLY, gated entirely on DEBUG (false in production).
+    #
+    # Returned whatever the channel, not just when no gateway exists. The
+    # seeded demo accounts use unroutable addresses like admin@cryptoexam.dev,
+    # so the moment real SMTP is configured their codes are posted into the
+    # void — and the developer who just set up email correctly is locked out of
+    # their own admin console by that success. With DEBUG off this key is never
+    # present, so production is unaffected.
+    # DEBUG alone is not enough to hand out a live credential. This returns the
+    # OTP for ANY account to whoever asked for it — including a System Admin —
+    # so a single stray DEBUG=true is a complete authentication bypass. It was
+    # exactly that on the deployment. A second, dedicated opt-in means the flag
+    # people flip for verbose logs can no longer do this by itself.
+    if settings.DEBUG and _dev_auth_bypass_allowed():
         resp["dev_code"] = code
+        if delivered != "dev":
+            logger.warning(
+                "DEBUG is on, so the OTP is also being returned in the API response. "
+                "Turn DEBUG off before exposing this server to anyone."
+            )
     return resp
 
 
@@ -281,6 +378,57 @@ async def register(
     return UserProfile.model_validate(user)
 
 
+class SetterSignup(BaseModel):
+    full_name: str = Field(min_length=2, max_length=255)
+    email: str = Field(min_length=4, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    institution: str | None = None
+    phone: str | None = None
+
+
+@router.post(
+    "/setter-signup",
+    status_code=status.HTTP_201_CREATED,
+    summary="Public setter self-registration (pending admin approval)",
+    description="A prospective question-setter applies for access. Creates an "
+                "INACTIVE setter account; an admin approves it before first login "
+                "(login is gated on is_active). No web role is granted self-serve.",
+)
+async def setter_signup(
+    body: SetterSignup,
+    req: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    email = body.email.strip().lower()
+    existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    user = User(
+        email=email,
+        full_name=body.full_name.strip(),
+        role=UserRole.SETTER,
+        password_hash=hash_password(body.password),
+        institution=(body.institution or None),
+        phone=(body.phone or None),
+        is_active=False,  # pending admin approval — login refuses inactive users
+        dpdp_consent=True,
+        dpdp_consent_at=datetime.now(timezone.utc),
+        dpdp_consent_ip=req.client.host if req else None,
+        dpdp_consent_version="1.0",
+    )
+    db.add(user)
+    await db.commit()
+
+    logger.info(f"Setter self-registration (pending approval): {email}")
+    return {
+        "ok": True,
+        "status": "PENDING_APPROVAL",
+        "message": "Your setter account is pending admin approval. "
+                   "You'll be able to sign in once an administrator approves it.",
+    }
+
+
 @router.get(
     "/me",
     response_model=UserProfile,
@@ -301,88 +449,108 @@ async def get_profile(
     return UserProfile.model_validate(user)
 
 
+class ExamAdminSignup(BaseModel):
+    full_name: str = Field(min_length=2, max_length=255)
+    email: str = Field(min_length=4, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    email_verification_token: str
+
+
 @router.post(
-    "/seed-admin",
-    response_model=TokenResponse,
-    summary="Seed Admin (Dev Only)",
-    description="Create a seed admin account for development. Disabled in production.",
-    include_in_schema=True,
+    "/register-exam-admin",
+    status_code=status.HTTP_201_CREATED,
+    summary="Exam Administrator self-registration",
+    description="An administrator for a requested exam registers to manage it. Requires email verification.",
 )
-async def seed_admin(
-    req: Request,
+async def register_exam_admin(
+    body: ExamAdminSignup,
+    req: Request = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a seed admin account for development/demo.
-    Returns a JWT token for immediate use.
-
-    Email: admin@cryptoexam.dev
-    Password: CryptoExam2025!
-    """
-    settings_obj = get_settings()
-    if not settings_obj.DEBUG:
+    from app.models import EmailVerificationGrant, ExamAdministrator, ExamOffering
+    
+    # 1. Verify OTP token
+    grant = (await db.execute(
+        select(EmailVerificationGrant).where(EmailVerificationGrant.token == body.email_verification_token)
+    )).scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    if not grant or grant.consumed_at or grant.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired email verification token")
+        
+    if grant.email != body.email.strip().lower() or grant.purpose != "REGISTER":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification token context mismatch")
+        
+    grant.consumed_at = now
+    
+    # 2. Check if an ExamAdministrator record exists for this email with an active offering
+    from app.services.exam_registration import normalise
+    email_norm = normalise(body.email)
+    
+    admin_stmt = (
+        select(ExamAdministrator)
+        .join(ExamOffering, ExamOffering.id == ExamAdministrator.offering_id)
+        .where(
+            (ExamAdministrator.email == body.email) | (ExamAdministrator.email_norm == email_norm)
+        )
+    )
+    exam_admin = (await db.execute(admin_stmt)).scalar_one_or_none()
+    
+    if not exam_admin:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seed admin disabled in production",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No approved exam request found for this email address. Ensure your exam is LIVE first."
         )
-
-    # Check if seed admin exists
-    existing = await db.execute(
-        select(User).where(User.email == "admin@cryptoexam.dev")
-    )
-    user = existing.scalar_one_or_none()
-
-    if not user:
-        user = User(
-            email="admin@cryptoexam.dev",
-            full_name="CryptoExam Admin",
-            role=UserRole.ADMIN,
-            password_hash=hash_password("CryptoExam2025!"),
-            dpdp_consent=True,
-            dpdp_consent_at=datetime.now(timezone.utc),
-            dpdp_consent_ip=req.client.host,
-            dpdp_consent_version="1.0",
-            state="Delhi (NCT)",
+        
+    if exam_admin.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An administrator account has already been registered for this exam."
         )
-        db.add(user)
-        await db.flush()
-        logger.info("Seed admin created: admin@cryptoexam.dev")
+        
+    # Check if a user with this email already exists
+    existing = (await db.execute(select(User).where(User.email == body.email.strip().lower()))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists.")
 
-    # Also create a seed setter
-    existing_setter = await db.execute(
-        select(User).where(User.email == "setter@cryptoexam.dev")
+    # 3. Create the ADMIN User
+    user = User(
+        email=body.email.strip().lower(),
+        full_name=body.full_name.strip(),
+        role=UserRole.ADMIN,
+        password_hash=hash_password(body.password),
+        is_active=True,  # They are active immediately since their exam was approved
+        email_verified=True,
+        email_verified_at=now,
+        dpdp_consent=True,
+        dpdp_consent_at=now,
+        dpdp_consent_ip=req.client.host if req else None,
+        dpdp_consent_version="1.0",
     )
-    if not existing_setter.scalar_one_or_none():
-        setter = User(
-            email="setter@cryptoexam.dev",
-            full_name="Dr. Priya Sharma",
-            name_hi="डॉ. प्रिया शर्मा",
-            role=UserRole.SETTER,
-            password_hash=hash_password("CryptoExam2025!"),
-            dpdp_consent=True,
-            dpdp_consent_at=datetime.now(timezone.utc),
-            dpdp_consent_ip=req.client.host,
-            dpdp_consent_version="1.0",
-            institution="Indian Institute of Technology Delhi",
-            state="Delhi (NCT)",
-        )
-        db.add(setter)
-        logger.info("Seed setter created: setter@cryptoexam.dev")
-
-    token, expires = create_access_token(
-        user_id=user.id,
-        role=user.role,
-        email=user.email,
-    )
-
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_at=expires,
-        role=user.role,
-        user_id=user.id,
-    )
+    db.add(user)
+    await db.flush()  # to get user.id
+    
+    # 4. Link the user to the ExamAdministrator record
+    exam_admin.user_id = user.id
+    
+    await db.commit()
+    logger.info(f"Exam Administrator registered: {user.email} (offering={exam_admin.offering_id})")
+    
+    return {
+        "ok": True,
+        "message": "Administrator account registered successfully. You can now log in.",
+    }
 
 
-# Import settings for seed endpoint
+# NOTE: `POST /auth/seed-admin` used to live here. It created
+# admin@cryptoexam.dev / CryptoExam2025! — a hardcoded-password ADMIN, plus a
+# SETTER — and returned a signed JWT for it immediately, gated only by
+# `if not DEBUG`. The deployed environment runs with DEBUG=true, so it was
+# reachable in production: anyone who found the path could mint an
+# administrator and be handed a token for it.
+#
+# It is deleted rather than re-gated. The seeder already creates an
+# administrator from operator-supplied SEED_ADMIN_* values, so this was a
+# second and weaker way in to the same place, and a credential factory whose
+# password is written in the source is not something to keep behind a flag.
 from app.config import get_settings

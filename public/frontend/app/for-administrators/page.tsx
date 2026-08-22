@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "./page.module.css";
@@ -14,8 +13,6 @@ export const metadata: Metadata = {
 export default function AdminLanding() {
   return (
     <main>
-      <Navbar />
-
       <section className={s.hero}>
         <div className="wrap">
           <span className="eyebrow on-dark">For administrators</span>
@@ -38,7 +35,7 @@ export default function AdminLanding() {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section reveal reveal-rise">
         <div className="wrap">
           <div className="heading-block">
             <span className="eyebrow">What you watch</span>
@@ -61,7 +58,7 @@ export default function AdminLanding() {
         </div>
       </section>
 
-      <section className={s.bandCream}>
+      <section className={`${s.bandCream} reveal reveal-left`}>
         <div className="wrap">
           <div className={s.principles}>
             <div>
@@ -88,7 +85,7 @@ export default function AdminLanding() {
         </div>
       </section>
 
-      <section className={`section-sm ${s.finalCta}`}>
+      <section className={`section-sm ${s.finalCta} reveal reveal-scale`}>
         <div className="wrap">
           <h2>Take command of your next examination.</h2>
           <p>Sign in to the console with your administrator credentials, or request a briefing.</p>

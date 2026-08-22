@@ -16,65 +16,65 @@
 
 export const colors = {
   navy: {
-    950: '#080E1E',
-    900: '#0D1526',
-    800: '#132040',
-    700: '#1A2D5A',
-    600: '#213573',
-    500: '#2942A6',
-    400: '#3D5CBE',
-    300: '#6B84D4',
-    200: '#A8B9EA',
-    100: '#D8DEF4',
-    50:  '#EFF1FA',
+    950: '#150e0e',
+    900: '#201515',
+    800: '#201515',
+    700: '#2b211c',
+    600: '#3d332c',
+    500: '#605d52',
+    400: '#939084',
+    300: '#939084',
+    200: '#c5c0b1',
+    100: '#ddd8cc',
+    50:  '#f8f4f0',
   },
   saffron: {
-    700: '#7B3000',
-    600: '#C45C00',
-    500: '#E07020',
-    400: '#F09040',
-    300: '#F8B870',
-    200: '#FDDCB0',
-    100: '#FEF0E0',
+    700: '#7a2600',
+    600: '#cc3f00',
+    500: '#ff4f00',
+    400: '#ff7433',
+    300: '#ffa375',
+    200: '#ffd4bf',
+    100: '#fff0e8',
   },
   india: {
     saffron:     '#FF9933',   // Tricolour — top stripe
-    white:       '#FFFFFF',
+    cream:         '#fffefb',   // Candidate exam background
     green:       '#138808',   // Tricolour — bottom stripe
-    ashoka:      '#000080',   // Ashoka Chakra navy
-    gold:        '#C9A84C',   // ZK proof achievement badges
-    deepSaffron: '#F4833A',   // Exam lock confirmation
+    ashoka:      '#201515',   // Ashoka Chakra navy
+    gold:        '#b07d1a',   // ZK proof achievement badges
+    deepSaffron: '#ff7433',   // Exam lock confirmation
   },
   success: {
-    DEFAULT: '#1A7A4C',
-    light:   '#D1FAE5',
-    text:    '#065F46',
+    DEFAULT: '#3f6f4a',
+    light:   '#e8efe6',
+    text:    '#2f5438',
   },
   warning: {
-    DEFAULT: '#C47A1E',
-    light:   '#FEF3C7',
-    text:    '#92400E',
+    DEFAULT: '#b07d1a',
+    light:   '#fdf6e8',
+    text:    '#7d5610',
   },
   danger: {
-    DEFAULT: '#C82020',
-    light:   '#FEE2E2',
-    text:    '#991B1B',
+    DEFAULT: '#9b2226',
+    light:   '#f7e3dd',
+    text:    '#7a1a1d',
   },
   info: {
-    DEFAULT: '#1E6FA0',
-    light:   '#DBEAFE',
-    text:    '#1E40AF',
+    DEFAULT: '#6b5d4f',
+    light:   '#f2ede5',
+    text:    '#4a3f34',
   },
   blockchain: {
-    confirmed:   '#1A7A4C',
-    pending:     '#C47A1E',
-    unconfirmed: '#9A9A9A',
-    failed:      '#C82020',
+    confirmed:   '#3f6f4a',
+    pending:     '#b07d1a',
+    unconfirmed: '#939084',
+    failed:      '#9b2226',
   },
   // Interface-specific backgrounds
-  examBg:   '#F8F9FC',   // Candidate: calm, light
-  setterBg: '#0F1319',   // Setter: dark professional
-  adminBg:  '#090D14',   // Admin: darkest, mission control
+  examBg:   '#fffefb',   // Candidate: calm, light
+  setterBg: '#201515',   // Setter: dark professional
+  adminBg:  '#150e0e',   // Admin: darkest, mission control
 } as const;
 
 
@@ -136,12 +136,12 @@ export const radii = {
 // ── Shadows ──
 
 export const shadows = {
-  sm:   '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-  md:   '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-  lg:   '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
-  xl:   '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-  glow: '0 0 20px rgba(41, 66, 166, 0.15)',
-  crypto: '0 0 30px rgba(196, 168, 76, 0.2)',
+  sm:   '0 1px 2px 0 rgba(32, 21, 21, 0.05)',
+  md:   '0 4px 6px -1px rgba(32, 21, 21, 0.1), 0 2px 4px -2px rgba(32, 21, 21, 0.1)',
+  lg:   '0 10px 15px -3px rgba(32, 21, 21, 0.1), 0 4px 6px -4px rgba(32, 21, 21, 0.1)',
+  xl:   '0 20px 25px -5px rgba(32, 21, 21, 0.1), 0 8px 10px -6px rgba(32, 21, 21, 0.1)',
+  glow: '0 0 20px rgba(96, 93, 82, 0.15)',
+  crypto: '0 0 30px rgba(176, 125, 26, 0.2)',
 } as const;
 
 

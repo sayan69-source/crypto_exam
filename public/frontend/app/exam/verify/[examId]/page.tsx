@@ -1,111 +1,231 @@
 /**
- * CryptoExam Core — Pre-Exam Verification Wizard
- * 3-step wizard: Identity → System Check → Exam Brief
+ * CryptoExam Core — Pre-exam readiness check.
+ *
+ * Everything on this page used to be invented. The exam came from
+ * `mockExams[0]` regardless of the id in the URL, the page announced
+ * "✓ Verified" and "Paper difficulty has been verified by ZK proof (Groth16)"
+ * for an exam it had never looked up, and the eight system checks were
+ * `Math.random() > 0.05` — so a candidate was told their webcam, network and
+ * clock were fine without any of them being examined.
+ *
+ * A readiness check that lies is worse than none: it is relied on precisely
+ * when it matters. Each probe below either genuinely tests the thing it names,
+ * or reports honestly that a browser cannot test it.
  */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { mockExams } from '@/lib/api/mock-data';
+import { useParams } from 'next/navigation';
 
-const SYSTEM_CHECKS = [
-  { label: 'Browser compatibility', icon: '' },
-  { label: 'Screen resolution ≥ 1280px', icon: '' },
-  { label: 'Webcam access', icon: '' },
-  { label: 'Fullscreen API available', icon: '' },
-  { label: 'Network connectivity', icon: '' },
-  { label: 'Clipboard API (suppressed)', icon: '' },
-  { label: 'Keyboard detection', icon: '' },
-  { label: 'Time sync (NTP ±2s)', icon: '' },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
+type Verdict = 'pending' | 'pass' | 'fail' | 'unknown';
+
+interface Check {
+  label: string;
+  /** `unknown` is a real answer — the browser cannot see an NTP offset. */
+  run: () => Promise<Verdict> | Verdict;
+  note?: string;
+}
+
+interface ExamVerify {
+  exam_id: string;
+  name?: string;
+  status?: string;
+  question_hash?: string | null;
+  zk_proof_verified?: boolean | null;
+  answer_root?: string | null;
+}
 
 export default function VerifyPage() {
-  const exam = mockExams[0];
+  const { examId } = useParams<{ examId: string }>();
   const [step, setStep] = useState(0);
-  const [checks, setChecks] = useState<(boolean | null)[]>(new Array(SYSTEM_CHECKS.length).fill(null));
+  const [exam, setExam] = useState<ExamVerify | null>(null);
+  const [examError, setExamError] = useState<string | null>(null);
+  const [results, setResults] = useState<Verdict[]>([]);
 
-  // Simulate system checks
+  // The real public verification record for THIS exam id.
   useEffect(() => {
-    if (step !== 1) return;
-    SYSTEM_CHECKS.forEach((_, i) => {
-      setTimeout(() => {
-        setChecks(prev => { const next = [...prev]; next[i] = Math.random() > 0.05; return next; });
-      }, 500 + i * 600);
-    });
-  }, [step]);
+    if (!examId) return;
+    fetch(`${API_BASE}/exams/${encodeURIComponent(examId)}/verify`, { cache: 'no-store' })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(r.status === 404 ? 'No exam with that id.' : `Verification service returned ${r.status}.`);
+        return r.json();
+      })
+      .then(setExam)
+      .catch((e) => setExamError(e instanceof Error ? e.message : 'Could not load the verification record.'));
+  }, [examId]);
 
-  const allChecksPassed = checks.every(c => c === true);
+  const CHECKS: Check[] = [
+    {
+      label: 'Screen resolution ≥ 1280px',
+      run: () => (window.screen.width >= 1280 ? 'pass' : 'fail'),
+    },
+    {
+      label: 'Fullscreen API available',
+      run: () => (document.fullscreenEnabled ? 'pass' : 'fail'),
+    },
+    {
+      label: 'Clipboard API present (suppressed during the exam)',
+      run: () => ('clipboard' in navigator ? 'pass' : 'fail'),
+    },
+    {
+      label: 'Camera permission',
+      // Asks the actual permission layer. Not a camera *test* — that needs a
+      // stream the candidate has not consented to yet — but it is real.
+      run: async () => {
+        if (!navigator.permissions) return 'unknown';
+        try {
+          const st = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          return st.state === 'denied' ? 'fail' : st.state === 'granted' ? 'pass' : 'unknown';
+        } catch {
+          return 'unknown';
+        }
+      },
+      note: 'Prompted at the centre, not here',
+    },
+    {
+      label: 'Network reaches the examination service',
+      run: async () => {
+        try {
+          const r = await fetch(`${API_BASE.replace(/\/api\/v1$/, '')}/health`, { cache: 'no-store' });
+          return r.ok ? 'pass' : 'fail';
+        } catch {
+          return 'fail';
+        }
+      },
+    },
+    {
+      label: 'Browser supports the exam runtime',
+      run: () => (typeof window.crypto?.subtle?.digest === 'function' ? 'pass' : 'fail'),
+      note: 'WebCrypto is required to open sealed questions',
+    },
+    {
+      label: 'Clock accuracy vs the server',
+      // The one check a browser genuinely cannot do alone; comparing against
+      // the server's Date header is the honest approximation, and a large
+      // offset is worth surfacing because T₀ is time-gated.
+      run: async () => {
+        try {
+          const t0 = Date.now();
+          const r = await fetch(`${API_BASE.replace(/\/api\/v1$/, '')}/health`, { cache: 'no-store' });
+          const serverDate = r.headers.get('date');
+          if (!serverDate) return 'unknown';
+          const skew = Math.abs(new Date(serverDate).getTime() - (t0 + Date.now()) / 2);
+          return skew < 120_000 ? 'pass' : 'fail';
+        } catch {
+          return 'unknown';
+        }
+      },
+      note: 'Compared with the server clock',
+    },
+  ];
+
+  const runChecks = useCallback(async () => {
+    setResults(new Array(CHECKS.length).fill('pending'));
+    for (let i = 0; i < CHECKS.length; i++) {
+      const v = await CHECKS[i].run();
+      setResults((prev) => { const next = [...prev]; next[i] = v; return next; });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { if (step === 1) runChecks(); }, [step, runChecks]);
+
+  const blocking = results.filter((r) => r === 'fail').length;
+  const settled = results.length > 0 && !results.includes('pending');
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', animation: 'fadeIn 300ms ease forwards' }}>
-      {/* Stepper */}
+    <div style={{ maxWidth: 680, margin: '0 auto', animation: 'fadeIn 300ms ease forwards' }}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
-        {['Identity', 'System Check', 'Exam Brief'].map((s, i) => (
-          <div key={i} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, background: i <= step ? 'var(--color-navy-600)' : 'var(--color-navy-50)', textAlign: 'center', fontSize: 13, fontWeight: i <= step ? 600 : 400, color: i <= step ? 'white' : 'var(--color-navy-400)', transition: 'all 200ms ease' }}>
+        {['Exam record', 'Readiness', 'Brief'].map((s, i) => (
+          <div key={i} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, background: i <= step ? 'var(--color-navy-600)' : 'var(--color-navy-50)', textAlign: 'center', fontSize: 13, fontWeight: i <= step ? 600 : 400, color: i <= step ? 'white' : 'var(--color-navy-400)' }}>
             {i < step ? '✓' : i + 1}. {s}
           </div>
         ))}
       </div>
 
-      {/* Step 1 — Identity */}
       {step === 0 && (
-        <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
-          <h2 style={{ fontSize: 20, marginBottom: 4 }}>Identity Verification</h2>
-          <p style={{ fontSize: 13, color: 'var(--color-navy-400)', marginBottom: 24 }}>Confirm your identity before entering the exam</p>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: 16, background: 'var(--color-navy-50)', borderRadius: 12, marginBottom: 24 }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-navy-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}></div>
-            <div>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-navy-800)', display: 'block' }}>Priya Sharma</span>
-              <span style={{ fontSize: 12, color: 'var(--color-navy-400)', fontFamily: 'var(--font-mono)' }}>NEET-2026-BIH-0847291</span>
-            </div>
-            <span style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 12px', borderRadius: 9999, background: 'var(--color-success-light)', color: 'var(--color-success-text)', fontWeight: 600 }}>✓ Verified</span>
-          </div>
-          <button onClick={() => setStep(1)} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)', background: 'var(--color-navy-600)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Proceed to System Check →</button>
-        </div>
+        <section style={card}>
+          <h2 style={h2}>Examination record</h2>
+          {examError && <p style={bad}>{examError}</p>}
+          {!exam && !examError && <p style={muted}>Looking up this examination…</p>}
+          {exam && (
+            <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 18px', fontSize: 13.5, margin: 0 }}>
+              <dt style={dt}>Examination</dt><dd style={dd}>{exam.name ?? '—'}</dd>
+              <dt style={dt}>Status</dt><dd style={dd}>{exam.status ?? '—'}</dd>
+              <dt style={dt}>Question commitment</dt>
+              <dd style={{ ...dd, fontFamily: 'var(--font-mono, monospace)', fontSize: 12, wordBreak: 'break-all' }}>
+                {exam.question_hash ?? 'not yet sealed'}
+              </dd>
+              <dt style={dt}>Difficulty proof</dt>
+              <dd style={dd}>
+                {exam.zk_proof_verified === true
+                  ? 'Groth16 proof verified'
+                  : exam.zk_proof_verified === false
+                    ? 'Proof present but NOT verified'
+                    : 'No proof recorded for this exam yet'}
+              </dd>
+            </dl>
+          )}
+          <button style={btn} onClick={() => setStep(1)} disabled={!exam}>Continue to readiness →</button>
+        </section>
       )}
 
-      {/* Step 2 — System Check */}
       {step === 1 && (
-        <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
-          <h2 style={{ fontSize: 20, marginBottom: 16 }}>System Compatibility Check</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {SYSTEM_CHECKS.map((check, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, background: checks[i] === true ? 'var(--color-success-light)' : checks[i] === false ? 'var(--color-danger-light)' : '#f9fafb', transition: 'background 300ms ease' }}>
-                <span style={{ fontSize: 16 }}>{check.icon}</span>
-                <span style={{ flex: 1, fontSize: 13, color: 'var(--color-navy-700)' }}>{check.label}</span>
-                <span style={{ fontSize: 14 }}>
-                  {checks[i] === true ? '✓' : checks[i] === false ? '✗' : '…'}
-                </span>
-              </div>
-            ))}
-          </div>
-          <button onClick={() => setStep(2)} disabled={!allChecksPassed} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)', background: allChecksPassed ? 'var(--color-navy-600)' : '#d1d5db', color: 'white', border: 'none', borderRadius: 8, cursor: allChecksPassed ? 'pointer' : 'not-allowed', marginTop: 16 }}>
-            {allChecksPassed ? 'Proceed to Exam Brief →' : 'Running checks...'}
-          </button>
-        </div>
+        <section style={card}>
+          <h2 style={h2}>Readiness of this device</h2>
+          <p style={muted}>
+            Only what this browser can genuinely determine. Anything it cannot test says so
+            rather than reporting a pass.
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0', display: 'grid', gap: 10 }}>
+            {CHECKS.map((c, i) => {
+              const v = results[i] ?? 'pending';
+              const mark = v === 'pass' ? '✓' : v === 'fail' ? '✗' : v === 'unknown' ? '?' : '…';
+              const colour = v === 'pass' ? '#047857' : v === 'fail' ? '#b91c1c' : '#7C8AB8';
+              return (
+                <li key={c.label} style={{ display: 'flex', gap: 12, alignItems: 'baseline', fontSize: 13.5 }}>
+                  <span style={{ color: colour, fontWeight: 700, width: 14 }}>{mark}</span>
+                  <span>
+                    {c.label}
+                    {c.note && <span style={{ color: '#7C8AB8', fontSize: 12 }}> — {c.note}</span>}
+                    {v === 'unknown' && <span style={{ color: '#7C8AB8', fontSize: 12 }}> (cannot be determined here)</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {settled && blocking > 0 && (
+            <p style={bad}>{blocking} check(s) failed. Raise this with your centre before exam day.</p>
+          )}
+          <button style={btn} onClick={() => setStep(2)} disabled={!settled}>Continue →</button>
+        </section>
       )}
 
-      {/* Step 3 — Exam Brief */}
       {step === 2 && (
-        <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)' }}>
-          <h2 style={{ fontSize: 20, marginBottom: 16 }}>Exam Brief</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 16px', fontSize: 14, marginBottom: 24 }}>
-            <span style={{ color: '#9ca3af' }}>Exam</span><span style={{ fontWeight: 600 }}>{exam.name}</span>
-            <span style={{ color: '#9ca3af' }}>Duration</span><span>{exam.duration_minutes} minutes</span>
-            <span style={{ color: '#9ca3af' }}>Questions</span><span>{exam.subject_taxonomy.subjects.reduce((a, s) => a + s.question_count, 0)}</span>
-            <span style={{ color: '#9ca3af' }}>Negative</span><span>-{exam.negative_marking} per wrong answer</span>
-            <span style={{ color: '#9ca3af' }}>Set</span><span>Set B</span>
-          </div>
-          <div style={{ padding: 14, background: 'var(--color-navy-50)', borderRadius: 12, marginBottom: 24, fontSize: 12, color: 'var(--color-navy-500)' }}>
-            <p style={{ margin: '0 0 4px' }}>Your answers will be encrypted as you answer.</p>
-            <p style={{ margin: '0 0 4px' }}>On submission, all answers are committed to the Polygon blockchain.</p>
-            <p style={{ margin: 0 }}>Paper difficulty has been verified by ZK proof (Groth16).</p>
-          </div>
-          <Link href={`/exam/session/${exam.id}`} style={{ display: 'block', width: '100%', padding: 14, fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', background: 'linear-gradient(135deg, var(--color-india-saffron), var(--color-saffron-500))', color: 'white', border: 'none', borderRadius: 8, textAlign: 'center', textDecoration: 'none' }}>
-            Enter Exam →
+        <section style={card}>
+          <h2 style={h2}>On exam day</h2>
+          <p style={muted}>
+            You do not sit the examination in this browser. You are verified by face and
+            fingerprint at your centre, and the paper opens on a sealed terminal at T₀ —
+            which is why the commitment above can be published in advance without
+            revealing anything.
+          </p>
+          <Link href="/center-access" style={{ ...btn, display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>
+            How centre access works
           </Link>
-        </div>
+        </section>
       )}
     </div>
   );
 }
+
+const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 24 };
+const h2: React.CSSProperties = { fontSize: 17, color: 'var(--color-navy-900)', margin: '0 0 10px' };
+const muted: React.CSSProperties = { fontSize: 13, color: 'var(--color-navy-500)', lineHeight: 1.65, margin: '0 0 12px' };
+const dt: React.CSSProperties = { color: 'var(--color-navy-400)' };
+const dd: React.CSSProperties = { margin: 0, color: 'var(--color-navy-800)' };
+const bad: React.CSSProperties = { padding: '11px 13px', borderRadius: 8, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', color: '#b91c1c', fontSize: 13 };
+const btn: React.CSSProperties = { marginTop: 18, padding: '11px 18px', borderRadius: 8, border: 0, background: 'var(--color-navy-900)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' };

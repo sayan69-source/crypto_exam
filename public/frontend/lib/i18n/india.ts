@@ -62,9 +62,9 @@ export type IndiaState = typeof INDIA_STATES[number];
  * Connectivity tiers for exam centers (matches DB enum).
  */
 export const CONNECTIVITY_TIERS = {
-  TIER_1_METRO: { label: 'Tier 1 — Metro Fibre', color: '#1A7A4C' },
-  TIER_2_4G:    { label: 'Tier 2 — 4G', color: '#C47A1E' },
-  TIER_3_BSNL:  { label: 'Tier 3 — BSNL', color: '#E07020' },
+  TIER_1_METRO: { label: 'Tier 1 — Metro Fibre', color: '#3f6f4a' },
+  TIER_2_4G:    { label: 'Tier 2 — 4G', color: '#b07d1a' },
+  TIER_3_BSNL:  { label: 'Tier 3 — BSNL', color: '#ff4f00' },
 } as const;
 
 /**

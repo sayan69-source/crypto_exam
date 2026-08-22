@@ -29,11 +29,16 @@ DRAND_CHAIN = "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
 DRAND_GENESIS = 1595431050  # Unix timestamp of round 1
 DRAND_PERIOD = 3            # Seconds between rounds
 
-# Multiple endpoints for resilience — if Cloudflare is down, fallback to others
+# Independently operated relays over the SAME chain, so a round fetched from
+# any of them is the same fact. One relay refusing a request is routine, which
+# is why a single endpoint is not enough to declare the beacon unavailable.
+# (drand.iexec.market no longer resolves — checked 2026-08-09 — so it is gone.)
+# Keep in step with DRAND_RELAYS in app/api/v1/broadcast.py.
 DRAND_ENDPOINTS = [
-    "https://drand.cloudflare.com",     # Primary (Cloudflare CDN)
-    "https://api.drand.sh",              # Fallback (drand team)
-    "https://drand.iexec.market",        # Tertiary (iExec)
+    "https://drand.cloudflare.com",     # Cloudflare CDN
+    "https://api.drand.sh",             # drand team
+    "https://api2.drand.sh",
+    "https://api3.drand.sh",
 ]
 
 

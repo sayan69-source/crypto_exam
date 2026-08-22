@@ -230,8 +230,8 @@ _ROLES = [
          summary="A focused exam environment with biometric check-in, autosave, and a printable "
                  "cryptographic receipt for every submission."),
     Role(name="Setter",
-         summary="An authoring portal for composing papers, generating ZK difficulty proofs, "
-                 "and running red-team review."),
+         summary="An authoring workbench for composing papers, generating ZK difficulty proofs, "
+                 "red-team review, and sealing question banks under lock."),
     Role(name="Invigilator",
          summary="Biometric verification of candidates at the centre, live roster management, and "
                  "a one-tap channel to raise alerts and incident reports."),

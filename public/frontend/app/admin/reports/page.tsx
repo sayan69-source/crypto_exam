@@ -54,12 +54,12 @@ export default function AdminReportsPage() {
       </p>
 
       {error && (
-        <div style={{ padding: 16, border: '1px solid rgba(200,32,32,0.35)', background: 'rgba(200,32,32,0.06)', borderRadius: 12, color: 'var(--color-danger)', marginBottom: 16 }}>{error}</div>
+        <div style={{ padding: 16, border: '1px solid rgba(155, 34, 38,0.35)', background: 'rgba(155, 34, 38,0.06)', borderRadius: 12, color: 'var(--color-danger)', marginBottom: 16 }}>{error}</div>
       )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'var(--color-navy-50)', padding: 4, borderRadius: 12 }}>
         {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 16px', fontSize: 13, fontWeight: tab === t ? 600 : 400, fontFamily: 'var(--font-sans)', border: 'none', borderRadius: 8, cursor: 'pointer', background: tab === t ? 'var(--color-navy-600)' : 'transparent', color: tab === t ? 'white' : 'var(--color-navy-600)', transition: 'all 150ms ease' }}>{t}</button>
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 16px', fontSize: 13, fontWeight: tab === t ? 600 : 400, fontFamily: 'var(--font-sans)', border: 'none', borderRadius: 8, cursor: 'pointer', background: tab === t ? 'var(--color-navy-600)' : 'transparent', color: tab === t ? '#fffefb' : 'var(--color-navy-600)', transition: 'all 150ms ease' }}>{t}</button>
         ))}
       </div>
 
@@ -124,7 +124,7 @@ export default function AdminReportsPage() {
   );
 }
 
-const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20 };
+const card: React.CSSProperties = { background: '#fffefb', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 20 };
 const cardLabel: React.CSSProperties = { fontSize: 12, color: 'var(--color-navy-500)', display: 'block' };
 const cardValue: React.CSSProperties = { fontSize: 28, fontWeight: 700, color: 'var(--color-navy-900)', fontFamily: 'var(--font-mono)', display: 'block', marginTop: 4 };
 const cardSub: React.CSSProperties = { fontSize: 11, color: 'var(--color-navy-400)', marginTop: 4, display: 'block' };

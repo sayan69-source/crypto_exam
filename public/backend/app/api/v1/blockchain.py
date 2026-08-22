@@ -9,18 +9,20 @@ GET  /api/v1/blockchain/verify/{exam_id}   — Public verify (NO AUTH)
 GET  /api/v1/blockchain/status             — Chain status
 """
 
+import hashlib
+import json
 import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Exam, ExamStatus, UserRole
 from app.services.auth import require_role, get_current_user
-from app.services.blockchain import BlockchainService
+from app.services.blockchain import BlockchainService, ChainUnavailable
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +31,18 @@ blockchain = BlockchainService()
 
 
 class ZKProofSubmission(BaseModel):
-    proof_hash: str
-    proof_ipfs: str
+    """
+    The proof itself, not a hash of it.
+
+    The contract verifies the pairing on-chain, so it needs π_a/π_b/π_c and the
+    public signals. A hash tells the chain nothing it could check.
+    """
+    proof: dict = Field(..., description="snarkjs Groth16 proof (pi_a, pi_b, pi_c)")
+    public_signals: list[str] = Field(
+        ..., min_length=5, max_length=5,
+        description="committed_hash, target_mean_b, min_a, max_c, tolerance",
+    )
+    proof_ipfs: str = ""
 
 
 @router.post(
@@ -101,12 +113,17 @@ async def submit_zk_proof_onchain(
     try:
         tx_hash = await blockchain.submit_zk_proof(
             exam_id=str(exam_id),
-            proof_hash=submission.proof_hash,
+            proof=submission.proof,
+            public_signals=submission.public_signals,
             proof_ipfs=submission.proof_ipfs,
         )
 
+        # The transaction only lands if the network's pairing check passed, so
+        # reaching this line is itself the evidence.
         exam.polygon_zkproof_tx = tx_hash
-        exam.zk_proof_hash = bytes.fromhex(submission.proof_hash)
+        exam.zk_proof_hash = hashlib.sha256(
+            json.dumps(submission.proof, sort_keys=True).encode()
+        ).digest()
         exam.zk_proof_ipfs = submission.proof_ipfs
 
         return {
@@ -197,6 +214,16 @@ async def verify_onchain(exam_id: UUID):
             "No trust in CryptoExam Core is required."
         )
         return data
+    except ChainUnavailable as e:
+        # Not a server fault: the chain layer is unconfigured or unreachable.
+        # 503 with the specific reason, so a caller can tell "deploy the
+        # contract" from "the RPC is down" — and so no page can present the
+        # absence of a chain record as a verified one.
+        logger.warning("On-chain verification unavailable: %s", e.reason)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"reason": e.reason, "message": e.message, **e.context},
+        )
     except Exception as e:
         logger.error(f"On-chain verification failed: {e}")
         raise HTTPException(status_code=500, detail=f"Blockchain query failed: {str(e)}")

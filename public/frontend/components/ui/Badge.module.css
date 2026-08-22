@@ -11,17 +11,17 @@
   letter-spacing: 0.02em;
 }
 
-.sm { padding: 2px 8px; font-size: 11px; }
-.md { padding: 4px 12px; font-size: 12px; }
+.sm { padding: var(--space-xxs) var(--space-sm); font-size: 12px; }
+.md { padding: var(--space-xs) var(--space-md); font-size: var(--fs-sm); }
 
-/* Variants */
-.default { background: var(--color-navy-100); color: var(--color-navy-700); }
+/* Variants — badge-pill: canvas-soft ground, ink type, pill radius. */
+.default { background: var(--brand-canvas-soft); color: var(--brand-ink); }
 .onchain { background: var(--color-success-light); color: var(--color-success-text); }
 .pending { background: var(--color-warning-light); color: var(--color-warning-text); }
-.locked { background: var(--color-navy-800); color: var(--color-navy-100); }
-.live { background: #dcfce7; color: #166534; }
+.locked { background: var(--brand-ink); color: var(--brand-canvas-soft); }
+.live { background: #e8efe6; color: #2f5438; }
 .error { background: var(--color-danger-light); color: var(--color-danger-text); }
-.zk { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #78350f; font-weight: 600; }
+.zk { background: var(--color-saffron-100); color: var(--color-saffron-700); font-weight: 600; }
 .info { background: var(--color-info-light); color: var(--color-info-text); }
 .warning { background: var(--color-warning-light); color: var(--color-warning-text); }
 .success { background: var(--color-success-light); color: var(--color-success-text); }

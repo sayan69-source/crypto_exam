@@ -4,7 +4,7 @@
 
 .title {
   font-size: 24px;
-  color: var(--color-navy-900, #0D1526);
+  color: var(--color-navy-900, #201515);
   margin-bottom: 8px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -12,25 +12,25 @@
 
 .subtitle {
   font-size: 13px;
-  color: var(--color-navy-500, #5B6478);
+  color: var(--color-navy-500, #605d52);
   margin-bottom: 24px;
 }
 
 .intro {
-  background: var(--color-navy-50, #EFF1FA);
-  border: 1px solid var(--border-soft, #E3E7F2);
+  background: var(--color-navy-50, #f8f4f0);
+  border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 12px;
   padding: 14px 18px;
   margin-bottom: 28px;
   font-size: 13px;
-  color: var(--color-navy-600, #213573);
+  color: var(--color-navy-600, #3d332c);
   line-height: 1.55;
 }
 
 .sectionLabel {
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-navy-400, #5B6478);
+  color: var(--color-navy-400, #605d52);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 12px;
@@ -40,13 +40,13 @@
   padding: 40px 20px;
   text-align: center;
   font-size: 13px;
-  color: var(--color-navy-500, #5B6478);
-  border: 1px dashed var(--border-soft, #E3E7F2);
+  color: var(--color-navy-500, #605d52);
+  border: 1px dashed var(--border-soft, #e8e2d8);
   border-radius: 12px;
 }
 
 .emptyLink {
-  color: var(--color-navy-700, #1A2D5A);
+  color: var(--color-navy-700, #2b211c);
   font-weight: 600;
   text-decoration: none;
 }
@@ -66,16 +66,16 @@
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  background: #fff;
-  border: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb;
+  border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 12px;
   text-decoration: none;
   transition: all 150ms ease;
 }
 
 .card:hover {
-  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-  border-color: var(--color-navy-200, #A8B3D8);
+  box-shadow: 0 2px 12px rgba(32, 21, 21,0.04);
+  border-color: var(--color-navy-200, #c5c0b1);
 }
 
 .cardInfo {
@@ -87,12 +87,12 @@
 .cardName {
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-navy-800, #132040);
+  color: var(--color-navy-800, #201515);
 }
 
 .cardMeta {
   font-size: 12px;
-  color: var(--color-navy-500, #5B6478);
+  color: var(--color-navy-500, #605d52);
 }
 
 .pill {
@@ -107,13 +107,13 @@
 .cta {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-navy-500, #5B6478);
+  color: var(--color-navy-500, #605d52);
   white-space: nowrap;
   transition: color 150ms ease;
 }
 
 .card:hover .cta {
-  color: var(--color-navy-800, #132040);
+  color: var(--color-navy-800, #201515);
 }
 
 @keyframes fadeIn {

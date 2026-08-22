@@ -4,6 +4,21 @@ import * as dotenv from "dotenv";
 
 dotenv.config({ path: "../.env" });
 
+/**
+ * Only hand Hardhat an account that is actually a key.
+ *
+ * `.env` ships with `DEPLOYER_PRIVATE_KEY=your_private_key_here` so nobody
+ * commits a real one — but Hardhat validates every network's accounts while
+ * LOADING the config, so that placeholder made `compile` and `test` fail too,
+ * not just `deploy`. Compiling and testing need no key at all; gate on the
+ * shape of the value so the whole toolchain works out of the box and only the
+ * deploy step asks for a real key.
+ */
+const deployerKey = process.env.DEPLOYER_PRIVATE_KEY ?? "";
+const accounts = /^(0x)?[0-9a-fA-F]{64}$/.test(deployerKey)
+  ? [deployerKey.startsWith("0x") ? deployerKey : `0x${deployerKey}`]
+  : [];
+
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.20",
@@ -18,16 +33,12 @@ const config: HardhatUserConfig = {
     amoy: {
       url: process.env.POLYGON_RPC_URL || "https://rpc-amoy.polygon.technology",
       chainId: 80002,
-      accounts: process.env.DEPLOYER_PRIVATE_KEY
-        ? [process.env.DEPLOYER_PRIVATE_KEY]
-        : [],
+      accounts,
     },
     polygon: {
       url: "https://polygon-rpc.com",
       chainId: 137,
-      accounts: process.env.DEPLOYER_PRIVATE_KEY
-        ? [process.env.DEPLOYER_PRIVATE_KEY]
-        : [],
+      accounts,
     },
     hardhat: {
       chainId: 31337,
@@ -40,10 +51,7 @@ const config: HardhatUserConfig = {
     artifacts: "./artifacts",
   },
   etherscan: {
-    apiKey: {
-      polygonAmoy: process.env.POLYGONSCAN_API_KEY || "",
-      polygon: process.env.POLYGONSCAN_API_KEY || "",
-    },
+    apiKey: process.env.POLYGONSCAN_API_KEY || "",
   },
 };
 

@@ -1,12 +1,12 @@
 /* CryptoExam Core — Setter Dashboard
-   Premium minimalistic · light professional portal */
+   Premium minimalistic · light professional workbench */
 
 .page { animation: fadeIn 300ms ease forwards; }
 
 .title {
   font-size: 24px;
   font-weight: 700;
-  color: var(--color-navy-900, #0D1526);
+  color: var(--color-navy-900, #201515);
   margin-bottom: 28px;
   letter-spacing: -0.02em;
 }
@@ -20,8 +20,8 @@
 }
 
 .kpiCard {
-  background: #fff;
-  border: 1px solid var(--border-soft, #E3E7F2);
+  background: #fffefb;
+  border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -29,27 +29,27 @@
   transition: all 200ms ease;
 }
 
-.kpiCard:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); border-color: var(--color-navy-200, #A8B3D8); }
+.kpiCard:hover { box-shadow: 0 2px 12px rgba(32, 21, 21,0.04); border-color: var(--color-navy-200, #c5c0b1); }
 
 .kpiIcon {
   width: 42px; height: 42px;
-  border-radius: 10px;
+  border-radius: 12px;
   display: grid; place-items: center;
-  background: var(--color-navy-50, #EFF1FA);
-  border: 1px solid var(--border-soft, #E3E7F2);
+  background: var(--color-navy-50, #f8f4f0);
+  border: 1px solid var(--border-soft, #e8e2d8);
   font-size: 20px; flex-shrink: 0;
 }
 
 .kpiContent { display: flex; flex-direction: column; }
 .kpiValue {
   font-size: 22px; font-weight: 700;
-  color: var(--color-navy-800, #132040);
+  color: var(--color-navy-800, #201515);
   font-family: var(--font-sans, system-ui);
 }
-.kpiLabel { font-size: 12px; color: var(--color-navy-500, #5B6478); margin-top: 2px; }
+.kpiLabel { font-size: 12px; color: var(--color-navy-500, #605d52); margin-top: 2px; }
 .kpiTrend {
   font-family: var(--font-mono, monospace);
-  font-size: 11px; color: var(--color-navy-400, #5B6478); margin-top: 4px;
+  font-size: 11px; color: var(--color-navy-400, #605d52); margin-top: 4px;
 }
 
 /* Section */
@@ -60,7 +60,7 @@
 .section h2 {
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-navy-800, #132040);
+  color: var(--color-navy-800, #201515);
   margin-bottom: 16px;
 }
 
@@ -73,37 +73,37 @@
 
 .createBtn {
   padding: 8px 18px; font-size: 13px; font-weight: 600;
-  background: var(--color-navy-800, #132040); color: white;
-  border-radius: 8px; text-decoration: none;
+  background: var(--color-navy-800, #201515); color: #fffefb;
+  border-radius: 12px; text-decoration: none;
   transition: background 150ms ease;
 }
-.createBtn:hover { background: var(--color-navy-700, #1A2D5A); color: white; }
+.createBtn:hover { background: var(--color-navy-700, #2b211c); color: #fffefb; }
 
 /* Pipeline */
 .pipeline {
   display: flex; gap: 0; margin-bottom: 16px;
   overflow-x: auto; padding-bottom: 4px;
-  background: #fff;
-  border: 1px solid var(--border-soft, #E3E7F2);
-  border-radius: 10px;
+  background: #fffefb;
+  border: 1px solid var(--border-soft, #e8e2d8);
+  border-radius: 12px;
   padding: 8px 6px;
 }
 
 .pipelineStep {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 12px; font-size: 11px; font-weight: 500;
-  color: var(--color-navy-400, #5B6478); white-space: nowrap;
+  color: var(--color-navy-400, #605d52); white-space: nowrap;
   position: relative;
 }
 
 .pipelineStep::after {
-  content: '→'; margin-left: 6px; color: var(--color-navy-300, #8A92A6);
+  content: '→'; margin-left: 6px; color: var(--color-navy-300, #939084);
 }
 .pipelineStep:last-child::after { content: ''; }
 
 .pipelineDot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--color-navy-300, #8A92A6);
+  background: var(--color-navy-300, #939084);
 }
 
 .pipelineLabel {
@@ -122,52 +122,52 @@
   align-items: center;
   gap: 16px;
   padding: 14px 16px;
-  background: #fff;
-  border: 1px solid var(--border-soft, #E3E7F2);
-  border-radius: 10px;
+  background: #fffefb;
+  border: 1px solid var(--border-soft, #e8e2d8);
+  border-radius: 12px;
   margin-bottom: 4px;
   transition: all 150ms ease;
 }
 
 .examRow:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  border-color: var(--color-navy-200, #A8B3D8);
+  box-shadow: 0 2px 8px rgba(32, 21, 21,0.04);
+  border-color: var(--color-navy-200, #c5c0b1);
 }
 
 .examInfo { display: flex; flex-direction: column; }
-.examName { font-size: 14px; font-weight: 600; color: var(--color-navy-800, #132040); }
-.examBody { font-size: 11px; color: var(--color-navy-400, #5B6478); }
+.examName { font-size: 14px; font-weight: 600; color: var(--color-navy-800, #201515); }
+.examBody { font-size: 11px; color: var(--color-navy-400, #605d52); }
 
 .statusPill {
   font-family: var(--font-mono, monospace);
   font-size: 10px; font-weight: 600; padding: 4px 10px;
-  border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;
+  border-radius: 12px; text-transform: uppercase; letter-spacing: 0.04em;
 }
 
-.pill-LIVE { background: #ECFDF5; color: #065F46; }
-.pill-LOCKED { background: var(--color-navy-50, #EFF1FA); color: var(--color-navy-600, #213573); }
-.pill-COMPLETED { background: #ECFDF5; color: #065F46; }
-.pill-DRAFT { background: var(--color-navy-50, #EFF1FA); color: var(--color-navy-400, #5B6478); }
-.pill-GENERATING { background: #FFFBEB; color: #92400E; }
-.pill-PROOF_PENDING { background: #FFFBEB; color: #92400E; }
-.pill-DISTRIBUTED { background: #EFF6FF; color: #1E40AF; }
+.pill-LIVE { background: #eef3ea; color: #2f5438; }
+.pill-LOCKED { background: var(--color-navy-50, #f8f4f0); color: var(--color-navy-600, #3d332c); }
+.pill-COMPLETED { background: #eef3ea; color: #2f5438; }
+.pill-DRAFT { background: var(--color-navy-50, #f8f4f0); color: var(--color-navy-400, #605d52); }
+.pill-GENERATING { background: #fdf6e8; color: #7d5610; }
+.pill-PROOF_PENDING { background: #fdf6e8; color: #7d5610; }
+.pill-DISTRIBUTED { background: #f2ede5; color: #4a3f34; }
 
-.examCandidates { font-size: 12px; color: var(--color-navy-500, #5B6478); font-family: var(--font-mono, monospace); }
-.examDate { font-size: 12px; color: var(--color-navy-400, #5B6478); }
+.examCandidates { font-size: 12px; color: var(--color-navy-500, #605d52); font-family: var(--font-mono, monospace); }
+.examDate { font-size: 12px; color: var(--color-navy-400, #605d52); }
 
 .examActions { display: flex; gap: 4px; }
 
 .actionBtn {
   padding: 5px 12px; font-size: 11px; font-weight: 600;
-  background: var(--color-navy-50, #EFF1FA); color: var(--color-navy-600, #213573);
-  border: 1px solid var(--border-soft, #E3E7F2);
+  background: var(--color-navy-50, #f8f4f0); color: var(--color-navy-600, #3d332c);
+  border: 1px solid var(--border-soft, #e8e2d8);
   border-radius: 6px; text-decoration: none;
   transition: all 150ms ease;
 }
 .actionBtn:hover {
-  background: var(--color-navy-100, #D7DCF0);
-  border-color: var(--color-navy-200, #A8B3D8);
-  color: var(--color-navy-800, #132040);
+  background: var(--color-navy-100, #ddd8cc);
+  border-color: var(--color-navy-200, #c5c0b1);
+  color: var(--color-navy-800, #201515);
 }
 
 /* Activity Grid */
@@ -182,30 +182,30 @@
 .activityItem {
   display: flex; align-items: center; gap: 10px;
   padding: 12px 14px;
-  background: #fff;
-  border: 1px solid var(--border-soft, #E3E7F2);
-  border-radius: 10px;
+  background: #fffefb;
+  border: 1px solid var(--border-soft, #e8e2d8);
+  border-radius: 12px;
   margin-bottom: 2px;
   transition: box-shadow 200ms ease;
 }
-.activityItem:hover { box-shadow: 0 1px 6px rgba(0,0,0,0.04); }
+.activityItem:hover { box-shadow: 0 1px 6px rgba(32, 21, 21,0.04); }
 
 .activityIcon {
   width: 32px; height: 32px;
-  border-radius: 8px;
-  background: var(--color-navy-50, #EFF1FA);
+  border-radius: 12px;
+  background: var(--color-navy-50, #f8f4f0);
   display: grid; place-items: center;
   font-size: 14px; flex-shrink: 0;
 }
 
 .activityItem > div { flex: 1; display: flex; flex-direction: column; }
-.activityType { font-size: 13px; font-weight: 600; color: var(--color-navy-800, #132040); }
-.activityTime { font-size: 11px; color: var(--color-navy-400, #5B6478); }
+.activityType { font-size: 13px; font-weight: 600; color: var(--color-navy-800, #201515); }
+.activityTime { font-size: 11px; color: var(--color-navy-400, #605d52); }
 .activityStatus {
   font-family: var(--font-mono, monospace);
-  font-size: 11px; color: var(--color-success, #1A7A4C); font-weight: 600;
+  font-size: 11px; color: var(--color-success, #3f6f4a); font-weight: 600;
 }
-.activityMeta { font-size: 11px; color: var(--color-navy-400, #5B6478); }
+.activityMeta { font-size: 11px; color: var(--color-navy-400, #605d52); }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

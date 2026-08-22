@@ -26,7 +26,7 @@ dependencies = [
     # ── Cryptography (Core) ──
     "pycryptodome>=3.20.0",
     "gmpy2>=2.1.5",
-    "secretsharing>=0.3.0",
+    "secretsharing>=0.2.6",
 
     # ── Blockchain ──
     "web3>=6.15.0",
@@ -44,7 +44,7 @@ dependencies = [
     "sentence-transformers>=3.0.0",
 
     # ── IPFS ──
-    "ipfshttpclient>=0.8.0",
+    "ipfshttpclient>=0.7.0",
 
     # ── Utilities ──
     "python-jose[cryptography]>=3.3.0",

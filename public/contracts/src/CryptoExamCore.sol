@@ -26,6 +26,20 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/**
+ * @dev The snarkjs-generated `Groth16Verifier` (contracts/src/ZKVerifier.sol),
+ *      exported from the proving key for circuits/difficulty_proof.circom.
+ *      Five public signals — keep in step if the circuit's public inputs change.
+ */
+interface IGroth16Verifier {
+    function verifyProof(
+        uint256[2] calldata a,
+        uint256[2][2] calldata b,
+        uint256[2] calldata c,
+        uint256[5] calldata publicSignals
+    ) external view returns (bool);
+}
+
 contract CryptoExamCore is AccessControl, ReentrancyGuard {
     // ═══════════════════════════════════════════════════════
     // Roles
@@ -98,6 +112,9 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     /// @notice ZK Verifier contract address
     address public zkVerifier;
 
+    /// @notice The public signals of the verified difficulty proof, per exam.
+    mapping(bytes32 => uint256[5]) private zkPublicSignals;
+
     // ═══════════════════════════════════════════════════════
     // Events
     // ═══════════════════════════════════════════════════════
@@ -116,6 +133,9 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
         string  zkProofIPFS,
         bool    verified
     );
+
+    /// @notice The exact statement the network checked, for independent audit.
+    event ZKStatementProved(bytes32 indexed examId, uint256[5] publicSignals);
 
     event AnswerMerkleRootCommitted(
         bytes32 indexed examId,
@@ -153,6 +173,7 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     error ZKProofNotVerified(bytes32 examId);
     error InvalidExamId();
     error InvalidZKProof();
+    error ZKVerifierNotSet();
     error CentreAlreadyAnchored(bytes32 examId, bytes32 centreIdHash);
     error InvalidAnchor();
 
@@ -210,31 +231,67 @@ contract CryptoExamCore is AccessControl, ReentrancyGuard {
     }
 
     /**
-     * @notice Submit and verify a ZK-SNARK difficulty proof.
-     * @dev The proof demonstrates that the AI-generated paper meets
-     *      the IRT difficulty distribution constraints without revealing
-     *      any questions or answers.
+     * @notice Submit a ZK-SNARK difficulty proof; the chain verifies it.
+     * @dev The proof demonstrates that the paper meets the IRT difficulty
+     *      constraints without revealing any question or answer. The pairing
+     *      check runs HERE, in `Groth16Verifier.verifyProof` — a proof that
+     *      does not verify reverts and nothing is recorded, so `zkVerified`
+     *      on this contract means a proof was checked by the network rather
+     *      than asserted by whoever submitted it.
      *
-     * @param examId       Exam identifier
-     * @param zkProofHash  SHA-256 hash of the Groth16 proof JSON
-     * @param zkProofIPFS  IPFS CID of the full proof for independent verification
+     *      The five public signals are stored and emitted verbatim, so anyone
+     *      reading the chain can see the exact statement that was proved:
+     *        [0] Poseidon commitment to the question set
+     *        [1] target mean difficulty  (IRT b, scaled ×1000 and offset)
+     *        [2] minimum discrimination  (IRT a, scaled ×1000)
+     *        [3] maximum guessing        (IRT c, scaled ×1000)
+     *        [4] tolerance around the target mean (scaled ×1000)
+     *
+     *      Residual gap, stated plainly: signal [0] commits to *a* question
+     *      set, and this contract cannot tell that it is the same set behind
+     *      `questionHash` — the two use different hash constructions. Binding
+     *      them on-chain requires the paper commitment scheme to change; until
+     *      then that link is checked off-chain against the sealed manifest.
+     *
+     * @param examId        Exam identifier
+     * @param a             Groth16 π_a
+     * @param b             Groth16 π_b
+     * @param c             Groth16 π_c
+     * @param publicSignals The five public inputs described above
+     * @param zkProofIPFS   Content address of the full proof for independent verification
      */
     function submitZKProof(
         bytes32 examId,
-        bytes32 zkProofHash,
+        uint256[2] calldata a,
+        uint256[2][2] calldata b,
+        uint256[2] calldata c,
+        uint256[5] calldata publicSignals,
         string calldata zkProofIPFS
     ) external onlyRole(SETTER_ROLE) nonReentrant {
         if (!exams[examId].isLocked) revert ExamNotLocked(examId);
+        if (zkVerifier == address(0)) revert ZKVerifierNotSet();
 
-        // In production, call the ZKVerifier contract here for on-chain verification.
-        // For Amoy testnet, we verify off-chain and record the hash.
-        bool verified = true;
+        if (!IGroth16Verifier(zkVerifier).verifyProof(a, b, c, publicSignals)) {
+            revert InvalidZKProof();
+        }
+
+        bytes32 zkProofHash = keccak256(abi.encode(a, b, c, publicSignals));
 
         exams[examId].zkProofHash = zkProofHash;
         exams[examId].zkProofIPFS = zkProofIPFS;
-        exams[examId].zkVerified = verified;
+        exams[examId].zkVerified = true;
+        zkPublicSignals[examId] = publicSignals;
 
-        emit ZKProofSubmitted(examId, zkProofHash, zkProofIPFS, verified);
+        emit ZKProofSubmitted(examId, zkProofHash, zkProofIPFS, true);
+        emit ZKStatementProved(examId, publicSignals);
+    }
+
+    /**
+     * @notice The statement proved for an exam — empty until a proof verifies.
+     * @dev A view so auditors can read the claim without an event index.
+     */
+    function zkStatementOf(bytes32 examId) external view returns (uint256[5] memory) {
+        return zkPublicSignals[examId];
     }
 
     /**

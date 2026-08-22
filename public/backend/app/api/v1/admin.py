@@ -23,11 +23,14 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import (
-    User, UserRole, Exam, ExamStatus, Session, Enrollment,
-    DPDPAuditLog, HardwareNode, Center,
+    User, UserRole, Exam, ExamStatus, Session, Enrollment, EnrollmentStatus,
+    DPDPAuditLog, AdminAuditLog, HardwareNode, Center,
     StaffRegistrationRequest, StaffApprovalStatus,
+    CandidateApprovalStatus,
 )
 from app.services.auth import require_role
+from app.services.health import system_health
+from app.services.email import send_email
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +50,9 @@ class EmergencyAction(BaseModel):
 )
 async def dashboard(
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    # Tier-0 needs the same overview to judge what it is approving; reading
+    # counts is not an operational power.
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """
     Aggregate real-time metrics for the admin dashboard:
@@ -103,12 +108,11 @@ async def dashboard(
             "online": online_nodes,
             "offline": total_nodes - online_nodes,
         },
-        "system_health": {
-            "database": "healthy",
-            "redis": "healthy",
-            "blockchain": "connected",
-            "ipfs": "connected",
-        },
+        # Probed, not asserted. These were four string literals — Redis and
+        # IPFS were reported "connected" on a machine where neither was
+        # running, and the console header's "System Healthy" badge read from
+        # exactly that.
+        "system_health": await system_health(db),
     }
 
 
@@ -344,6 +348,8 @@ def _generate_code() -> str:
     return "-".join(groups)
 
 
+from sqlalchemy.orm import joinedload
+
 def _approval_view(r: StaffRegistrationRequest) -> dict:
     return {
         "requestId": r.id,
@@ -351,6 +357,8 @@ def _approval_view(r: StaffRegistrationRequest) -> dict:
         "role": r.role,
         "centreName": r.center_name,
         "centreIdHash": hashlib.sha256((r.center_id or "").encode()).hexdigest()[:16],
+        "examName": r.exam.name if r.exam else None,
+        "examYear": r.exam.year if r.exam else None,
         "status": r.status.value,
         "fingerprintAuthorised": bool(r.fingerprint_authorised),
         "createdAt": r.created_at.isoformat() if r.created_at else None,
@@ -359,15 +367,52 @@ def _approval_view(r: StaffRegistrationRequest) -> dict:
     }
 
 
+def _assert_correct_approver(r: StaffRegistrationRequest, current_user: dict) -> None:
+    """
+    Enforce the §9 approval cascade rather than letting any web ADMIN sign off.
+
+        Centre Admin applicant  → only the SYSTEM ADMIN (tier-0) may approve
+        Invigilator applicant   → only that centre's CENTRE ADMIN may approve,
+                                  and the Centre Admin console runs INSIDE the
+                                  locked OS on the centre LAN — not here.
+
+    Before this, all three endpoints required only `UserRole.ADMIN`, so an
+    ordinary web administrator could approve a Centre Admin (a tier-0 decision)
+    and could approve invigilators for centres they have nothing to do with.
+    That collapses the cascade into a single trusted role, which is exactly the
+    thing the tiering exists to prevent.
+    """
+    role = (current_user.get("role") or "").upper()
+    if r.role == "CENTER_ADMIN":
+        if role != "SYSTEM_ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "reason": "SYSTEM_ADMIN_REQUIRED",
+                    "message": "A Centre Admin registration can only be approved by the System Admin (tier-0). Sign in at /sysadmin/login with your fingerprint.",
+                },
+            )
+        return
+
+    # CENTER_INVIGILATOR
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "reason": "APPROVE_AT_THE_CENTRE",
+            "message": "An invigilator is approved by their own Centre Admin, from the Centre Admin console inside the locked OS on the centre LAN. This request is carried to that centre by the provisioning bundle; it is not approvable from the public console.",
+        },
+    )
+
+
 @router.get("/staff-approvals", summary="Pending centre-staff registrations")
 async def list_staff_approvals(
     role: str = "CENTER_ADMIN",
     include_resolved: bool = False,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """List real centre-staff registration requests (default: pending Centre Admins)."""
-    q = select(StaffRegistrationRequest).where(StaffRegistrationRequest.role == role)
+    q = select(StaffRegistrationRequest).options(joinedload(StaffRegistrationRequest.exam)).where(StaffRegistrationRequest.role == role)
     if not include_resolved:
         q = q.where(StaffRegistrationRequest.status == StaffApprovalStatus.PENDING)
     q = q.order_by(StaffRegistrationRequest.created_at.desc())
@@ -379,7 +424,7 @@ async def list_staff_approvals(
 async def issue_staff_code(
     request_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """Approve a request and issue a real one-time activation code (returned once)."""
     r = (await db.execute(
@@ -387,6 +432,7 @@ async def issue_staff_code(
     )).scalar_one_or_none()
     if not r:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_REQUEST")
+    _assert_correct_approver(r, current_user)
 
     code = _generate_code()
     expires = datetime.now(timezone.utc) + timedelta(minutes=_CODE_TTL_MIN)
@@ -403,7 +449,7 @@ async def issue_staff_code(
 async def authorise_staff_fp(
     request_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
 ):
     """Mark the applicant's fingerprint as authorised for in-person enrolment."""
     r = (await db.execute(
@@ -411,6 +457,7 @@ async def authorise_staff_fp(
     )).scalar_one_or_none()
     if not r:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_REQUEST")
+    _assert_correct_approver(r, current_user)
     r.fingerprint_authorised = True
     await db.commit()
     return {"ok": True}
@@ -425,7 +472,14 @@ async def list_candidates(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Real candidate roster: each candidate joined to their enrollment + centre."""
+    """
+    Real candidate roster: one row per candidate.
+
+    The join to enrolments produced one row PER ENROLMENT while `total` counted
+    distinct candidates, so a candidate registered for four exams appeared four
+    times in a list whose own total said fifteen. Grouping by candidate keeps
+    the row count and the total describing the same thing.
+    """
     total = (await db.execute(
         select(func.count()).where(User.role == UserRole.CANDIDATE)
     )).scalar() or 0
@@ -435,29 +489,156 @@ async def list_candidates(
         .where(User.role == UserRole.CANDIDATE)
         .outerjoin(Enrollment, Enrollment.candidate_id == User.id)
         .outerjoin(Center, Center.id == Enrollment.center_id)
+        # One row per candidate; the enrolment shown is their most recent.
+        .group_by(User.id)
         .order_by(User.full_name)
         .offset((page - 1) * per_page)
         .limit(per_page)
     )
     rows = (await db.execute(stmt)).all()
+    items = [
+        {
+            "id": u.id,
+            "name": u.full_name,
+            "state": u.state,
+            "rollNumber": e.roll_number if e else None,
+            "setLabel": e.set_label if e else None,
+            "enrollmentStatus": (e.status.value if e and e.status else None),
+            "centreName": c.name if c else None,
+            "isActive": bool(u.is_active),
+            # Seeded fixtures are invented people (seeder.py ships fifteen of
+            # them, names and all). They are useful for a demo and dangerous
+            # unlabelled: an evaluator reading this roster has no way to tell a
+            # fabricated candidate from someone who actually registered. The
+            # seeder is the only writer of @cryptoexam.dev addresses.
+            "isDemo": bool(u.email and u.email.endswith("@cryptoexam.dev")),
+        }
+        for (u, e, c) in rows
+    ]
     return {
         "total": total,
         "page": page,
         "per_page": per_page,
+        "demoCount": sum(1 for (u, e, c) in rows if e and e.roll_number and e.roll_number.startswith("DEMO")),
         "items": [
             {
                 "id": u.id,
                 "name": u.full_name,
+                "email": e.email if e else None,
                 "state": u.state,
                 "rollNumber": e.roll_number if e else None,
                 "setLabel": e.set_label if e else None,
                 "enrollmentStatus": (e.status.value if e and e.status else None),
+                "approvalStatus": (e.approval_status.value if e and e.approval_status else None),
+                "registrationYear": (e.registration_year if e else None),
+                "enrolledAt": (e.enrolled_at.isoformat() if e and e.enrolled_at else None),
                 "centreName": c.name if c else None,
                 "isActive": bool(u.is_active),
             }
             for (u, e, c) in rows
         ],
     }
+
+
+class CandidateApprovalAction(BaseModel):
+    rejection_reason: str | None = None  # Required for reject
+
+
+@router.post("/candidates/{candidate_id}/approve", summary="Approve a candidate enrolment")
+async def approve_candidate(
+    candidate_id: str,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    Problem 2: Approve a pending candidate enrolment.
+    Sets approval_status=APPROVED, stamps approved_by/approved_at.
+    Writes an AdminAuditLog entry (same pattern as emergency_pause/emergency_abort).
+    """
+    # A candidate sitting more than one exam has one Enrollment row per exam,
+    # so this must not assume a single row — `scalar_one_or_none()` here raised
+    # MultipleResultsFound (a 500) for every candidate with a second enrolment,
+    # which the seeded roster gives all of them. The roster is one row per
+    # candidate (`group_by(User.id)`), and the decision being recorded is about
+    # the person, so it applies to all of their enrolments.
+    enrollments = (await db.execute(
+        select(Enrollment).where(Enrollment.candidate_id == candidate_id)
+    )).scalars().all()
+    if not enrollments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_CANDIDATE")
+    if all(e.approval_status == CandidateApprovalStatus.APPROVED for e in enrollments):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already approved")
+
+    now = datetime.now(timezone.utc)
+    for enrollment in enrollments:
+        enrollment.approval_status = CandidateApprovalStatus.APPROVED
+        enrollment.approved_by = current_user["user_id"]
+        enrollment.approved_at = now
+        enrollment.rejected_at = None
+        enrollment.rejection_reason = None
+
+    db.add(AdminAuditLog(
+        admin_id=current_user["user_id"],
+        action="CANDIDATE_APPROVED",
+        target_type="candidate",
+        target_id=str(candidate_id),
+        ip_address=req.client.host if req.client else None,
+    ))
+    await db.commit()
+    logger.info(
+        "candidate approved: candidate=%s enrolments=%d by admin=%s",
+        candidate_id, len(enrollments), current_user["user_id"],
+    )
+    return {"ok": True, "approvalStatus": "APPROVED", "approvedAt": now.isoformat()}
+
+
+@router.post("/candidates/{candidate_id}/reject", summary="Reject a candidate enrolment")
+async def reject_candidate(
+    candidate_id: str,
+    body: CandidateApprovalAction,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    Problem 2: Reject a pending candidate enrolment.
+    Requires a rejection_reason. Stamps rejected_at, writes AdminAuditLog.
+    """
+    if not body.rejection_reason or not body.rejection_reason.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rejection_reason is required")
+
+    # Same one-row-per-exam problem as approve, above.
+    enrollments = (await db.execute(
+        select(Enrollment).where(Enrollment.candidate_id == candidate_id)
+    )).scalars().all()
+    if not enrollments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="UNKNOWN_CANDIDATE")
+    if all(e.approval_status == CandidateApprovalStatus.REJECTED for e in enrollments):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already rejected")
+
+    now = datetime.now(timezone.utc)
+    reason = body.rejection_reason.strip()
+    for enrollment in enrollments:
+        enrollment.approval_status = CandidateApprovalStatus.REJECTED
+        enrollment.approved_by = current_user["user_id"]
+        enrollment.rejected_at = now
+        enrollment.rejection_reason = reason
+
+    db.add(AdminAuditLog(
+        admin_id=current_user["user_id"],
+        action="CANDIDATE_REJECTED",
+        target_type="candidate",
+        target_id=str(candidate_id),
+        reason=reason,
+        ip_address=req.client.host if req.client else None,
+    ))
+    await db.commit()
+    logger.info(
+        "candidate rejected: candidate=%s enrolments=%d reason=%s",
+        candidate_id, len(enrollments), reason,
+    )
+    return {"ok": True, "approvalStatus": "REJECTED", "rejectedAt": now.isoformat()}
 
 
 @router.get("/centers", summary="Exam centres with live node health")
@@ -525,3 +706,235 @@ async def list_roles(
             "permissions": perms.get(role, ""),
         })
     return {"roles": items}
+
+
+@router.get("/setter-requests", summary="Pending setter self-registrations")
+async def list_setter_requests(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Setters who self-registered on the public site and await activation."""
+    rows = (await db.execute(
+        select(User)
+        .where(User.role == UserRole.SETTER, User.is_active.is_(False))
+        .order_by(User.created_at.desc())
+    )).scalars().all()
+    return {
+        "pending": [
+            {
+                "id": u.id,
+                "full_name": u.full_name,
+                "email": u.email,
+                "institution": u.institution,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in rows
+        ]
+    }
+
+
+@router.post("/setter-requests/{user_id}/approve", summary="Approve a pending setter")
+async def approve_setter(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN)),
+):
+    """Activate a self-registered setter so they can log in (is_active gate)."""
+    user = (await db.execute(
+        select(User).where(User.id == user_id, User.role == UserRole.SETTER)
+    )).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setter request not found")
+    if user.is_active:
+        return {"ok": True, "status": "ALREADY_ACTIVE"}
+    user.is_active = True
+    await db.commit()
+    logger.info(f"Setter approved: {user.email} by admin={current_user['user_id']}")
+    return {"ok": True, "status": "ACTIVE"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Public enquiries — the HQ side of the contact form
+# ═══════════════════════════════════════════════════════════════════
+
+class EnquiryUpdate(BaseModel):
+    status: str
+    internal_note: str | None = None
+
+
+@router.get("/enquiries", summary="Enquiries from the public site")
+async def list_enquiries(
+    status_filter: str | None = None,
+    page: int = 1,
+    per_page: int = 50,
+    db: AsyncSession = Depends(get_db),
+    # Tier-0 too, and not as a convenience. A fresh deployment has NO tier-1
+    # admin — the seeder only runs with DEBUG or SEED_ON_START — so the first
+    # and only account an operator can create is the System Admin. Restricting
+    # this to ADMIN meant enquiries arrived on a live site and no existing
+    # account could read them: the public's only channel, delivered to nobody.
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The queue the contact form feeds.
+
+    Until this existed the form discarded every submission client-side, so an
+    examination board could request a briefing, be told it was sent, and reach
+    nobody. Newest first, because an unanswered enquiry ages badly.
+    """
+    from app.models import Enquiry, EnquiryStatus
+
+    stmt = select(Enquiry).order_by(Enquiry.created_at.desc())
+    if status_filter:
+        try:
+            stmt = stmt.where(Enquiry.status == EnquiryStatus(status_filter.upper()))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unknown status {status_filter!r}")
+
+    per_page = max(1, min(per_page, 200))
+    total = (await db.execute(
+        select(func.count()).select_from(stmt.subquery())
+    )).scalar() or 0
+    rows = (await db.execute(
+        stmt.limit(per_page).offset((max(1, page) - 1) * per_page)
+    )).scalars().all()
+
+    counts = dict((await db.execute(
+        select(Enquiry.status, func.count()).group_by(Enquiry.status)
+    )).all())
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "counts": {s.value: counts.get(s, 0) for s in EnquiryStatus},
+        "items": [
+            {
+                "id": str(e.id),
+                "reference": e.reference,
+                "fullName": e.full_name,
+                "email": e.email,
+                "phone": e.phone,
+                "organisation": e.organisation,
+                "roleTitle": e.role_title,
+                "topic": e.topic,
+                "message": e.message,
+                "status": e.status.value,
+                "internalNote": e.internal_note,
+                "receivedAt": e.created_at.isoformat() if e.created_at else None,
+                "handledAt": e.handled_at.isoformat() if e.handled_at else None,
+            }
+            for e in rows
+        ],
+    }
+
+
+@router.patch("/enquiries/{enquiry_id}", summary="Update an enquiry's status")
+async def update_enquiry(
+    enquiry_id: str,
+    body: EnquiryUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
+):
+    """Move an enquiry along the queue and record who touched it."""
+    from app.models import Enquiry, EnquiryStatus
+
+    try:
+        new_status = EnquiryStatus(body.status.upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown status {body.status!r}")
+
+    row = (await db.execute(select(Enquiry).where(Enquiry.id == enquiry_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Enquiry not found")
+
+    row.status = new_status
+    row.handled_by = current_user["user_id"]
+    row.handled_at = datetime.now(timezone.utc)
+    if body.internal_note is not None:
+        row.internal_note = body.internal_note.strip() or None
+
+    logger.info("Enquiry %s → %s by admin=%s", row.reference, new_status.value, current_user["user_id"])
+    return {"ok": True, "reference": row.reference, "status": new_status.value}
+
+
+@router.get("/admins", summary="Administrator directory (for dual-control co-signing)")
+async def list_admins(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The real administrators who can co-sign a dual-control action.
+
+    Dual control means two DIFFERENT people authorise anything dangerous. The
+    emergency panel used to offer three invented names, so the control looked
+    operational while the co-signer was fictional — the one place a fake name
+    is not cosmetic. Identity only: no password material, no tokens.
+    """
+    rows = (await db.execute(
+        select(User)
+        .where(User.role.in_([UserRole.ADMIN, UserRole.SYSTEM_ADMIN]), User.is_active == True)  # noqa: E712
+        .order_by(User.full_name)
+    )).scalars().all()
+    return {
+        "admins": [
+            {"id": str(u.id), "full_name": u.full_name, "email": u.email, "role": u.role.value}
+            for u in rows
+        ]
+    }
+
+
+@router.delete("/demo-data", summary="Purge seeded demo records (tier-0 only)")
+async def purge_demo_data(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+):
+    """
+    Delete the seeded demo candidates and setters.
+
+    `seeder.py` invents fifteen candidates with names, states and roll numbers
+    so a fresh install has something to show. Before a real evaluation those
+    fabricated people should not be sitting in the roster looking like
+    registrations, and there was no way to remove them short of deleting the
+    database.
+
+    Scoped by the @cryptoexam.dev address the seeder is the only writer of, so
+    a genuinely registered user is never caught by this. The admin account is
+    kept — deleting the account you are signed in with is not a useful outcome.
+
+    TIER-0 ONLY. This is the one endpoint in the admin surface that destroys
+    rows, and bulk deletion of people is not an operations task. Restricting it
+    to the tier that already holds decryption authority keeps every destructive
+    capability behind the same fingerprint.
+    """
+    from sqlalchemy import delete as sa_delete
+
+    from app.models import Enrollment, Session as ExamSession
+
+    victims = (await db.execute(
+        select(User).where(
+            User.email.like("%@cryptoexam.dev"),
+            User.role.in_([UserRole.CANDIDATE, UserRole.SETTER]),
+        )
+    )).scalars().all()
+    ids = [u.id for u in victims]
+    if not ids:
+        return {"ok": True, "deleted": 0, "message": "No seeded demo records were present."}
+
+    enrol_ids = [
+        e for (e,) in (await db.execute(
+            select(Enrollment.id).where(Enrollment.candidate_id.in_(ids))
+        )).all()
+    ]
+    if enrol_ids:
+        await db.execute(sa_delete(ExamSession).where(ExamSession.enrollment_id.in_(enrol_ids)))
+    await db.execute(sa_delete(Enrollment).where(Enrollment.candidate_id.in_(ids)))
+    await db.execute(sa_delete(User).where(User.id.in_(ids)))
+    await db.commit()
+
+    logger.warning("Demo data purged: %s user(s) by admin=%s", len(ids), current_user["user_id"])
+    return {
+        "ok": True,
+        "deleted": len(ids),
+        "message": f"Removed {len(ids)} seeded demo account(s) and their enrolments.",
+    }
