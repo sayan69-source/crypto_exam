@@ -1,8 +1,8 @@
 /* CryptoExam Core — BlockchainTxCard Styles */
 
 .card {
-  background: rgba(255, 254, 251,0.04);
-  border: 1px solid rgba(255, 254, 251,0.08);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
   padding: 14px 16px;
   transition: all 150ms ease;
@@ -15,7 +15,7 @@
 .failed { border-left-color: var(--color-blockchain-failed); }
 
 .card:hover {
-  background: rgba(255, 254, 251,0.07);
+  background: rgba(255,255,255,0.07);
 }
 
 .header {
@@ -31,7 +31,7 @@
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
-  color: #fffefb;
+  color: white;
   flex: 1;
 }
 
@@ -85,5 +85,5 @@
   transition: color 150ms ease;
 }
 
-.txLink:hover { color: #fffefb; }
+.txLink:hover { color: white; }
 .txLink code { background: none; padding: 0; }

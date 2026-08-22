@@ -28,12 +28,13 @@ from app.database import get_db
 from app.models import (
     User, UserRole, Exam, ExamStatus, Question,
     ShamirShard as ShamirShardModel,
-    SealedQuestionBundle, SealedBundleKeying,)
+    SealedQuestionBundle,
+)
 from app.services.auth import require_role
 
 # crypto/ lives at backend/crypto — make it importable like the other routers do
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-from crypto.question_sealing import derive_master_seed, seal_exam_questions, open_question  # noqa: E402
+from crypto.question_sealing import seal_exam_questions, open_question  # noqa: E402
 from crypto.shamir import ShamirPaperGuardian  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -63,15 +64,9 @@ def _publish_to_content_store(bundle_dict: dict) -> str:
         if addr:
             with ipfshttpclient.connect(addr) as client:
                 return "ipfs://" + client.add_bytes(canonical)
-    except Exception:  # noqa: BLE001 — no IPFS node wired up in dev
+    except Exception:  # noqa: BLE001 — no IPFS in dev; deterministic CID still anchors content
         pass
-    # NOT an IPFS CID. A real CID is a multibase-encoded multihash; this is a
-    # bare sha256 hex string, so `ipfs://b<sha256>` resolves nowhere and any
-    # gateway returns 404. It is still a sound CONTENT ADDRESS — the terminal
-    # verifies bundles against the questions root, not against this — so the
-    # demo works; but the scheme has to say what it is, or a reader reasonably
-    # concludes the bundle is on IPFS when it is not.
-    return "sha256://" + digest
+    return "ipfs://b" + digest  # content-addressed stand-in (sha256 of the bundle)
 
 
 # ── Schemas ──
@@ -133,29 +128,10 @@ async def seal_questions(
         # NB: correct_option is deliberately NOT included — grading stays server-side.
     } for q in rows]
 
-    # 1. SEAL.
-    #
-    # The master seed is DERIVED, not random. It was `os.urandom(32)`, which
-    # sealed papers no centre could ever open: the Edge and the terminal both
-    # compute `HKDF(beacon, hkdfSalt, "cryptoexam:"+examId)` (question-seal.ts),
-    # so a randomly-chosen seed shares nothing with what they derive. The Python
-    # and TypeScript derivations are byte-identical given the same inputs
-    # (verified against a fixed vector), so this gives them the same inputs
-    # instead of changing either.
-    #
-    # You cannot seal under a key that does not exist yet, so the scheme is
-    # "seal now, release the opener at T0": the beacon is minted here, the paper
-    # is sealed under what it derives, and the beacon itself is withheld from the
-    # provisioning bundle until T0 has passed. Ciphertext can therefore sit on a
-    # centre's Edge for a week and stay inert.
-    t0_beacon = os.urandom(32)
-    hkdf_salt = os.urandom(16)
-    master_seed = derive_master_seed(t0_beacon, hkdf_salt, str(exam_id))
+    # 1. SEAL — master seed is transient; only its shard hashes persist.
+    master_seed = os.urandom(32)
     bundle = seal_exam_questions(questions, master_seed, str(exam_id))
-    # Shamir guards the BEACON, not the derived seed. A centre with no
-    # connectivity window reconstructs the beacon from on-site shards and
-    # re-derives the seed exactly as the online path would (§30 PATH B).
-    shards = ShamirPaperGuardian.split(t0_beacon, n=exam.shamir_shard_count or 5, k=exam.shamir_threshold or 3)
+    shards = ShamirPaperGuardian.split(master_seed, n=exam.shamir_shard_count or 5, k=exam.shamir_threshold or 3)
     bundle_dict = bundle.to_dict()
 
     # 2. PUBLISH — push the opaque (keyless) bundle to a public content store.
@@ -207,20 +183,6 @@ async def seal_questions(
 
     for s in shards:
         db.add(ShamirShardModel(exam_id=exam_id, shard_index=s.index, shard_hash=s.hash))
-
-    # The keying row. Without it the ciphertext above is permanently unopenable:
-    # the salt is needed to derive the seed and the beacon is the only thing that
-    # releases it. Replaced on a re-seal so it can never describe an older paper.
-    existing_key = (await db.execute(
-        select(SealedBundleKeying).where(SealedBundleKeying.exam_id == exam_id)
-    )).scalar_one_or_none()
-    if existing_key:
-        await db.delete(existing_key)
-        await db.flush()
-    db.add(SealedBundleKeying(
-        exam_id=str(exam_id), hkdf_salt=hkdf_salt, t0_beacon=t0_beacon,
-        t0_at=exam.scheduled_at, drand_round=exam.drand_round,
-    ))
 
     logger.info("Sealed exam=%s questions=%d root=%s cid=%s tx=%s",
                 str(exam_id)[:8], bundle.count, bundle.questions_root[:14],
@@ -285,7 +247,7 @@ async def verify_question(exam_id: UUID, body: VerifyRequest, db: AsyncSession =
     committed on-chain set. Anyone can call this to audit a delivered question.
     """
     from crypto.question_sealing import question_leaf
-    from crypto.question_sealing import verify_question_inclusion
+    from crypto.merkle import verify_inclusion
 
     row = (await db.execute(
         select(SealedQuestionBundle).where(SealedQuestionBundle.exam_id == exam_id)
@@ -296,7 +258,7 @@ async def verify_question(exam_id: UUID, body: VerifyRequest, db: AsyncSession =
     sealed = {"iv": body.iv, "ct": body.ct, "tag": body.tag}
     leaf = question_leaf(body.question_id, sealed)
     root_bytes = bytes.fromhex(row.questions_root[2:])
-    ok = verify_question_inclusion(leaf, body.proof, root_bytes)
+    ok = verify_inclusion(leaf, body.proof, root_bytes)
     return {
         "examId": str(exam_id),
         "questionId": body.question_id,

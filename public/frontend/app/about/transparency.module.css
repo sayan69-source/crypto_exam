@@ -31,8 +31,8 @@
   border-radius: var(--radius-pill, 999px);
   border: 1px solid var(--border-soft);
 }
-.sourceLive { color: #3f6f4a; background: rgba(79, 127, 87, 0.08); border-color: rgba(79, 127, 87, 0.3); }
-.sourceSnapshot { color: #7d5610; background: rgba(176, 121, 31, 0.08); border-color: rgba(176, 121, 31, 0.3); }
+.sourceLive { color: #2c7a57; background: rgba(58, 155, 110, 0.08); border-color: rgba(58, 155, 110, 0.3); }
+.sourceSnapshot { color: #8a5e12; background: rgba(176, 121, 31, 0.08); border-color: rgba(176, 121, 31, 0.3); }
 
 .title {
   font-size: var(--fs-h2);
@@ -149,10 +149,10 @@
   padding-bottom: var(--space-sm);
   border-bottom: 1px solid var(--border-soft);
 }
-.splitPublic { color: #3f6f4a; }
+.splitPublic { color: #2c7a57; }
 .splitPrivate { color: var(--accent-strong); }
 .claim { display: flex; gap: 10px; align-items: flex-start; }
-.claimOk { color: #3f6f4a; flex-shrink: 0; margin-top: 2px; }
+.claimOk { color: #2c7a57; flex-shrink: 0; margin-top: 2px; }
 .claimLock { color: var(--accent-strong); flex-shrink: 0; margin-top: 2px; }
 .claimText { font-size: var(--fs-sm); color: var(--text-body); line-height: var(--lh-snug); font-weight: var(--fw-medium); }
 .claimHow { font-size: var(--fs-xs); color: var(--text-muted); line-height: var(--lh-normal); margin-top: 3px; }

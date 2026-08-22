@@ -45,6 +45,13 @@ export default function CandidateLayout({ children, userName, showNav = true }: 
                   <Icon name="graduation-cap" size={15} strokeWidth={1.7} />
                   Dashboard
                 </Link>
+                <Link
+                  href="/exam/audit"
+                  className={`${styles.navLink} ${pathname?.startsWith('/exam/audit') ? styles.navActive : ''}`}
+                >
+                  <Icon name="search-check" size={15} strokeWidth={1.7} />
+                  Public Audit
+                </Link>
               </nav>
               <div className={styles.right}>
                 {userName ? (

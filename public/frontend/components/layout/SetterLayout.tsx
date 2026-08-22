@@ -1,7 +1,7 @@
 /**
  * CryptoExam Core — Setter Layout
  * Light sidebar (260px) + main content area.
- * "Professional Workbench" — clean, light, data-forward.
+ * "Professional Portal" — clean, light, data-forward.
  */
 'use client';
 
@@ -13,10 +13,7 @@ import styles from './SetterLayout.module.css';
 const NAV_ITEMS = [
   { href: '/setter/dashboard', label: 'Dashboard', icon: 'radar' },
   { href: '/setter/create', label: 'New Exam', icon: 'plus' },
-  { href: '/setter/paper-modes', label: 'Paper Modes', icon: 'file-check' },
-  { href: '/setter/questions', label: 'Question Bank', icon: 'boxes' },
   { href: '/setter/generate', label: 'AI Generate', icon: 'cpu' },
-  { href: '/setter/irt', label: 'IRT Analytics', icon: 'git-branch' },
   { href: '/setter/proofs', label: 'ZK Proofs', icon: 'binary' },
 ];
 

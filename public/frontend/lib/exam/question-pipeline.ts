@@ -77,76 +77,50 @@ async function questionAesKey(masterSeed: Uint8Array, examId: string, questionId
   return crypto.subtle.importKey('raw', raw as BufferSource, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
-// ── SHA-256 Merkle ──────────────────────────────────────────────────────────
-//
-// Domain-separated and length-prefixed, and MUST stay byte-identical to the
-// three other implementations of this one scheme:
-//   backend/crypto/question_sealing.py   (the production sealer)
-//   private/edge-server/src/lib/question-seal.ts
-//   private/exam-terminal/lib/question-crypto.ts
-//
-// This file previously did two things differently from the private side, and
-// both were silent: it hashed `id ‖ iv ‖ ct ‖ tag` with no length prefixes (so
-// sliding the id/iv boundary produced a different question with the same leaf),
-// and it padded the tree to a power of two with ZERO leaves while the private
-// side duplicated the last node — so for any count that is not a power of two,
-// the public sealer and the centre terminal computed different roots for the
-// same bundle. Everything now promotes an odd node unchanged.
-const LEAF_TAG = 0x00;
-const NODE_TAG = 0x01;
-
-function u32be(n: number): Uint8Array {
-  return new Uint8Array([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
-}
-
+// ── SHA-256 Merkle (mirrors backend/crypto/merkle.py) ───────────────────────
 async function sha256(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', data as BufferSource));
 }
 async function hashPair(left: Uint8Array, right: Uint8Array): Promise<Uint8Array> {
-  return sha256(concat(new Uint8Array([NODE_TAG]), left, right));
+  return sha256(concat(left, right));
 }
 
 export async function questionLeaf(questionId: string, sealed: { iv: string; ct: string; tag: string }): Promise<Uint8Array> {
-  const id = enc.encode(questionId);
-  const iv = fromHex(sealed.iv), ct = fromHex(sealed.ct), tag = fromHex(sealed.tag);
-  return sha256(concat(
-    new Uint8Array([LEAF_TAG]),
-    u32be(id.length), id,
-    u32be(iv.length), iv,
-    u32be(ct.length), ct,
-    u32be(tag.length), tag,
-  ));
+  return sha256(concat(enc.encode(questionId), fromHex(sealed.iv), fromHex(sealed.ct), fromHex(sealed.tag)));
 }
 
 async function buildTree(leaves: Uint8Array[]): Promise<{ root: Uint8Array; proofs: SealedItem['proof'][] }> {
-  const proofs: SealedItem['proof'][] = leaves.map(() => []);
-  let level = [...leaves];
-  let idxMap: number[][] = leaves.map((_, i) => [i]);
+  let n = 1;
+  while (n < leaves.length) n <<= 1;
+  const padded = [...leaves];
+  while (padded.length < n) padded.push(new Uint8Array(32));
 
-  while (level.length > 1) {
+  const layers: Uint8Array[][] = [padded];
+  let cur = padded;
+  while (cur.length > 1) {
     const next: Uint8Array[] = [];
-    const nextIdx: number[][] = [];
-    for (let i = 0; i < level.length; i += 2) {
-      const left = level[i];
-      const leftLeaves = idxMap[i];
-      // Odd node promoted, never duplicated — duplicating is CVE-2012-2459,
-      // under which [A,B,C] and [A,B,C,C] share a root.
-      if (i + 1 >= level.length) {
-        next.push(left);
-        nextIdx.push([...leftLeaves]);
-        continue;
-      }
-      const right = level[i + 1];
-      const rightLeaves = idxMap[i + 1];
-      for (const li of leftLeaves) proofs[li].push({ hash: toHex(right), position: 'right' });
-      for (const ri of rightLeaves) proofs[ri].push({ hash: toHex(left), position: 'left' });
-      next.push(await hashPair(left, right));
-      nextIdx.push([...leftLeaves, ...rightLeaves]);
-    }
-    level = next;
-    idxMap = nextIdx;
+    for (let i = 0; i < cur.length; i += 2) next.push(await hashPair(cur[i], cur[i + 1] ?? new Uint8Array(32)));
+    layers.push(next);
+    cur = next;
   }
-  return { root: level[0], proofs };
+  const root = layers[layers.length - 1][0];
+
+  const proofs: SealedItem['proof'][] = [];
+  for (let idx = 0; idx < leaves.length; idx++) {
+    const path: SealedItem['proof'] = [];
+    let pos = idx;
+    for (let l = 0; l < layers.length - 1; l++) {
+      const layer = layers[l];
+      const sib = pos ^ 1;
+      path.push({
+        hash: toHex(sib < layer.length ? layer[sib] : new Uint8Array(32)),
+        position: pos % 2 === 0 ? 'right' : 'left',
+      });
+      pos >>= 1;
+    }
+    proofs.push(path);
+  }
+  return { root, proofs };
 }
 
 export async function verifyInclusion(leaf: Uint8Array, proof: SealedItem['proof'], rootHex: string): Promise<boolean> {

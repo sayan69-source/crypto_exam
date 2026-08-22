@@ -1,9 +1,6 @@
 # Production image for the public website (Render / any Docker host).
-# Builds the app (NEXT_PUBLIC_* are inlined at build time) and serves via
-# the standalone Node.js server — no npm, no node_modules in the runtime image.
-
-# ── Stage 1: build ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Builds the app (NEXT_PUBLIC_* are inlined at build time) and serves it.
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -21,20 +18,6 @@ ENV NEXT_PUBLIC_USE_MOCK=${NEXT_PUBLIC_USE_MOCK}
 
 RUN npm run build
 
-# ── Stage 2: production runtime ───────────────────────────────────────────────
-FROM node:20-alpine AS runner
-
-WORKDIR /app
-
 ENV NODE_ENV=production
-# Docker sets HOSTNAME to the container id, and the standalone server binds to
-# $HOSTNAME — so without this it listens on a name that resolves to nothing and
-# the published port answers with a connection reset.
-ENV HOSTNAME=0.0.0.0
-
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
 # Render injects $PORT; default to 3000 locally.
-CMD ["sh", "-c", "PORT=${PORT:-3000} node server.js"]
+CMD ["sh", "-c", "npm run start -- -p ${PORT:-3000}"]

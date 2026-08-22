@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 
 # ── Enums (mirror DB) ──
@@ -54,7 +54,6 @@ class LoginRequest(BaseModel):
     password: str | None = Field(None, description="Password (setter/admin)")
     dob: str | None = Field(None, description="Date of birth (YYYY-MM-DD, candidate)")
     role: UserRoleEnum | None = Field(None, description="Role hint for routing")
-    email_verification_token: str | None = Field(None, description="Token proving email ownership")
 
 
 class OTPVerifyRequest(BaseModel):
@@ -179,7 +178,6 @@ class FaceVerifyResponse(BaseModel):
 class TOTPVerifyRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=8)
     staff_id: str | None = None
-    email_verification_token: str | None = None
 
 
 class FIDO2ChallengeResponse(BaseModel):

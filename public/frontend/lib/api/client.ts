@@ -6,12 +6,7 @@
 import type { ApiResponse, AuthResponse, OtpChallengeResponse, PaginatedResponse } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-// Mock data is opt-IN. This defaulted to ENABLED (`!== 'false'`), so any
-// deployment that forgot NEXT_PUBLIC_USE_MOCK=false served fixtures to real
-// users while looking completely normal — the one failure mode this project
-// cannot afford, on the one variable nobody remembers to set. Now a build with
-// no configuration talks to the real API and fails loudly if it is absent.
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== 'false'; // default: mock enabled
 
 let authToken: string | null = null;
 
@@ -64,18 +59,11 @@ async function request<T>(
 // ── API Methods ──
 
 export const api = {
-  // Email Verification
-  requestEmailVerification: (data: { email: string; purpose: string; role?: string }) =>
-    request<import('./types').EmailOtpChallengeResponse>('POST', '/email-verification/request', data, { noAuth: true }),
-
-  verifyEmailOtp: (data: { challenge_id: string; email: string; code: string }) =>
-    request<import('./types').EmailOtpVerifyResponse>('POST', '/email-verification/verify', data, { noAuth: true }),
-
   // Auth — step 1 (password) returns an OTP challenge; step 2 verifies it.
-  login: (credentials: { identifier: string; password?: string; role?: string; email_verification_token?: string }) =>
+  login: (credentials: { identifier: string; password: string; role?: string }) =>
     request<OtpChallengeResponse>('POST', '/auth/login', credentials, { noAuth: true }),
 
-  verifyOtp: (data: { challenge_id: string; code: string; email_verification_token?: string }) =>
+  verifyOtp: (data: { challenge_id: string; code: string }) =>
     request<AuthResponse>('POST', '/auth/verify-otp', data, { noAuth: true }),
 
   me: () => request<ApiResponse<import('./types').User>>('GET', '/auth/me'),

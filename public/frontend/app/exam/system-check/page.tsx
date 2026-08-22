@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import DemoBanner from '@/components/marketing/DemoBanner';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import styles from './system-check.module.css';
@@ -124,7 +123,6 @@ export default function SystemCheckPage() {
 
   return (
     <div className={styles.page}>
-      <DemoBanner />
       <div className={styles.card}>
         <div className={styles.header}>
           <h1 className={styles.title}>System Compatibility Check</h1>
@@ -137,10 +135,10 @@ export default function SystemCheckPage() {
           {checks.map(check => (
             <div key={check.id} className={styles.checkItem}>
               <div className={styles.checkIcon}>
-                {check.status === 'pending' && <span style={{ color: '#939084' }}>…</span>}
+                {check.status === 'pending' && <span style={{ color: '#9ca3af' }}>…</span>}
                 {check.status === 'running' && <span className={styles.statusSpinner} />}
-                {check.status === 'passed' && <span style={{ color: '#3f6f4a' }}>✓</span>}
-                {check.status === 'failed' && <span style={{ color: '#9b2226' }}>✗</span>}
+                {check.status === 'passed' && <span style={{ color: '#16a34a' }}>✓</span>}
+                {check.status === 'failed' && <span style={{ color: '#dc2626' }}>✗</span>}
               </div>
               <div className={styles.checkDetails}>
                 <div className={styles.checkName}>{check.name}</div>

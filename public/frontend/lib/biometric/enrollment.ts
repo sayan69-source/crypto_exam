@@ -22,7 +22,6 @@ const KEY = 'cryptoexam_invigilator_enrollments';
 export interface InvigilatorEnrollment {
   staffId: string;                 // email — the lookup key
   fullName: string;
-  centerId: string;
   faceDescriptor: number[];        // 128 floats
   faceDetectionScore: number;
   fingerprint: FingerprintCredential | null;
@@ -30,8 +29,6 @@ export interface InvigilatorEnrollment {
   ipSource: string;
   userAgent: string;
   registeredAt: string;
-  emailVerified?: boolean;
-  emailVerifiedAt?: string | null;
 }
 
 type Store = Record<string, InvigilatorEnrollment>;

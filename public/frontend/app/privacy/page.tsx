@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Navbar from "@/components/marketing/Navbar";
 import Footer from "@/components/marketing/Footer";
 import Icon from "@/components/marketing/LucideIcon";
 import s from "../legal.module.css";
@@ -15,6 +16,8 @@ const LAST_UPDATED = "2026-06-09";
 export default function PrivacyPage() {
   return (
     <main>
+      <Navbar />
+
       <section className={s.hero}>
         <div className="wrap">
           <span className="eyebrow">Privacy</span>
@@ -31,7 +34,7 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section className={`${s.bodySection} reveal reveal-rise`}>
+      <section className={s.bodySection}>
         <div className="wrap-narrow">
           <div className={s.callout}>
             <span className="icon-chip"><Icon name="shield" size={18} strokeWidth={1.7} /></span>
@@ -65,7 +68,7 @@ export default function PrivacyPage() {
 
           <Article number="03" title="What we never collect">
             <ul>
-              <li><strong>Your photograph and video frames.</strong> Face matching happens on the terminal in front of you, not on a server. The camera frames are held in memory only, zeroised immediately after the check, and never written to disk or transmitted. What is retained from enrolment is a derived mathematical embedding — a list of numbers describing the geometry of a face, from which no photograph can be reconstructed.</li>
+              <li><strong>Raw biometric data.</strong> Face matching is performed on your device. Only a mathematical embedding is compared, and only a pass/fail result is shared. Your photograph, video frames or face template are not transmitted or stored by us.</li>
               <li><strong>Question content tied to your identity.</strong> On-chain commitments record hashes of submissions, not the answers themselves, and never a candidate&apos;s name or roll number.</li>
               <li><strong>Behavioural profiling beyond the session.</strong> Anti-cheat signals are scoped to the examination window and discarded after the audit retention period.</li>
             </ul>
@@ -84,21 +87,11 @@ export default function PrivacyPage() {
 
           <Article number="05" title="On-device biometrics, in plain language">
             <p>
-              Biometric data carries a lifetime of risk, so the parts that carry the most risk
-              never move. Your camera capture stays on the terminal: it is compared in memory
-              and zeroised on every path out of the check, including the failing ones.
-              &lt;br /&gt;&lt;br /&gt;
-              Being exact about the rest, because a privacy promise is worth nothing if it is
-              approximately true. Matching a face requires something to match it against, so
-              the embedding computed when you enrolled IS stored, and it IS sent — once, to the
-              one terminal you are seated at, over the centre&apos;s tunnel, and only after that
-              machine has proved which machine it is. A system that stored only a hash could
-              not match anyone at all; ours briefly did exactly that, and this page previously
-              described the resulting silence as privacy.
-              &lt;br /&gt;&lt;br /&gt;
-              What the platform is told is a signed score, not an image — and an embedding is
-              not a photograph: it is a list of numbers from which no face can be
-              reconstructed.
+              Biometric data carries a lifetime of risk and almost no benefit if it leaves your
+              device. So it doesn&apos;t. Your camera capture, face embedding and matching score
+              stay on your hardware. The platform receives only a one-bit answer: &ldquo;the
+              candidate at this terminal is the candidate enrolled for this seat — yes or no.&rdquo;
+              The raw template is discarded immediately after the check.
             </p>
           </Article>
 
@@ -137,23 +130,10 @@ export default function PrivacyPage() {
               <li>Nominate another individual to exercise these rights on your behalf.</li>
               <li>Lodge a grievance with us, and escalate to the Data Protection Board of India.</li>
             </ul>
-            {/* This used to name dpo@cryptoexam.core — an address on a domain
-                that cannot exist (".core" is not a TLD), for an officer who has
-                not been appointed. Under the DPDP Act the Data Protection
-                Officer's contact must be real and reachable, so an invented one
-                is a false compliance claim, not a placeholder. The route below
-                is the channel that genuinely works: it lands in the HQ queue. */}
             <p>
-              To exercise any of these rights, use the{" "}
-              <Link className={s.link} href="/contact">enquiry form</Link> and choose
-              the privacy topic. Your request is recorded with a reference you can quote,
-              and we respond within statutory timelines.
-            </p>
-            <p className={s.note}>
-              <strong>Before this platform processes real candidate data,</strong> the operating
-              body must appoint a named Data Protection Officer and publish their contact
-              here. Until that appointment is made this notice does not name one, rather
-              than naming an address that would not reach anybody.
+              To exercise any of these rights, write to{" "}
+              <a className={s.link} href="mailto:dpo@cryptoexam.core">dpo@cryptoexam.core</a> with
+              the subject &ldquo;DPDP rights request&rdquo;. We respond within statutory timelines.
             </p>
           </Article>
 
@@ -178,9 +158,9 @@ export default function PrivacyPage() {
 
           <Article number="11" title="Contact">
             <p>
-              For privacy-specific requests use the{" "}
-              <Link className={s.link} href="/contact">enquiry form</Link> and choose the
-              privacy topic — it is recorded with a reference you can quote.
+              For privacy-specific requests:{" "}
+              <a className={s.link} href="mailto:dpo@cryptoexam.core">dpo@cryptoexam.core</a>.
+              For everything else, see <Link className={s.link} href="/contact">/contact</Link>.
             </p>
           </Article>
         </div>

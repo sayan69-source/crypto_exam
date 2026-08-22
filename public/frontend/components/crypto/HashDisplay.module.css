@@ -36,7 +36,7 @@
 }
 
 .dark .hash {
-  background: rgba(255, 254, 251, 0.08);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-navy-200);
 }
 
@@ -64,4 +64,4 @@
 .light .btn:hover { background: var(--color-navy-50); }
 
 .dark .btn { color: var(--color-navy-300); }
-.dark .btn:hover { background: rgba(255, 254, 251,0.1); }
+.dark .btn:hover { background: rgba(255,255,255,0.1); }

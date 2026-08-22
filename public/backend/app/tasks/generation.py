@@ -63,8 +63,6 @@ def run_generation_pipeline(config_dict: dict[str, Any]) -> dict:
         final_status = orchestrator.run()
         _pipeline_statuses[exam_id] = final_status
 
-        persisted = _persist_accepted_questions(exam_id, final_status)
-
         return {
             "exam_id": exam_id,
             "status": "complete",
@@ -72,7 +70,6 @@ def run_generation_pipeline(config_dict: dict[str, Any]) -> dict:
             "total_rejected": final_status.total_rejected,
             "total_slots": final_status.total_slots,
             "completed_slots": final_status.completed_slots,
-            "persisted": persisted,
         }
     except Exception as e:
         logger.error(f"Pipeline failed for {exam_id}: {e}")
@@ -80,121 +77,6 @@ def run_generation_pipeline(config_dict: dict[str, Any]) -> dict:
         _pipeline_statuses[exam_id].error = str(e)
         _publish_event(exam_id, "error", {"message": str(e)})
         raise
-
-
-def _persist_accepted_questions(exam_id: str, status: PipelineStatus) -> int:
-    """
-    Write the pipeline's accepted questions into the exam.
-
-    Without this the run was a light show: the agents produced, scored and
-    balanced questions entirely in memory, the SSE stream narrated it, and then
-    every one of them was dropped when the thread ended. The exam stayed empty,
-    so `generate-zk`, `seal`, `lock` and delivery all refused it — the whole
-    lifecycle was reachable only for exams the seeder had written rows for.
-
-    Runs on its own event loop and session because the caller is a plain thread,
-    not the request's async context. Returns the number of rows written; a
-    failure here is logged and swallowed, since losing the questions must not
-    also lose the status the UI is streaming.
-    """
-    import asyncio
-    import os
-    from datetime import datetime, timezone
-    from uuid import UUID
-
-    from app.agents.models import QuestionStatus
-
-    accepted = [
-        q
-        for slot in status.slots
-        for q in slot.questions
-        if q.status == QuestionStatus.ACCEPTED
-    ]
-    if not accepted:
-        logger.warning("Generation for %s accepted nothing — nothing to persist", exam_id)
-        return 0
-
-    try:
-        exam_uuid = UUID(exam_id)
-    except ValueError:
-        logger.warning(
-            "Generation ran for %r, which is not an exam id — questions not persisted", exam_id
-        )
-        return 0
-
-    async def _write() -> int:
-        from sqlalchemy import delete, select
-
-        from app.database import async_session
-        from app.models import Exam, ExamStatus, Question, QuestionSource
-
-        async with async_session() as db:
-            exam = (await db.execute(select(Exam).where(Exam.id == str(exam_uuid)))).scalar_one_or_none()
-            if exam is None:
-                logger.warning("No exam %s to attach %d questions to", exam_id, len(accepted))
-                return 0
-
-            # A re-run replaces the previous attempt rather than stacking a
-            # second paper on top of the first.
-            await db.execute(delete(Question).where(Question.exam_id == str(exam_uuid)))
-
-            # Label provenance honestly. With USE_MOCK_LLM (the default) the
-            # "generated" items come from a curated demo bank, which is a human
-            # authoring them — recording that as AI_GENERATED would make the
-            # 6-agent claim rest on questions no model ever wrote.
-            from app.agents.generator import USE_MOCK_LLM
-
-            source = QuestionSource.MANUAL_UPLOAD if USE_MOCK_LLM else QuestionSource.AI_GENERATED
-            model_label = (
-                "demo-question-bank (USE_MOCK_LLM=true — no model produced these)"
-                if USE_MOCK_LLM
-                else os.getenv("LLM_MODEL", "llm")
-            )
-
-            per_set: dict[str, int] = {}
-            for scored in accepted:
-                gq = scored.question
-                set_label = (gq.set_id or "A")[:1]
-                per_set[set_label] = per_set.get(set_label, 0) + 1
-                db.add(
-                    Question(
-                        exam_id=str(exam_uuid),
-                        set_label=set_label,
-                        sequence_number=per_set[set_label],
-                        text=gq.text,
-                        text_hi=gq.text_hi,
-                        options=gq.options,
-                        options_hi=gq.options_hi,
-                        correct_option=gq.correct_option,
-                        subject=gq.subject,
-                        topic=gq.topic,
-                        ncert_reference=gq.ncert_chapter,
-                        blooms_level=int(scored.blooms.level),
-                        irt_b=scored.irt.b,
-                        irt_a=scored.irt.a,
-                        irt_c=scored.irt.c,
-                        source=source,
-                        generation_model=model_label,
-                        is_accepted=True,
-                    )
-                )
-
-            # The paper now exists, so the exam is no longer a DRAFT — this is
-            # the transition the seal/lock steps gate on.
-            if exam.status in (ExamStatus.DRAFT, ExamStatus.GENERATING):
-                exam.status = ExamStatus.GENERATING
-            exam.updated_at = datetime.now(timezone.utc)
-
-            await db.commit()
-            return len(accepted)
-
-    try:
-        written = asyncio.run(_write())
-        logger.info("Persisted %d accepted questions for exam %s", written, exam_id)
-        return written
-    except Exception as exc:  # noqa: BLE001 — never lose the status over this
-        logger.error("Could not persist generated questions for %s: %s", exam_id, exc)
-        return 0
 
 
 def get_pipeline_status(exam_id: str) -> PipelineStatus | None:

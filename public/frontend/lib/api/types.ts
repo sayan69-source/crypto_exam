@@ -33,13 +33,12 @@ export type BlockchainTxStatus = 'confirmed' | 'pending' | 'unconfirmed' | 'fail
 
 export type BloomsLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
-export type PaperCreationMode = 'DIRECT_UPLOAD' | 'AI_EDITED' | 'AI_GENERATED';
 
 export type DifficultyLevel = 'EASY' | 'MEDIUM' | 'HARD';
 
 export type InstitutionTier = 'PREMIER_VERIFIED' | 'GOVERNMENT' | 'STANDARD';
 
-// ── Paper Modes Entities ──
+// ── Setter Entities ──
 
 export interface TrustedInstitution {
   id: string;
@@ -71,14 +70,6 @@ export interface SetterMetadata {
   institution_leak_incidents: number;
 }
 
-export interface AIEditConfig {
-  difficulty: DifficultyLevel;
-  edit_percentage: number; // 20, 50, or 80
-  preserve_topics: boolean;
-  preserve_marks: boolean;
-  rephrase_options: boolean;
-  add_new_questions: boolean;
-}
 
 export interface PYQUpload {
   id: string;
@@ -138,7 +129,6 @@ export interface Exam {
   negative_marking: number;
   total_marks: number;
   instructions_text?: string;
-  irt_config: IRTConfig;
   blooms_config: BloomsConfig;
   question_hash?: string;
   zk_proof_hash?: string;
@@ -164,13 +154,6 @@ export interface SubjectConfig {
   question_count: number;
 }
 
-export interface IRTConfig {
-  target_mean_b: number;
-  target_std_b: number;
-  min_a: number;
-  max_c: number;
-  tolerance: number;
-}
 
 export interface BloomsConfig {
   targets: Record<string, number>; // level -> percentage
@@ -189,9 +172,6 @@ export interface Question {
   subject: string;
   topic: string;
   blooms_level: BloomsLevel;
-  irt_b: number;
-  irt_a: number;
-  irt_c: number;
   source: QuestionSource;
   is_accepted: boolean;
 }
@@ -367,17 +347,4 @@ export interface OtpChallengeResponse {
   delivery: 'sms' | 'dev';
   ttl_seconds: number;
   dev_code?: string; // only present in dev (no SMS gateway configured)
-}
-
-export interface EmailOtpChallengeResponse {
-  challenge_id: string;
-  expires_in: number;
-  resend_after: number;
-  dev_code?: string;
-}
-
-export interface EmailOtpVerifyResponse {
-  verified: boolean;
-  verification_token: string;
-  expires_in: number;
 }

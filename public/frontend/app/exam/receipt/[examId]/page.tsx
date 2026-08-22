@@ -5,27 +5,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
 import { mockReceipt, mockExams } from '@/lib/api/mock-data';
 import HashDisplay from '@/components/crypto/HashDisplay';
 import styles from './receipt.module.css';
 
 export default function ReceiptPage() {
-  // Next 16: read dynamic params with useParams() in a client component —
-  // synchronous `params.x` access silently falls back here.
-  const { examId } = useParams<{ examId: string }>();
   const receipt = mockReceipt;
   const [showProof, setShowProof] = useState(false);
-  const [shared, setShared] = useState<string | null>(null);
 
   return (
     <div className={styles.page}>
       <div className={styles.receipt}>
-        <p className={`${styles.specimen} no-print`}>
-          <strong>Specimen receipt.</strong> This shows the shape and the proof fields of a
-          real receipt. A candidate&rsquo;s own receipt is issued by their exam terminal at
-          submission and carries their Merkle leaf and the centre node&rsquo;s signature.
-        </p>
         {/* Tricolour header */}
         <div className={styles.tricolour}>
           <div className={styles.saffron} />
@@ -193,42 +183,9 @@ export default function ReceiptPage() {
         {/* Download buttons */}
         <div className={`${styles.downloadRow} no-print`}>
           <button className={styles.downloadBtn} onClick={() => window.print()}>Print Receipt (A4)</button>
-          {/* These two used to be decorative. A receipt whose "export" and
-              "share" do nothing is worse than one with neither — a candidate
-              believes they have kept a copy. */}
-          <button
-            className={styles.downloadBtn}
-            onClick={() => {
-              const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `cryptoexam-receipt-${examId}.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            Export JSON Proof
-          </button>
-          <button
-            className={styles.downloadBtn}
-            onClick={async () => {
-              const url = window.location.href;
-              try {
-                await navigator.clipboard.writeText(url);
-                setShared('Verification link copied to your clipboard.');
-              } catch {
-                // Clipboard needs a secure context and permission; falling back
-                // to showing the URL beats a button that appears to do nothing.
-                setShared(url);
-              }
-              setTimeout(() => setShared(null), 4000);
-            }}
-          >
-            Share Link
-          </button>
+          <button className={styles.downloadBtn}>Export JSON Proof</button>
+          <button className={styles.downloadBtn}>Share Link</button>
         </div>
-        {shared && <p className={`${styles.sharedNote} no-print`} role="status">{shared}</p>}
       </div>
     </div>
   );

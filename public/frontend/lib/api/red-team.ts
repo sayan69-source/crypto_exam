@@ -1,6 +1,6 @@
 /**
  * CryptoExam Core — V3 §4.3 Red-Team API client.
- * POST /api/v1/question-modes/red-team with mock fallback.
+ * Red-team adversarial review with mock fallback.
  */
 
 import { getAuthToken, USE_MOCK } from './client';

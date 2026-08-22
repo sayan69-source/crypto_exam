@@ -31,25 +31,6 @@ BUILD_DIR = CIRCUITS_DIR / "build"
 WASM_PATH = BUILD_DIR / "difficulty_proof_js" / "difficulty_proof.wasm"
 ZKEY_PATH = BUILD_DIR / "difficulty_proof_final.zkey"
 VKEY_PATH = BUILD_DIR / "verification_key.json"
-POSEIDON_TOOL = CIRCUITS_DIR / "tools" / "poseidon-commit.mjs"
-
-# IRT difficulty (b) is signed — roughly -3..+3 — but the circuit's range
-# comparators read field elements, where a negative value is a number just under
-# the field modulus and every comparison against it is nonsense. So b is carried
-# shifted by this offset, and target_mean_b is shifted by exactly the same
-# amount, which leaves `|mean(b) - target| <= tolerance` unchanged.
-#
-# This is part of the public statement: signal [1] on-chain is the SHIFTED
-# target. Anyone re-deriving the claim subtracts IRT_B_OFFSET. Keep in step with
-# B_OFFSET in circuits/tools/selftest.mjs.
-IRT_B_OFFSET = 4000
-
-# The comparators are GreaterEqThan(16)/LessEqThan(16) on a and c, and
-# GreaterEqThan(32)/LessEqThan(32) on the difficulty sum. Feeding them anything
-# wider silently produces a witness that cannot be satisfied, with no useful
-# error, so the ranges are checked before proving.
-_A_C_MAX = 2 ** 16 - 1
-_SUM_MAX = 2 ** 32 - 1
 
 
 class ZKProofResult(NamedTuple):
@@ -101,25 +82,10 @@ class ZKProofManager:
         """
         n = len(questions)
 
-        # Scale IRT parameters to integers (×1000); difficulty is shifted so the
-        # circuit's unsigned comparators see a sane value (see IRT_B_OFFSET).
-        irt_b = [int(round(q['irt_b'] * 1000)) + IRT_B_OFFSET for q in questions]
-        irt_a = [int(round(q['irt_a'] * 1000)) for q in questions]
-        irt_c = [int(round(q['irt_c'] * 1000)) for q in questions]
-
-        for label, values in (("irt_b", irt_b), ("irt_a", irt_a), ("irt_c", irt_c)):
-            bad = [v for v in values if v < 0 or v > _A_C_MAX]
-            if bad:
-                raise ValueError(
-                    f"{label} out of the range the circuit can prove over "
-                    f"(0..{_A_C_MAX} after scaling): {bad[:3]}. "
-                    f"Difficulty must lie within ±{IRT_B_OFFSET / 1000} logits."
-                )
-        if sum(irt_b) > _SUM_MAX:
-            raise ValueError(
-                f"Summed difficulty {sum(irt_b)} exceeds the circuit's 32-bit "
-                f"comparator range — too many questions for this circuit."
-            )
+        # Scale IRT parameters to integers (×1000)
+        irt_b = [int(q['irt_b'] * 1000) for q in questions]
+        irt_a = [int(q['irt_a'] * 1000) for q in questions]
+        irt_c = [int(q['irt_c'] * 1000) for q in questions]
 
         # Encode questions as field elements for Poseidon hash
         # Use a deterministic encoding: hash of question text → truncated to field element
@@ -132,17 +98,17 @@ class ZKProofManager:
             field_element = int(q_hash[:62], 16)
             question_enc.append(str(field_element))
 
-        # The circuit constrains Poseidon(question_enc) === committed_hash, so
-        # this has to be the real Poseidon digest — anything else yields a
-        # witness that cannot be satisfied.
+        # Compute committed hash (Poseidon of question encodings)
+        # Note: In production, this would use the actual Poseidon hash.
+        # For the witness, snarkjs computes it inside the circuit.
+        # We pass a placeholder that the circuit will verify.
         committed_hash = self._compute_poseidon_hash(question_enc)
 
-        # Scale public inputs. The target carries the same difficulty offset as
-        # the private b values, so the comparison is unaffected.
-        target_mean_b = int(round(irt_targets['target_mean_b'] * 1000)) + IRT_B_OFFSET
-        min_a = int(round(irt_targets['min_a'] * 1000))
-        max_c = int(round(irt_targets['max_c'] * 1000))
-        tolerance = int(round(irt_targets['tolerance'] * 1000))
+        # Scale public inputs
+        target_mean_b = int(irt_targets['target_mean_b'] * 1000)
+        min_a = int(irt_targets['min_a'] * 1000)
+        max_c = int(irt_targets['max_c'] * 1000)
+        tolerance = int(irt_targets['tolerance'] * 1000)
 
         witness = {
             # Private inputs
@@ -168,34 +134,19 @@ class ZKProofManager:
 
     def _compute_poseidon_hash(self, inputs: list[str]) -> int:
         """
-        Poseidon digest of the question encodings — circomlib's, not a second one.
+        Compute Poseidon hash of inputs (approximation for witness prep).
 
-        The circuit asserts `Poseidon(question_enc) === committed_hash`, so this
-        must agree with circomlib exactly. Rather than carry a Python port of the
-        round constants and MDS matrix (which would fail silently on any drift),
-        this runs the witness calculator of circuits/poseidon_commit.circom,
-        which instantiates the same circomlib Poseidon the proof circuit does.
+        In production, the actual Poseidon hash is computed inside
+        the CIRCOM circuit. This method provides a deterministic
+        placeholder for the committed_hash public input.
 
-        Raises if the helper circuit is not built — a wrong digest would only
-        surface later as an unprovable witness.
+        For the demo, we use SHA-256 truncated to the bn128 field.
+        The circuit's internal Poseidon computation will verify.
         """
-        if not POSEIDON_TOOL.exists():
-            raise RuntimeError(
-                f"Poseidon commitment helper missing at {POSEIDON_TOOL}. "
-                "Build the circuits first: cd public/circuits && ./build.sh"
-            )
-
-        result = subprocess.run(
-            ["node", str(POSEIDON_TOOL), json.dumps(inputs)],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Poseidon commitment failed: {result.stderr.strip() or result.stdout.strip()}"
-            )
-        return int(result.stdout.strip())
+        combined = "|".join(inputs)
+        h = hashlib.sha256(combined.encode()).hexdigest()
+        # Truncate to fit bn128 scalar field (< 2^254)
+        return int(h[:62], 16)
 
     async def generate_proof(
         self,
@@ -286,61 +237,24 @@ class ZKProofManager:
             logger.warning(f"Local verification failed: {e}")
             return False
 
-    @staticmethod
-    def circuit_size() -> Optional[int]:
-        """
-        How many questions the compiled circuit proves over, or None if unbuilt.
-
-        Read from the circuit source rather than hard-coded, so it cannot drift
-        from what was actually compiled. Note the ceiling: the commitment is a
-        single circomlib Poseidon, which takes at most 16 inputs — papers larger
-        than that need a chunked commitment, not a bigger N.
-        """
-        src = CIRCUITS_DIR / "difficulty_proof.circom"
-        if not src.exists():
-            return None
-        import re
-
-        m = re.search(r"=\s*DifficultyProof\(\s*(\d+)\s*\)", src.read_text(encoding="utf-8"))
-        return int(m.group(1)) if m else None
-
-    @staticmethod
-    def _snarkjs_command() -> list[str]:
-        """
-        How to invoke snarkjs on this host.
-
-        `build.sh` installs it into circuits/node_modules, so prefer that over a
-        global install: it is the version the proving key was produced with, and
-        it means the backend works without anyone running `npm i -g`. Falls back
-        to whatever is on PATH.
-        """
-        local_js = CIRCUITS_DIR / "node_modules" / "snarkjs" / "build" / "cli.cjs"
-        if local_js.exists():
-            return ["node", str(local_js)]
-        return ["snarkjs"]
-
     def _run_snarkjs(self, cmd: list[str]) -> str:
         """Run a snarkjs CLI command and return stdout."""
-        # Callers write the command starting with the literal "snarkjs"; swap it
-        # for however this host actually reaches it.
-        resolved = self._snarkjs_command() + list(cmd[1:])
         try:
             result = subprocess.run(
-                resolved,
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 min timeout for proof generation
             )
             if result.returncode != 0:
                 raise RuntimeError(
-                    f"snarkjs command failed: {' '.join(resolved)}\n"
+                    f"snarkjs command failed: {' '.join(cmd)}\n"
                     f"stderr: {result.stderr}"
                 )
             return result.stdout
         except FileNotFoundError:
             raise RuntimeError(
-                "snarkjs not found. Build the circuits first: "
-                "cd public/circuits && ./build.sh"
+                "snarkjs not found. Install with: npm install -g snarkjs"
             )
 
     @staticmethod

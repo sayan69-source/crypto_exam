@@ -19,7 +19,7 @@ THE CHAIN OF CUSTODY (setter ──► chain ──► candidate)
 -----------------------------------------------------
   1. SEAL    — for each question i:  k_i = HKDF(masterSeed, info="q:"+id)
                sealed_i = AES-GCM-256(k_i, plaintext_i)
-               leaf_i   = SHA256(0x00 ‖ len-prefixed id, iv, ct, tag)
+               leaf_i   = SHA256(id ‖ iv ‖ ct ‖ tag)
                questionsRoot = MerkleRoot({leaf_i})
   2. COMMIT  — questionsRoot is committed on-chain (see services/blockchain.py
                → contract `lockExam`). The blockchain is the transfer ledger:
@@ -37,8 +37,7 @@ KEY-DERIVATION SCHEME (must match the WebCrypto implementation in
   masterSeed   = HKDF-SHA256(master=beacon, salt=hkdfSalt, info="cryptoexam:"+examId, L=32)
   questionKey  = HKDF-SHA256(master=masterSeed, salt=examId, info="cryptoexam:q:"+id, L=32)
   cipher       = AES-GCM-256, 12-byte IV, 16-byte tag
-  leaf         = SHA256(0x00 ‖ len‖id ‖ len‖iv ‖ len‖ct ‖ len‖tag)
-  node         = SHA256(0x01 ‖ left ‖ right)   (orphan promoted, not duplicated)
+  leaf         = SHA256(utf8(id) ‖ iv ‖ ct ‖ tag)
 
 INVARIANTS
   • The correct answer is NEVER part of a sealed question — grading material
@@ -59,8 +58,7 @@ from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import HKDF
 from Crypto.Hash import SHA256
 
-# NOTE: the question tree is built locally (build_question_tree), NOT with
-# crypto.merkle.build_tree — see that function's docstring for why.
+from crypto.merkle import build_tree, verify_inclusion
 
 # Fields a candidate is allowed to see. Everything else (correct_option,
 # rejection_reason, irt_*, internal flags) is stripped before sealing.
@@ -144,106 +142,21 @@ def unseal_one(sealed: dict, key: bytes) -> dict:
     return json.loads(plaintext.decode("utf-8"))
 
 
-# Domain tags for the question commitment. MUST match, byte for byte:
-#   private/edge-server/src/lib/question-seal.ts
-#   private/exam-terminal/lib/question-crypto.ts
-#   public/frontend/lib/exam/question-pipeline.ts
-# Four independent implementations of one scheme. That redundancy is deliberate
-# — the terminal must be able to check the sealer without sharing its code — but
-# it means a one-sided change silently breaks delivery across the public↔private
-# boundary, where nothing would notice until a candidate's paper was refused.
-LEAF_TAG = b"\x00"
-NODE_TAG = b"\x01"
-
-
-def _u32be(n: int) -> bytes:
-    return n.to_bytes(4, "big")
-
-
 def question_leaf(question_id: str, sealed: dict) -> bytes:
     """
     Merkle leaf binding the question id to its exact ciphertext.
 
-    leaf = SHA256(0x00 ‖ len(id)‖id ‖ len(iv)‖iv ‖ len(ct)‖ct ‖ len(tag)‖tag)
+    leaf = SHA256(utf8(id) ‖ iv ‖ ct ‖ tag)
 
     Any change to the delivered ciphertext changes the leaf, which breaks the
     inclusion proof against the on-chain root — tamper-evident delivery.
-
-    The length prefixes and the domain tag are not decoration. The previous
-    construction concatenated two VARIABLE-length fields with no separators:
-    sliding the id/iv boundary one byte and letting `ct` absorb it produced a
-    different, structurally valid question with the SAME leaf — so one inclusion
-    proof committed to more than one question, and `question_id` is what the
-    per-question key derives from. Untagged, a 64-byte leaf preimage was also
-    indistinguishable from an internal node (Merkle second preimage).
     """
     h = hashlib.sha256()
-    h.update(LEAF_TAG)
-    for part in (
-        question_id.encode("utf-8"),
-        bytes.fromhex(sealed["iv"]),
-        bytes.fromhex(sealed["ct"]),
-        bytes.fromhex(sealed["tag"]),
-    ):
-        h.update(_u32be(len(part)))
-        h.update(part)
+    h.update(question_id.encode("utf-8"))
+    h.update(bytes.fromhex(sealed["iv"]))
+    h.update(bytes.fromhex(sealed["ct"]))
+    h.update(bytes.fromhex(sealed["tag"]))
     return h.digest()
-
-
-def _hash_node(left: bytes, right: bytes) -> bytes:
-    return hashlib.sha256(NODE_TAG + left + right).digest()
-
-
-def build_question_tree(leaves: list[bytes]) -> tuple[bytes, dict[int, list[dict]]]:
-    """
-    Merkle tree over question leaves — separate from `crypto.merkle.build_tree`.
-
-    Two reasons it cannot reuse that function. First, `build_tree` pads to the
-    next power of two with ZERO leaves, while the private side promotes an odd
-    node; those produce different roots for any count that is not a power of
-    two, so the public sealer and the centre terminal disagreed about the root
-    of the very bundle being delivered. Second, `build_tree` also builds the
-    ANSWER tree, whose root is already committed on-chain for past exams —
-    changing it would invalidate those commitments.
-
-    An orphan is promoted unchanged rather than duplicated: `right = left` on an
-    odd level is CVE-2012-2459, under which [A,B,C] and [A,B,C,C] share a root.
-    """
-    if not leaves:
-        raise ValueError("Cannot build a question tree from an empty leaf list")
-
-    proofs: dict[int, list[dict]] = {i: [] for i in range(len(leaves))}
-    level = list(leaves)
-    idx_map: list[list[int]] = [[i] for i in range(len(leaves))]
-
-    while len(level) > 1:
-        nxt: list[bytes] = []
-        nxt_idx: list[list[int]] = []
-        for i in range(0, len(level), 2):
-            left, left_leaves = level[i], idx_map[i]
-            if i + 1 >= len(level):
-                nxt.append(left)
-                nxt_idx.append(list(left_leaves))
-                continue
-            right, right_leaves = level[i + 1], idx_map[i + 1]
-            for li in left_leaves:
-                proofs[li].append({"hash": right.hex(), "position": "right"})
-            for ri in right_leaves:
-                proofs[ri].append({"hash": left.hex(), "position": "left"})
-            nxt.append(_hash_node(left, right))
-            nxt_idx.append([*left_leaves, *right_leaves])
-        level, idx_map = nxt, nxt_idx
-
-    return level[0], proofs
-
-
-def verify_question_inclusion(leaf: bytes, proof: list[dict], root: bytes) -> bool:
-    """Walk a question inclusion proof. Mirrors the terminal's verifyInclusion."""
-    cur = leaf
-    for step in proof:
-        sib = bytes.fromhex(step["hash"])
-        cur = _hash_node(cur, sib) if step["position"] == "right" else _hash_node(sib, cur)
-    return cur == root
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -304,7 +217,7 @@ def seal_exam_questions(
         })
         leaves.append(leaf)
 
-    root, proofs = build_question_tree(leaves)
+    root, proofs = build_tree(leaves)
 
     items = []
     for idx, s in enumerate(sealed_list):
@@ -341,7 +254,7 @@ def open_question(
     # 1. integrity: does this exact ciphertext belong to the committed set?
     leaf = question_leaf(qid, bundle_item)
     root_bytes = bytes.fromhex(questions_root[2:] if questions_root.startswith("0x") else questions_root)
-    if not verify_question_inclusion(leaf, bundle_item["proof"], root_bytes):
+    if not verify_inclusion(leaf, bundle_item["proof"], root_bytes):
         raise ValueError(
             f"Question {qid[:8]}… is not part of the on-chain committed set "
             "(Merkle proof failed). Refusing to render a question the chain "

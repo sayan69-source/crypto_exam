@@ -127,4 +127,4 @@ template DifficultyProof(N) {
 // N=10 for demo (fast proof generation ~5-10 seconds)
 // Production: N=90 (JEE), N=180 (NEET), N=100 (SSC)
 component main { public [committed_hash, target_mean_b, min_a, max_c, tolerance] }
-    = DifficultyProof(6);
+    = DifficultyProof(10);

@@ -3,9 +3,7 @@ CryptoExam Core — §§ 49–62 (CC-SSS Module) cryptography primitives.
 
 This package adds Shamir's Secret Sharing over GF(p) and a simulated Nitro
 Enclave Exam Processor — both **additive** layers above the existing
-AES-GCM + HKDF + drand flow. No existing primitive in
-`app/services/question_modes/answer_key_crypto.py` or
-`lib/exam/paper-delivery.ts` is replaced or removed.
+AES-GCM + HKDF + drand flow.
 
 Use:
   - `shamir_sss.split_aes_key` / `reconstruct_aes_key` — proper Shamir SSS

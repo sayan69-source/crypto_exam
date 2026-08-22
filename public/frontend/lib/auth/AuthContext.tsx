@@ -110,13 +110,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace('/login');
       }
     } else if (session) {
-      // Public routes are open to everyone, including authenticated users.
-      // Without this exemption a sysadmin clicking the brand link to '/', or
-      // any route in the publicRoutes list, would silently have their session
-      // destroyed — making the login→dashboard transition fragile and the
-      // rest of the site unreachable while signed in.
-      if (isPublicRoute) return;
-
       // Check if user navigated outside their designated portal
       let allowedPrefixes: string[] = [];
       if (session.role === 'admin') allowedPrefixes = ['/admin'];

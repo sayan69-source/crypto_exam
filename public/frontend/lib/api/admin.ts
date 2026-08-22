@@ -4,7 +4,6 @@
  * to mock data: the admin console shows live backend state or an honest error.
  */
 import { getAuthToken } from './client';
-import { describeApiError } from './errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -16,7 +15,7 @@ async function get<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(describeApiError(body, res.status));
+    throw new Error(body.detail || body.message || `Request failed (${res.status})`);
   }
   return res.json();
 }
@@ -82,8 +81,6 @@ export interface StaffApproval {
   role: string;
   centreName: string | null;
   centreIdHash: string;
-  examName: string | null;
-  examYear: number | null;
   status: string;
   fingerprintAuthorised: boolean;
   createdAt: string | null;
@@ -99,35 +96,7 @@ async function post<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(describeApiError(body, res.status));
-  }
-  return res.json();
-}
-
-async function del<T>(path: string): Promise<T> {
-  const token = getAuthToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'DELETE',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(describeApiError(body, res.status));
-  return body as T;
-}
-
-async function patch<T>(path: string, body: unknown): Promise<T> {
-  const token = getAuthToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'PATCH',
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(describeApiError(err, res.status));
+    throw new Error(body.detail || body.message || `Request failed (${res.status})`);
   }
   return res.json();
 }
@@ -153,21 +122,14 @@ export interface DpdpResponse {
 export interface AdminCandidate {
   id: string;
   name: string;
-  email: string | null;
   state: string | null;
   rollNumber: string | null;
   setLabel: string | null;
   enrollmentStatus: string | null;
-  approvalStatus: string | null;     // Problem 2: PENDING | APPROVED | REJECTED
-  registrationYear: number | null;   // Problem 3
-  enrolledAt: string | null;         // Problem 3
   centreName: string | null;
   isActive: boolean;
-  isDemo?: boolean;
 }
-export interface AdminCandidatesResponse {
-  /** How many of the rows are seeded fixtures rather than real registrations. */
-  demoCount?: number; total: number; page: number; per_page: number; items: AdminCandidate[] }
+export interface AdminCandidatesResponse { total: number; page: number; per_page: number; items: AdminCandidate[] }
 
 export interface AdminCenter {
   id: string;
@@ -198,75 +160,6 @@ export interface BlockchainStatus {
   error?: string;
 }
 
-export type EnquiryStatus = 'NEW' | 'IN_REVIEW' | 'ANSWERED' | 'CLOSED';
-
-export interface Enquiry {
-  id: string;
-  reference: string;
-  fullName: string;
-  email: string;
-  phone: string | null;
-  organisation: string | null;
-  roleTitle: string | null;
-  topic: string;
-  message: string;
-  status: EnquiryStatus;
-  internalNote: string | null;
-  receivedAt: string | null;
-  handledAt: string | null;
-}
-
-export interface EnquiriesResponse {
-  total: number;
-  page: number;
-  per_page: number;
-  counts: Record<EnquiryStatus, number>;
-  items: Enquiry[];
-}
-
-export type ExamRequestStatus = 'SUBMITTED' | 'PENDING' | 'SYSADMIN_APPROVED' | 'ADMIN_APPROVED' | 'ACTIVE' | 'REJECTED' | 'WITHDRAWN';
-
-export interface ExamRequestItem {
-  id: string;
-  reference: string;
-  examName: string;
-  organisation: string;
-  contactName: string;
-  contactEmail: string;
-  proposedDate: string | null;
-  status: ExamRequestStatus;
-  sysadminApproved: boolean;
-  adminApproved: boolean;
-  rejectionReason: string | null;
-  examId: string | null;
-  locations: Array<{ name: string; city: string | null; state: string | null; capacity: number | null }>;
-  subjects: Array<{ name: string; code: string | null; compulsory: boolean }>;
-}
-
-export interface ExamRequestsResponse {
-  total: number;
-  page: number;
-  per_page: number;
-  items: ExamRequestItem[];
-}
-
-async function postWithBody<T>(path: string, body: unknown): Promise<T> {
-  const token = getAuthToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new Error(b.detail || b.message || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
-
 export const adminApi = {
   dashboard: () => get<AdminDashboard>('/admin/dashboard'),
   nodes: () => get<AdminNodesResponse>('/admin/nodes'),
@@ -281,30 +174,6 @@ export const adminApi = {
     get<{ pending: StaffApproval[] }>(`/admin/staff-approvals?role=${role}&include_resolved=${includeResolved}`),
   issueStaffCode: (id: string) =>
     post<{ ok: boolean; code: string; expiresAt: string; ttlMinutes: number }>(`/admin/staff-approvals/${id}/issue-code`),
-  purgeDemoData: () =>
-    del<{ ok: boolean; deleted: number; message: string }>('/admin/demo-data'),
   authoriseStaffFp: (id: string) =>
     post<{ ok: boolean }>(`/admin/staff-approvals/${id}/authorise-fp`),
-  // Enquiries from the public contact form. Before this existed the form
-  // discarded submissions in the browser, so nothing ever reached HQ.
-  enquiries: (status?: EnquiryStatus) =>
-    get<EnquiriesResponse>(`/admin/enquiries${status ? `?status_filter=${status}` : ''}`),
-  updateEnquiry: (id: string, status: EnquiryStatus, internalNote?: string) =>
-    patch<{ ok: boolean; reference: string; status: EnquiryStatus }>(
-      `/admin/enquiries/${id}`,
-      { status, internal_note: internalNote ?? null },
-    ),
-  // Problem 2: candidate approval
-  approveCandidate: (candidateId: string) =>
-    post<{ ok: boolean; approvalStatus: string; approvedAt: string }>(`/admin/candidates/${candidateId}/approve`),
-  rejectCandidate: (candidateId: string, rejectionReason: string) =>
-    postWithBody<{ ok: boolean; approvalStatus: string; rejectedAt: string }>(`/admin/candidates/${candidateId}/reject`, { rejection_reason: rejectionReason }),
-  
-  // Exam Requests
-  examRequests: (statusFilter?: string) =>
-    get<ExamRequestsResponse>(`/exam-requests${statusFilter ? `?status_filter=${statusFilter}` : ''}`),
-  approveExamRequest: (id: string) =>
-    post<{ ok: boolean; status: string; note: string }>(`/exam-requests/${id}/approve`),
-  rejectExamRequest: (id: string, reason: string) =>
-    postWithBody<{ ok: boolean; status: string }>(`/exam-requests/${id}/reject`, { reason }),
 };

@@ -60,7 +60,7 @@ export default function TransparencyLive() {
                 : "Public API unreachable — showing the published snapshot"
             }
           >
-            <span className="dot" style={{ background: live ? "#4f7f57" : "#b07d1a" }} />
+            <span className="dot" style={{ background: live ? "#3a9b6e" : "#b0791f" }} />
             {live ? "Live from public API" : "Published snapshot"}
           </span>
         </div>

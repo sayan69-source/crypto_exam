@@ -18,22 +18,16 @@ import { loadFaceApi, detectFace, type FaceDetectResult } from '@/lib/biometric/
 import { registerFingerprint, isPlatformAuthenticatorAvailable, type FingerprintCredential } from '@/lib/biometric/webauthn';
 import { getDeviceInfo, type DeviceInfo } from '@/lib/biometric/device';
 import { saveEnrollment, getEnrollment } from '@/lib/biometric/enrollment';
-import { staffApi, type Centre } from '@/lib/api/staff';
 import styles from '../invigilator.module.css';
 
-type Step = 'identity' | 'otp' | 'face' | 'fingerprint' | 'device' | 'done';
+type Step = 'identity' | 'face' | 'fingerprint' | 'device' | 'done';
 
 export default function InvigilatorRegisterPage() {
   const [step, setStep] = useState<Step>('identity');
   const [staffId, setStaffId] = useState('');
   const [fullName, setFullName] = useState('');
-  const [centerId, setCenterId] = useState('');
-  const [centres, setCentres] = useState<Centre[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [challengeId, setChallengeId] = useState('');
-  const [otp, setOtp] = useState('');
-
 
   // Face
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -48,11 +42,6 @@ export default function InvigilatorRegisterPage() {
 
   // Device
   const [device, setDevice] = useState<DeviceInfo | null>(null);
-
-  // Fetch centers on mount
-  useEffect(() => {
-    staffApi.centres().then(setCentres).catch(() => {});
-  }, []);
 
   // ── camera lifecycle for the face step ──────────────────────────────
   useEffect(() => {
@@ -112,55 +101,15 @@ export default function InvigilatorRegisterPage() {
   }
 
   // ── identity ────────────────────────────────────────────────────────
-  async function submitIdentity(e: React.FormEvent) {
+  function submitIdentity(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(staffId)) { setError('Enter a valid staff email.'); return; }
     if (fullName.trim().length < 2) { setError('Enter your full name.'); return; }
-    if (!centerId) { setError('Select an examination centre.'); return; }
     if (getEnrollment(staffId)) {
-      // Just a warning, let them continue
+      setError('This email is already enrolled on this device. You can re-enroll to overwrite — continue to update it.');
     }
-    
-    setBusy(true);
-    try {
-      // Call email verify request
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/auth/email/verify/request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: staffId })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to send OTP.');
-      setChallengeId(data.challenge_id);
-      setStep('otp');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (otp.length < 6) { setError('Enter 6-digit OTP.'); return; }
-    
-    setBusy(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/auth/email/verify/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ challenge_id: challengeId, code: otp })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Invalid OTP.');
-      setStep('face');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    setStep('face');
   }
 
   function proceedFromFace() {
@@ -198,7 +147,7 @@ export default function InvigilatorRegisterPage() {
     if (!face) { setError('Face not captured.'); setStep('face'); return; }
     setError(null);
     saveEnrollment({
-      staffId, fullName, centerId,
+      staffId, fullName,
       faceDescriptor: face.descriptor,
       faceDetectionScore: face.detectionScore,
       fingerprint,
@@ -206,8 +155,6 @@ export default function InvigilatorRegisterPage() {
       ipSource: device?.source ?? 'none',
       userAgent: device?.userAgent ?? 'unknown',
       registeredAt: new Date().toISOString(),
-      emailVerified: true,
-      emailVerifiedAt: new Date().toISOString(),
     });
     setStep('done');
   }
@@ -248,50 +195,10 @@ export default function InvigilatorRegisterPage() {
               <label className={styles.label}>Staff Email · कर्मचारी ईमेल</label>
               <input className={styles.input} type="email" value={staffId} onChange={(e) => setStaffId(e.target.value)} placeholder="you@centre.gov.in" />
             </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Examination Centre · परीक्षा केंद्र</label>
-              <select className={styles.input} value={centerId} onChange={(e) => setCenterId(e.target.value)}>
-                <option value="">{centres ? '— choose your centre —' : 'loading centres…'}</option>
-                {(centres ?? []).map((c) => (
-                  <option key={c.centerId} value={c.centerId}>
-                    {c.name}{c.state ? ` · ${c.state}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
             <button type="submit" className={`${styles.btnPrimary} ${styles.fullBtn}`}>Begin Enrollment →</button>
             <p style={{ marginTop: 14, fontSize: 13 }}>
               Already enrolled? <Link href="/invigilator/login" style={{ color: 'var(--color-navy-600)', fontWeight: 600 }}>Go to login</Link>
             </p>
-          </form>
-        )}
-
-        {/* OTP */}
-        {step === 'otp' && (
-          <form onSubmit={verifyOtp} className={styles.stepBody}>
-            <h3 className={styles.stepHeading}>Email Verification</h3>
-            <p className={styles.stepHint}>
-              We sent a 6-digit code to <strong>{staffId}</strong>. Enter it to verify your authenticity.
-            </p>
-            <div className={styles.field}>
-              <label className={styles.label}>OTP Code</label>
-              <input 
-                className={styles.input} 
-                type="text" 
-                value={otp} 
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
-                placeholder="123456" 
-                maxLength={6}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" className={styles.btnGhost} style={{ flex: 1 }} onClick={() => setStep('identity')}>
-                Back
-              </button>
-              <button type="submit" className={styles.btnPrimary} style={{ flex: 1 }} disabled={busy || otp.length < 6}>
-                {busy ? 'Verifying…' : 'Verify OTP →'}
-              </button>
-            </div>
           </form>
         )}
 
@@ -359,7 +266,7 @@ export default function InvigilatorRegisterPage() {
               <div style={{ textAlign: 'left', background: 'var(--color-navy-50)', borderRadius: 10, padding: 14, fontSize: 13, lineHeight: 2 }}>
                 <div><b>Public IP:</b> <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-navy-800)' }}>{device.ip}</span> <span style={{ color: 'var(--color-navy-400)' }}>(via {device.source})</span></div>
                 <div><b>Platform:</b> {device.platform}</div>
-                <div><b>Location:</b> {centres?.find(c => c.centerId === centerId)?.name || centerId}</div>
+                <div><b>Location:</b> CryptoExam Center New Delhi <span style={{ color: 'var(--color-navy-400)' }}>(hard-coded)</span></div>
               </div>
             )}
             <button className={`${styles.btnPrimary} ${styles.fullBtn}`} style={{ marginTop: 14 }} onClick={finish} disabled={busy}>

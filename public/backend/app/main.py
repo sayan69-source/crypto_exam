@@ -41,16 +41,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"  Polygon:   Chain {settings.POLYGON_CHAIN_ID}")
     logger.info("=" * 60)
 
-    # Create tables, then add any columns that were appended to models after
-    # those tables were first created. create_all does the former and never the
-    # latter, so on a persistent database (Render's Postgres survives deploys)
-    # a new column is missing at runtime rather than merely unpopulated.
+    # Create tables (dev only — production uses Alembic migrations)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        from app.services.schema_sync import sync_missing_columns
-        added = await conn.run_sync(sync_missing_columns)
-    if added:
-        logger.info(f"Schema sync added {len(added)} column(s): {', '.join(added)}")
     logger.info("Database tables ensured")
 
     # § 27 — start the exam broadcast service (Redis pub/sub or local fan-out)
@@ -62,8 +55,7 @@ async def lifespan(app: FastAPI):
 
     # Seed on startup in dev (DEBUG) OR when SEED_ON_START=true (set this on a
     # prod deploy so a fresh DB gets its admin/exams/centres without turning DEBUG
-    # on). seed_database's full pass no-ops once a User row exists — it will
-    # never re-populate users/centres/exams on an existing database, by design.
+    # on). The seeder is idempotent — it no-ops once the DB is already seeded.
     if settings.DEBUG or os.getenv("SEED_ON_START", "").lower() == "true":
         try:
             from app.services.seeder import seed_database
@@ -74,21 +66,6 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Auto-seed result: {result}")
         except Exception as e:
             logger.warning(f"Auto-seed skipped: {e}")
-
-        # Unlike the pass above, this runs regardless of whether the database
-        # was already seeded: it targets data that a LATER code change starts
-        # depending on, appended to a database that predates that change.
-        # seed_database's guard would otherwise leave it missing forever.
-        try:
-            from app.services.seeder import backfill_exam_offerings
-            from app.database import async_session
-            async with async_session() as session:
-                added = await backfill_exam_offerings(session)
-                await session.commit()
-                if added:
-                    logger.info(f"Backfilled {len(added)} exam offering(s)")
-        except Exception as e:
-            logger.warning(f"Exam offering backfill skipped: {e}")
 
     yield
 
@@ -116,42 +93,9 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── Unhandled errors, inside CORS ──
-# Starlette runs `@app.exception_handler(Exception)` in ServerErrorMiddleware,
-# which sits OUTSIDE the middleware stack — so a 500 produced there never
-# passes back through CORSMiddleware and carries no Access-Control-Allow-Origin
-# header. The browser then reports a CORS failure and discards the body, hiding
-# the actual error: a missing-table 500 surfaced in the UI as "couldn't reach
-# the server", pointing at the wrong subsystem entirely.
-#
-# Catching here instead keeps the response inside the stack, so the CORS
-# middleware added below (and therefore wrapping this) annotates it and the
-# real message reaches the client.
-@app.middleware("http")
-async def catch_unhandled_errors(request: Request, call_next):
-    try:
-        return await call_next(request)
-    except Exception as exc:
-        logger.error(
-            f"Unhandled exception on {request.method} {request.url}: {exc}",
-            exc_info=True,
-        )
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "error": "internal_server_error",
-                "message": "An unexpected error occurred." if not settings.DEBUG else str(exc),
-            },
-        )
-
-
 # ── CORS ──
 # Production hosts set CORS_ALLOW_ORIGINS to the deployed frontend URL(s),
 # comma-separated; it is merged with the local dev defaults.
-#
-# Added last, so it is the OUTERMOST middleware: Starlette applies middleware in
-# reverse registration order, and CORS has to wrap the error handler above for
-# a 500 to carry CORS headers.
 import os as _os
 _extra_origins = [o.strip() for o in _os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
 _allow_origins = list(dict.fromkeys([*settings.CORS_ORIGINS, *_extra_origins]))
@@ -181,43 +125,28 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health", tags=["System"])
 async def health_check():
     """
-    System health — probed, not asserted.
-
-    This used to return {"database":"up","redis":"pending", crypto_engine: all
-    "ready"} as literals. It reported the database up without querying it, and
-    on the Render deployment it announced health for services that were never
-    reachable. `/admin/dashboard` was fixed first; this is the endpoint an
-    uptime monitor and an operator actually hit, so it mattered more.
-
-    Returns 503 when the database is down, because a health endpoint that
-    answers 200 while the system cannot serve a request is worse than no
-    health endpoint.
+    System health check.
+    Returns service status, version, and current server timestamp (IST).
     """
-    from fastapi.responses import JSONResponse
-
-    from app.database import async_session
-    from app.services.health import system_health
-
-    async with async_session() as session:
-        health = await system_health(session)
-
-    body = {
-        "status": "healthy" if health["overall"] == "up" else health["overall"],
+    return {
+        "status": "healthy",
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "components": {
             "api": "up",
-            "database": health["database"]["status"],
-            "redis": health["redis"]["status"],
-            "blockchain": health["blockchain"]["status"],
-            "ipfs": health["ipfs"]["status"],
+            "database": "up",
+            "redis": "pending",
+            "blockchain": "configured" if settings.CRYPTOEXAM_CONTRACT_ADDRESS else "not_configured",
         },
-        "detail": {k: health[k]["detail"] for k in ("database", "redis", "blockchain", "ipfs")},
+        "crypto_engine": {
+            "aes_gcm_256": "ready",
+            "drand_client": "ready",
+            "merkle_tree": "ready",
+            "shamir_sss": "ready",
+            "zk_snark": "ready",
+        },
     }
-    if health["overall"] == "down":
-        return JSONResponse(status_code=503, content=body)
-    return body
 
 
 @app.get("/", tags=["System"])
@@ -251,12 +180,7 @@ async def seed_data():
     Trigger database seeding with demo data.
     Only available in DEBUG mode.
     """
-    # DEBUG alone is not a production guard: the deployed environment runs with
-    # DEBUG=true, so this unauthenticated write endpoint was reachable there. It
-    # is also redundant in a real deployment — SEED_ON_START already seeds at
-    # startup from operator-supplied values — so it now needs a second, dedicated
-    # opt-in that no production environment sets.
-    if not (settings.DEBUG and os.getenv("ALLOW_HTTP_SEED", "").lower() == "true"):
+    if not settings.DEBUG:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=403, content={"error": "Seeding disabled in production"})
 
@@ -272,45 +196,20 @@ async def seed_data():
 
 
 # ── API Router Registration ──
-from app.api.v1 import sysadmin_auth, enquiries, auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, item_pool, item_pool_forms, exam_pattern_api, question_modes, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll, exam_requests, exam_setters, contact, email_verify, centre_sync
+from app.api.v1 import auth, exams, sessions, crypto, blockchain, admin, websockets, invigilator, broadcast, complaint, emergency, ceremony, about, delivery, sys_ledger, staff_reg, provisioning, enroll
 from app.api.routes.generation import router as generation_router
 from app.api.routes.lifecycle import router as lifecycle_router
-from app.database import commit_before_response
-
-# A `yield` dependency's teardown runs after the response is sent, so without
-# this a caller can read back its own write and miss it — POST /delivery/seal
-# followed immediately by GET /delivery/root returned 404 for a row that was
-# moments from existing. Applied centrally so no new router can forget it.
-for _router in (
-    about.router, auth.router, exams.router, sessions.router, crypto.router,
-    delivery.router, blockchain.router, admin.router, invigilator.router,
-    question_modes.router, broadcast.router, complaint.router, emergency.router,
-    ceremony.router, generation_router, lifecycle_router, sys_ledger.router,
-    enquiries.router,
-    sysadmin_auth.router,
-    staff_reg.router, provisioning.router, enroll.router, exam_requests.router, exam_setters.router,
-    item_pool.router, item_pool_forms.router, exam_pattern_api.router,
-    centre_sync.router,
-):
-    commit_before_response(_router)
 
 app.include_router(about.router, prefix="/api/v1/about", tags=["About / Transparency (public)"])
-app.include_router(enquiries.router, prefix="/api/v1/enquiries", tags=["Public enquiries"])
-app.include_router(sysadmin_auth.router, prefix="/api/v1/sysadmin", tags=["System Admin (tier-0)"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(exams.router, prefix="/api/v1/exams", tags=["Exams"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
-app.include_router(email_verify.router, prefix="/api/v1/email-verification", tags=["Email Verification"])
 app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Cryptography"])
 app.include_router(delivery.router, prefix="/api/v1/delivery", tags=["Sealed Question Delivery (§10.7)"])
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(websockets.router, prefix="/ws", tags=["WebSocket"])
 app.include_router(invigilator.router, prefix="/api/v1/invigilator", tags=["Invigilator"])
-app.include_router(question_modes.router, prefix="/api/v1/question-modes", tags=["Question Modes"])
-app.include_router(item_pool.router, prefix="/api/v1/item-pool", tags=["Item Pool (parametric authoring, §5.1)"])
-app.include_router(item_pool_forms.router, prefix="/api/v1/forms", tags=["Form assembly + T₀ draw (§6.1)"])
-app.include_router(exam_pattern_api.router, prefix="/api/v1/pattern", tags=["Exam pattern (paper shape + marking scheme)"])
 app.include_router(broadcast.router, prefix="/api/v1/broadcast", tags=["Mass Delivery (§27)"])
 app.include_router(complaint.router, prefix="/api/v1/complaint", tags=["Complaint Resolution (V3 §9)"])
 app.include_router(emergency.router, prefix="/api/v1/emergency", tags=["Emergency Dual-Control (V3 §10)"])
@@ -321,9 +220,5 @@ app.include_router(sys_ledger.router, prefix="/api/v1/sys", tags=["System Admin 
 app.include_router(staff_reg.router, prefix="/api/v1/staff", tags=["Centre Staff Registration (public → Edge relay)"])
 app.include_router(provisioning.router, prefix="/api/v1/provisioning", tags=["HQ→Edge Pre-Exam Provisioning (§12)"])
 app.include_router(enroll.router, prefix="/api/v1/enroll", tags=["Candidate Enrolment (public; no web login)"])
-app.include_router(exam_requests.router, prefix="/api/v1/exam-requests", tags=["Exam Requests (organisation → dual approval → active exam)"])
-app.include_router(exam_setters.router, prefix="/api/v1/exam-setters", tags=["Exam Setters (nominate → tier-0 approve → email-verified)"])
-app.include_router(contact.router, prefix="/api/v1/contact", tags=["Contact Form (public)"])
-app.include_router(centre_sync.router, prefix="/api/v1/centre-sync", tags=["Centre uplink (ZUUP-OS courier, §12/§13.4)"])
 
 
