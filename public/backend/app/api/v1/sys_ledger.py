@@ -36,7 +36,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -408,3 +408,96 @@ async def open_received(
     await db.commit()
     logger.info("tier-0 opened %d sealed record(s); %d quarantined", opened, len(failed))
     return {"ok": True, "opened": opened, "failed": failed}
+
+
+class AnchorReceivedRequest(BaseModel):
+    """Anchor what a centre actually delivered, rather than what a caller types."""
+    examId: str
+    centreIdHash: str
+
+
+@router.post(
+    "/ledger/anchor-received",
+    summary="Anchor a delivered centre's answer-root, derived from storage (tier-0)",
+    description="Re-walks the stored chain for one (exam, centre) and anchors ITS "
+    "final root. Roots, counts and hashes only — never a roll, a name or ciphertext.",
+)
+async def anchor_received(
+    req: AnchorReceivedRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+):
+    """
+    The difference from ``/ledger/anchor`` is where the number comes from.
+
+    That route takes ``answerRoot`` from the request body, which was the only
+    option while a bundle existed nowhere but in the caller's clipboard. It means
+    the value published on a public chain — the one an auditor later checks a
+    centre's paper against — is whatever the operator pasted. Now that the
+    courier delivers into ``centre_sealed_records``, HQ can derive it: re-walk
+    the chain it received and anchor the root that walk produces.
+
+    A broken chain therefore cannot be anchored at all, rather than being
+    anchored under a root that describes a different set of answers.
+
+    One anchor per (exam, centre): the contract reverts a second attempt, so this
+    route does not need to guard against a re-anchor and deliberately does not
+    pretend to — a revert is the honest answer.
+    """
+    from app.models import CentreSealedRecord, DecryptedAnswerRecord
+    from app.services.blockchain import BlockchainService
+
+    rows = (await db.execute(
+        select(CentreSealedRecord)
+        .where(CentreSealedRecord.exam_id == req.examId,
+               CentreSealedRecord.centre_id_hash == req.centreIdHash)
+        .order_by(CentreSealedRecord.leaf_index)
+    )).scalars().all()
+    if not rows:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "NOTHING_RECEIVED_FOR_THIS_CENTRE")
+
+    # Re-walk before publishing. INV-9 applies harder here than anywhere else:
+    # an anchor is irreversible and public.
+    _verify_chain([ExportRecord(
+        examId=r.exam_id, seatNo=r.seat_no, leafIndex=r.leaf_index, leaf=r.leaf,
+        prevRoot=r.prev_root, chainRoot=r.chain_root, nodeRootSig=r.node_root_sig,
+        ciphertext=r.ciphertext, iv=r.iv, authTag=r.auth_tag, wrappedDk=r.wrapped_dk,
+    ) for r in rows])
+
+    final = rows[-1]
+    node_pubkeys = {r.node_pubkey for r in rows if r.node_pubkey}
+    if len(node_pubkeys) > 1:
+        # Two different centre nodes signing one chain is not a chain. Refuse
+        # rather than pick one and publish a root nobody can attribute.
+        raise HTTPException(status.HTTP_409_CONFLICT, "MULTIPLE_NODE_KEYS_IN_ONE_CHAIN")
+
+    anchor = AnchorRequest(
+        examId=req.examId,
+        centreIdHash=req.centreIdHash,
+        answerRoot=final.chain_root,
+        count=len(rows),
+        nodePubkey=next(iter(node_pubkeys), ""),
+    )
+    _assert_no_pii(anchor)
+
+    tx = await BlockchainService().anchor_centre_answer_root(
+        exam_id=anchor.examId,
+        centre_id_hash=anchor.centreIdHash,
+        answer_root=anchor.answerRoot,
+        count=anchor.count,
+        node_pubkey=anchor.nodePubkey,
+    )
+
+    # Record it against the answers this root covers, so a result can be traced
+    # to the transaction that published its chain.
+    await db.execute(
+        update(DecryptedAnswerRecord)
+        .where(DecryptedAnswerRecord.exam_id == req.examId,
+               DecryptedAnswerRecord.centre_id_hash == req.centreIdHash)
+        .values(polygon_tx=tx, chain_root=final.chain_root)
+    )
+    await db.commit()
+
+    logger.info("anchored centre %s exam %s root %s count %d tx %s",
+                req.centreIdHash[:12], req.examId, final.chain_root[:16], len(rows), tx)
+    return {"ok": True, "tx": tx, "answerRoot": final.chain_root, "count": len(rows)}

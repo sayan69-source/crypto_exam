@@ -58,7 +58,7 @@ from app.api.v1.sys_ledger import (
 )
 from app.config import get_settings
 from app.database import get_db
-from app.models import Center, CentreSealedRecord, UserRole
+from app.models import Center, CentreSealedRecord, DecryptedAnswerRecord, UserRole
 from app.services.auth import require_role
 
 logger = logging.getLogger(__name__)
@@ -418,12 +418,25 @@ async def received(
         q = q.where(CentreSealedRecord.exam_id == exam_id)
     rows = (await db.execute(q)).scalars().all()
 
+    # Which (exam, centre) pairs have had their root published. Read from the
+    # decrypted rows because that is where the anchoring route records the tx —
+    # the console otherwise offers "Anchor" forever on a chain already on Polygon,
+    # and the only feedback is the contract's revert.
+    anchored: dict[tuple[str, str], str] = {}
+    for exam, centre_hash, tx in (await db.execute(
+        select(DecryptedAnswerRecord.exam_id, DecryptedAnswerRecord.centre_id_hash,
+               DecryptedAnswerRecord.polygon_tx)
+        .where(DecryptedAnswerRecord.polygon_tx.is_not(None))
+    )).all():
+        anchored[(centre_hash, exam)] = tx
+
     by_centre: dict[tuple[str, str], dict[str, Any]] = {}
     for r in rows:
         k = (r.centre_id_hash, r.exam_id)
         b = by_centre.setdefault(k, {
             "centreIdHash": r.centre_id_hash, "examId": r.exam_id,
             "count": 0, "decrypted": 0, "firstReceivedAt": None, "lastReceivedAt": None,
+            "anchorTx": anchored.get(k),
         })
         b["count"] += 1
         if r.decrypted_at:

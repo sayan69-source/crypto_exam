@@ -412,3 +412,85 @@ def test_open_turns_arrived_ciphertext_into_stored_answers():
         assert asyncio.run(go())["opened"] == 0
     finally:
         app.config.get_settings = saved
+
+
+# ── anchoring what arrived, not what was typed ──────────────────────────────
+def test_the_anchored_root_is_derived_from_storage_not_from_the_caller():
+    """The value published on a public chain must describe the answers HQ holds.
+
+    `/ledger/anchor` takes `answerRoot` from the request body, which was the only
+    option while a bundle lived in an operator's clipboard. This route re-walks
+    the chain it received and anchors the root that walk produces, so a paste
+    error or a substituted value cannot become the number an auditor checks a
+    centre's paper against.
+    """
+    from app.api.v1 import sys_ledger
+
+    captured = {}
+
+    class _FakeChain:
+        async def anchor_centre_answer_root(self, exam_id, centre_id_hash,
+                                            answer_root, count, node_pubkey):
+            captured.update(examId=exam_id, centreIdHash=centre_id_hash,
+                            answerRoot=answer_root, count=count, nodePubkey=node_pubkey)
+            return "0x" + "ab" * 32
+
+    import app.services.blockchain as bc
+    saved = bc.BlockchainService
+    bc.BlockchainService = lambda *a, **k: _FakeChain()
+
+    a_hash = hashlib.sha256(A_CENTRE.encode()).hexdigest()
+
+    async def go():
+        async with _Session() as s:
+            return await sys_ledger.anchor_received(
+                sys_ledger.AnchorReceivedRequest(examId=EXAM, centreIdHash=a_hash),
+                db=s, current_user={"role": "SYSTEM_ADMIN"},
+            )
+
+    try:
+        out = asyncio.run(go())
+    finally:
+        bc.BlockchainService = saved
+
+    assert out["ok"] and out["tx"].startswith("0x")
+    # The root is the LAST link of the chain that was actually stored, and the
+    # count is how many records that chain covers.
+    async def stored():
+        from sqlalchemy import select
+        async with _Session() as s:
+            return (await s.execute(
+                select(CentreSealedRecord)
+                .where(CentreSealedRecord.centre_id_hash == a_hash,
+                       CentreSealedRecord.exam_id == EXAM)
+                .order_by(CentreSealedRecord.leaf_index)
+            )).scalars().all()
+
+    rows = asyncio.run(stored())
+    assert captured["answerRoot"] == rows[-1].chain_root
+    assert captured["count"] == len(rows)
+    assert captured["centreIdHash"] == a_hash
+    # DPDP: nothing identifying may reach the chain call.
+    blob = json.dumps(captured).lower()
+    for forbidden in ("roll", "name", "dob", "ciphertext", "seat"):
+        assert forbidden not in blob, forbidden
+
+
+def test_a_centre_with_nothing_delivered_cannot_be_anchored():
+    from app.api.v1 import sys_ledger
+    from fastapi import HTTPException
+
+    async def go():
+        async with _Session() as s:
+            return await sys_ledger.anchor_received(
+                sys_ledger.AnchorReceivedRequest(
+                    examId=EXAM, centreIdHash=hashlib.sha256(b"nobody").hexdigest()),
+                db=s, current_user={"role": "SYSTEM_ADMIN"},
+            )
+
+    try:
+        asyncio.run(go())
+        raise AssertionError("anchored a centre that delivered nothing")
+    except HTTPException as exc:
+        assert exc.status_code == 404
+        assert exc.detail == "NOTHING_RECEIVED_FOR_THIS_CENTRE"

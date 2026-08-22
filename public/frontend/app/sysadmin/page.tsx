@@ -494,6 +494,24 @@ function CentreUplinks() {
     }
   }
 
+  /**
+   * Publish this centre's chain root. The root is derived server-side from the
+   * records HQ received — this page names the group, not the number.
+   */
+  async function anchor(g: ReceivedGroup) {
+    setBusy(g.examId);
+    setError(null);
+    try {
+      const r = await sysLedgerApi.anchorReceived({ examId: g.examId, centreIdHash: g.centreIdHash });
+      setError(`Anchored ${r.count} record(s) — root ${r.answerRoot.slice(0, 16)}… in ${r.tx}`);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not anchor the answer root');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const arrived = groups.reduce((n, g) => n + g.count, 0);
   const opened = groups.reduce((n, g) => n + g.decrypted, 0);
 
@@ -573,15 +591,25 @@ function CentreUplinks() {
                 <td>{g.decrypted}</td>
                 <td>{g.lastReceivedAt ? new Date(g.lastReceivedAt).toLocaleString('en-IN', { hour12: false }) : '—'}</td>
                 <td style={{ textAlign: 'right' }}>
-                  {g.decrypted >= g.count ? (
-                    <Badge tone="ok" dot>Opened</Badge>
-                  ) : (
+                  {g.decrypted < g.count ? (
                     <Button
                       variant="primary"
                       disabled={busy === g.examId}
                       onClick={() => openSealed(g)}
                     >
                       {busy === g.examId ? 'Opening…' : `Open ${g.count - g.decrypted}`}
+                    </Button>
+                  ) : g.anchorTx ? (
+                    <span className={cellMono} title={g.anchorTx}>
+                      <Badge tone="ok" dot>Anchored</Badge> {g.anchorTx.slice(0, 12)}…
+                    </span>
+                  ) : (
+                    <Button
+                      disabled={busy === g.examId}
+                      onClick={() => anchor(g)}
+                      title="Publishes this chain's root on Polygon — roots and counts only, never a roll or a name."
+                    >
+                      {busy === g.examId ? 'Anchoring…' : 'Anchor root'}
                     </Button>
                   )}
                 </td>

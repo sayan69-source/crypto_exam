@@ -65,4 +65,13 @@ export const sysLedgerApi = {
   decrypt: (bundle: unknown) => post<DecryptResult>('/ledger/decrypt', bundle),
   /** Publish the answer root on-chain — roots and counts only, never PII. */
   anchor: (payload: unknown) => post<{ ok: boolean; txHash?: string }>('/ledger/anchor', payload),
+  /**
+   * Anchor a delivered centre's root, DERIVED from what HQ received.
+   *
+   * `anchor` above publishes whatever root it is handed. This one re-walks the
+   * stored chain and publishes the root that walk produces, so the number an
+   * auditor later checks a paper against describes the answers HQ actually holds.
+   */
+  anchorReceived: (body: { examId: string; centreIdHash: string }) =>
+    post<{ ok: boolean; tx: string; answerRoot: string; count: number }>('/ledger/anchor-received', body),
 };

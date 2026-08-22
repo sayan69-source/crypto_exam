@@ -58,6 +58,8 @@ export interface ReceivedGroup {
   decrypted: number;
   firstReceivedAt: string | null;
   lastReceivedAt: string | null;
+  /** The Polygon transaction that published this chain's root, if any. */
+  anchorTx?: string | null;
 }
 
 export const centreSyncApi = {
