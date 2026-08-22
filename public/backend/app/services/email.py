@@ -32,6 +32,7 @@ import logging
 import smtplib
 import ssl
 from dataclasses import dataclass
+import httpx
 from email.message import EmailMessage
 
 from app.config import get_settings
@@ -41,7 +42,9 @@ logger = logging.getLogger(__name__)
 
 def email_configured() -> bool:
     s = get_settings()
-    return bool(getattr(s, "SMTP_HOST", None) and getattr(s, "SMTP_FROM", None))
+    has_smtp = bool(getattr(s, "SMTP_HOST", None) and getattr(s, "SMTP_FROM", None))
+    has_resend = bool(getattr(s, "RESEND_API_KEY", None) and getattr(s, "SMTP_FROM", None))
+    return has_smtp or has_resend
 
 
 def smtp_status() -> dict:
@@ -167,6 +170,38 @@ def _send_blocking(msg: EmailMessage) -> None:
         smtp.send_message(msg)
 
 
+async def _send_resend(msg: EmailMessage) -> None:
+    s = get_settings()
+    api_key = s.RESEND_API_KEY
+    if not api_key:
+        raise RuntimeError("RESEND_API_KEY is not set")
+    
+    html = msg.get_body(preferencelist=('html',))
+    text = msg.get_body(preferencelist=('plain',))
+    
+    payload = {
+        "from": s.SMTP_FROM,
+        "to": [msg["To"]],
+        "subject": msg["Subject"],
+    }
+    if html:
+        payload["html"] = html.get_content()
+    elif text:
+        payload["text"] = text.get_content()
+    else:
+        payload["text"] = msg.get_content()
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.resend.com/emails",
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=15.0,
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Resend API error: {resp.status_code} {resp.text}")
+
+
 async def send_otp_email(to: str, code: str, ttl_seconds: int) -> bool:
     """
     Deliver an OTP by email. Returns True on success, raises on hard failure so
@@ -174,7 +209,11 @@ async def send_otp_email(to: str, code: str, ttl_seconds: int) -> bool:
     """
     msg = _build_message(to, code, ttl_seconds)
     try:
-        await asyncio.to_thread(_send_blocking, msg)
+        s = get_settings()
+        if getattr(s, "RESEND_API_KEY", None):
+            await _send_resend(msg)
+        else:
+            await asyncio.to_thread(_send_blocking, msg)
     except Exception as exc:
         logger.warning("OTP email delivery failed to %s: %s", mask_email(to), exc)
         raise RuntimeError(f"EMAIL_SEND_FAILED: {exc}") from exc
@@ -221,7 +260,11 @@ without this code, and nobody else has been sent it.
 """
     )
     try:
-        await asyncio.to_thread(_send_blocking, msg)
+        s = get_settings()
+        if getattr(s, "RESEND_API_KEY", None):
+            await _send_resend(msg)
+        else:
+            await asyncio.to_thread(_send_blocking, msg)
     except Exception as exc:
         logger.warning("setter invitation failed to %s: %s", mask_email(to), exc)
         raise RuntimeError(f"EMAIL_SEND_FAILED: {exc}") from exc
@@ -295,7 +338,11 @@ async def _send_smtp(to: str, subject: str, body: str, allow_dev_fallback: bool 
     msg.set_content(body)
 
     try:
-        await asyncio.to_thread(_send_blocking, msg)
+        s = get_settings()
+        if getattr(s, "RESEND_API_KEY", None):
+            await _send_resend(msg)
+        else:
+            await asyncio.to_thread(_send_blocking, msg)
         logger.info("Email sent to %s subject=%r", mask_email(to), subject)
         return EmailResult(delivery="smtp", subject=subject, body=body, to=to)
     except Exception as exc:

@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = ""                 # e.g. "CryptoExam Core <no-reply@…>"
+    
+    # ── Resend API (HTTP email alternative to SMTP) ──
+    RESEND_API_KEY: str = ""
 
     # ── Tier-0 System Admin (WebAuthn fingerprint + IP allowlist) ──
     # Enrolment is possible ONLY from these addresses. Comma-separated, plain
