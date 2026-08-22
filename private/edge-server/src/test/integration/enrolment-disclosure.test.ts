@@ -34,7 +34,8 @@ const skip = DB ? false : "set DATABASE_URL to run the enrolment disclosure test
 
 const config: EdgeConfig = {
   host: "127.0.0.1", port: 0, databaseUrl: DB ?? "", centreId: "test",
-  provisioningKey: null, systemAdminPublicKeyPem: null,
+  provisioningKey: null,
+  hqProvisioningPubkey: null, systemAdminPublicKeyPem: null,
   argon: { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 },
   tokenSecret: new Uint8Array(32).fill(1),
   bindSecret: new Uint8Array(32).fill(2),

@@ -37,6 +37,7 @@ const config: EdgeConfig = {
   databaseUrl: DB ?? "",
   centreId: "test",
   provisioningKey: null,
+  hqProvisioningPubkey: null,
   systemAdminPublicKeyPem: null,
   argon: FAST_ARGON,
   tokenSecret: new Uint8Array(32).fill(1),

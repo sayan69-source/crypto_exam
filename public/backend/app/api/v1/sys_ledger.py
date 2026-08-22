@@ -197,9 +197,13 @@ async def decrypt_bundle(
     bundle: SyncBundle,
     current_user: dict = Depends(require_role(UserRole.SYSTEM_ADMIN)),
 ):
-    from app.config import settings
+    # `app.config` exports get_settings(), not a module-level `settings`, so the
+    # old `from app.config import settings` here raised ImportError — the tier-0
+    # decrypt route could not run at all, and the failure looked like a 500 with
+    # no connection to key custody.
+    from app.config import get_settings
 
-    private_pem = getattr(settings, "SYSTEM_ADMIN_PRIVATE_KEY_PEM", None)
+    private_pem = getattr(get_settings(), "SYSTEM_ADMIN_PRIVATE_KEY_PEM", None)
     if not private_pem:
         # In production this branch never runs: decryption is an HSM operation.
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "HSM_NOT_AVAILABLE")

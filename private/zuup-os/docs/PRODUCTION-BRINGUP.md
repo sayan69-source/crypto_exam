@@ -109,10 +109,57 @@ Then re-sign the stick **without** `zuup.enrol=1` before it goes to a hall.
 
 ```
 POST /api/provisioning/ingest       x-provisioning-key: <edge-provisioning-key>
+                                    x-hq-signature: <ed25519 over the bundle>
 ```
 
 Terminals, candidates, staff and the sealed question bundles. After this the
 centre runs entirely offline.
+
+The bundle must carry HQ's signature whenever the Edge has
+`HQ_PROVISIONING_PUBKEY` set, and a production Edge always does. The transport
+credential proves the caller holds this centre's key; the signature proves HQ
+wrote what they are carrying. That distinction matters here because the caller
+is normally not a person but the courier below, whose credential sits in
+plaintext on a USB stick.
+
+## 6. Per centre — the uplink
+
+The admin station is the only machine in the hall with a route off the LAN, and
+nobody is logged into it. `zuup-hqsync.timer` runs the courier every 15 minutes;
+each run pulls this centre's bundle from the public platform into the Edge, then
+offers the Edge's sealed answer ledger back to HQ.
+
+```
+GET  <hq>/api/v1/centre-sync/hello     x-centre-id / x-centre-key
+GET  <hq>/api/v1/centre-sync/bundle    →  POST <edge>/api/provisioning/ingest
+POST <edge>/api/courier/ledger/export  →  POST <hq>/api/v1/centre-sync/ledger
+```
+
+Three things have to be in `centre.conf` before the admin station is
+provisioned:
+
+| Key | What it is | Where it comes from |
+|---|---|---|
+| `HQ_BASE_URL` | the platform, as a name — what TLS is verified against | the deployment |
+| `HQ_ENDPOINTS` | the addresses the firewall pins | blank: resolved at provisioning |
+| `HQ_CENTRE_KEY` | this centre's credential at HQ | `POST /api/v1/centre-sync/centres/<id>/key` (tier-0), shown once |
+
+**There is no DNS on a terminal, and this is where that becomes concrete.**
+`provision-terminal.sh` resolves `HQ_BASE_URL` on the provisioning host and
+freezes the addresses onto the signed cmdline as `zuup.hq`, while the hostname
+travels separately as `zuup.hq_url`. The courier then calls
+`curl --resolve host:port:ip` — TLS authenticates the NAME, the connection is
+pinned to an ADDRESS the authority signed, and nothing on the exam VLAN gets a
+say in either. The consequence to plan for: a platform behind a CDN or an
+elastic address will move, and the admin station must be re-provisioned when it
+does. Put a fixed address in front of HQ if that is unacceptable.
+
+What the courier can and cannot do, precisely: it carries an HQ-signed bundle it
+cannot forge, and sealed envelopes it cannot open (every record is ciphertext
+under a data key wrapped to the System Admin's HSM). It cannot choose its
+moment either — `zuup-egressd` holds the firewall shut, and the Edge's export
+refuses, until the exam window has closed and every present candidate has
+submitted.
 
 ---
 
@@ -123,6 +170,9 @@ centre runs entirely offline.
 | `CANDIDATE_SEAT` | tunnel only | **never** — no HQ destination exists in its image |
 | `INVIGILATOR_STATION` | tunnel only | **never** — same |
 | `ADMIN_STATION` | tunnel | pinned HQ endpoints, and only while no paper is in flight |
+
+The admin station's traffic is entirely the courier's: `/api/v1/centre-sync/*`
+on the platform named by `zuup.hq_url`, over TLS, to the addresses in `zuup.hq`.
 
 Two independent mechanisms, and it is worth keeping them apart:
 

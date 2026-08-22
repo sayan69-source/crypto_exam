@@ -26,6 +26,7 @@ const baseConfig: EdgeConfig = {
   databaseUrl: "postgres://unused",
   centreId: "11111111-1111-1111-1111-111111111111",
   provisioningKey: null,
+  hqProvisioningPubkey: null,
   systemAdminPublicKeyPem: null,
   argon: { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 },
   tokenSecret: new Uint8Array(32).fill(1),

@@ -130,6 +130,21 @@ class Settings(BaseSettings):
     # production environment sets it.
     ALLOW_SIMULATED_ENCLAVE: bool = False
 
+    # ── Centre uplink (ZUUP-OS §12/§13.4) ──
+    #
+    # The Ed25519 seed HQ signs provisioning bundles with, 64 hex characters
+    # (`openssl rand -hex 32`). A centre's Edge is configured with the matching
+    # public key and refuses any bundle that is not signed by it — which is what
+    # stops a stolen Admin Station, whose ESP necessarily carries the centre's
+    # transport credential, from writing its own candidates and its own papers
+    # into a centre's database.
+    #
+    # Empty means unsigned bundles: acceptable only where the Edge has no
+    # public key configured either (the all-in-one demo, the test suite). A
+    # production HQ sets it, and `zuup-hqsync` on the station carries whatever
+    # signature arrives without inspecting it.
+    HQ_PROVISIONING_SIGNING_SEED: str = ""
+
     # ── AI / LLM ──
     LLM_BASE_URL: str = "http://localhost:11434/v1"
     LLM_MODEL: str = "llama3.1:70b"

@@ -20,6 +20,24 @@ export interface EdgeConfig {
    */
   provisioningKey: string | null;
   /**
+   * HQ's provisioning SIGNING key, raw Ed25519 public key (32 bytes).
+   *
+   * The provisioning shared secret above authenticates the CHANNEL — it proves
+   * the caller holds a credential this centre was given. That was enough while
+   * the only caller was HQ itself pushing over a link HQ controlled. It is not
+   * enough once the courier runs on a terminal: the admin station carries that
+   * secret on its ESP, so whoever steals the stick could otherwise post a
+   * bundle of their own candidates and their own staff into the centre's Edge.
+   *
+   * With this set, a bundle must additionally carry an Ed25519 signature over
+   * its canonical bytes made by HQ's key, which never leaves HQ. The courier
+   * then becomes what it is supposed to be — a carrier of an envelope it cannot
+   * forge. Null keeps the pre-existing key-only behaviour, which is correct for
+   * the all-in-one and for the tests, and `x-hq-signature` is REQUIRED the
+   * moment a key is configured (fail-closed, not best-effort).
+   */
+  hqProvisioningPubkey: Uint8Array | null;
+  /**
    * System Admin answer-sealing PUBLIC key (PEM, SPKI). Ships in the signed
    * image / Edge config so terminals can seal to it. The matching PRIVATE key
    * lives ONLY in the HQ HSM (INV-6). The Edge never holds a private key.
@@ -174,6 +192,7 @@ export function loadConfig(): EdgeConfig {
     ),
     centreId: env("CENTRE_ID", "00000000-0000-0000-0000-000000000000"),
     provisioningKey: process.env.EDGE_PROVISIONING_KEY ?? null,
+    hqProvisioningPubkey: hqPubkey(),
     systemAdminPublicKeyPem: pem("SYSTEM_ADMIN_PUBLIC_KEY_PEM"),
     argon: {
       timeCost: Number(env("ARGON_TIME_COST", "3")),
@@ -226,4 +245,24 @@ function fleetPcr(): Record<string, string> | null {
     out[k] = v.trim().replace(/^0x/i, "").toLowerCase();
   }
   return Object.keys(out).length ? out : null;
+}
+
+/**
+ * Read HQ's provisioning signing key from `HQ_PROVISIONING_PUBKEY` (64 hex
+ * characters — the raw Ed25519 public key).
+ *
+ * Throws on anything malformed. Degrading to null would silently drop the
+ * signature requirement, which is the one check standing between a stolen admin
+ * stick and a forged roster; a typo must stop the Edge, not quietly weaken it.
+ */
+function hqPubkey(): Uint8Array | null {
+  const raw = process.env.HQ_PROVISIONING_PUBKEY?.trim();
+  if (!raw) return null;
+  const hex = raw.replace(/^0x/i, "");
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+    throw new Error(
+      "HQ_PROVISIONING_PUBKEY must be exactly 64 hex characters (a raw Ed25519 public key).",
+    );
+  }
+  return new Uint8Array(Buffer.from(hex, "hex"));
 }

@@ -1,0 +1,61 @@
+# ZUUP-OS HQ courier (spec §12 in, §13.4 out) — carries this centre's bundle in
+# and its sealed answers out, on the one station permitted to leave the LAN.
+#
+# Shipped on EVERY image, like zuup-egressd, and for the same reason: the unit
+# is identical everywhere and the script exits within a second on anything that
+# is not an ADMIN_STATION. One artifact to review beats a per-capability unit
+# graph whose interesting member is the one that is absent.
+#
+# Type=oneshot driven by zuup-hqsync.timer rather than a resident daemon. The
+# work is episodic — a bundle before exam day, a ledger after the paper — and a
+# process that is not running cannot be talking to the internet, which is the
+# posture this whole image argues for.
+
+[Unit]
+Description=ZUUP-OS HQ courier (provisioning bundle in, sealed ledger out)
+# The tunnel carries the Edge half of every exchange; the egress window carries
+# the HQ half. Neither is Requires=: on a station whose window is shut this run
+# simply finds HQ unreachable and exits 0, which is the ordinary state for all
+# but a few minutes of a centre's week.
+After=zuup-network.target zuup-egressd.service
+Wants=zuup-network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/zuup/zuup-hqsync.sh
+# Long enough for a slow uplink to move a full centre bundle; short enough that
+# a hung connection cannot hold the timer's next run off indefinitely.
+TimeoutStartSec=600
+
+# ── §7.5 runtime hardening ───────────────────────────────────────────────────
+# No capabilities at all: this is an HTTP client. It reads the identity tmpfs
+# (including the centre's HQ credential, which is why it may read that
+# directory) and writes only its own state directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+# AF_INET for HQ and the Edge; AF_UNIX for the journal. No AF_INET6: the image
+# has no v6 route and the firewall has no v6 rules, so a curl that fell back to
+# a AAAA-shaped address would be dropped after a delay rather than refused fast.
+RestrictAddressFamilies=AF_UNIX AF_INET
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete @privileged
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+PrivateTmp=yes
+RuntimeDirectory=zuup-hqsync
+RuntimeDirectoryMode=0700
+ReadWritePaths=/run/zuup-hqsync
+
+[Install]
+WantedBy=zuup-session.target

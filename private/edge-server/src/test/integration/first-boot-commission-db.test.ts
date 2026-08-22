@@ -55,7 +55,8 @@ after(async () => {
 function edgeFor(centreId: string): EdgeConfig {
   return {
     host: "127.0.0.1", port: 0, databaseUrl: DB ?? "", centreId,
-    provisioningKey: null, systemAdminPublicKeyPem: null,
+    provisioningKey: null,
+    hqProvisioningPubkey: null, systemAdminPublicKeyPem: null,
     argon: { timeCost: 2, memoryCostKiB: 8192, parallelism: 1 },
     tokenSecret: new Uint8Array(32).fill(1),
     bindSecret: new Uint8Array(32).fill(2),

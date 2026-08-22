@@ -106,6 +106,9 @@ The centre config is a shell fragment:
   CENTRE_PRESHARED_KEY=<wg psk>
   TUNNEL_SUBNET=10.9.0            # terminals get .10 upwards
   HQ_ENDPOINTS=203.0.113.10:443   # comma-separated. ADMIN_STATION only.
+  HQ_BASE_URL=https://exam.example.gov.in   # the public platform. ADMIN_STATION only.
+  HQ_CENTRE_KEY=<64 hex>          # this centre's credential at HQ
+  EDGE_PROVISIONING_KEY=<secret>  # this centre's Edge write credential
 EOF
   exit 1
 }
@@ -214,9 +217,66 @@ if [[ "$ENROL" == 1 ]]; then
 fi
 
 if [[ "$CAPABILITY" == "ADMIN_STATION" ]]; then
-  [[ -n "${HQ_ENDPOINTS:-}" ]] || die "ADMIN_STATION needs HQ_ENDPOINTS in the centre config"
+  # ── where HQ is, and what HQ is called ──────────────────────────────────
+  #
+  # Two different facts, and conflating them is what made the uplink undeliverable.
+  #
+  #   HQ_ENDPOINTS  the ADDRESSES the firewall pins. A terminal has no resolver
+  #                 (§6.3 drops DNS), so this can never be a name.
+  #   HQ_BASE_URL   the NAME the courier verifies TLS against, and the origin it
+  #                 appends /api/v1/centre-sync/... to.
+  #
+  # Given only the URL, the addresses are resolved HERE — on the provisioning
+  # host, which does have DNS — and frozen into the signed cmdline. That is the
+  # right place for the lookup: the answer is then something the exam authority
+  # signed, not something the exam hall's network gets to say on the morning.
+  if [[ -n "${HQ_BASE_URL:-}" ]]; then
+    [[ "$HQ_BASE_URL" =~ ^https://[A-Za-z0-9._-]+(:[0-9]+)?/?$ ]]       || die "HQ_BASE_URL must be a bare https://host[:port] (no path). Got '${HQ_BASE_URL}'"
+    HQ_BASE_URL="${HQ_BASE_URL%/}"
+    HQ_HOSTPORT="${HQ_BASE_URL#https://}"
+    HQ_HOST="${HQ_HOSTPORT%%:*}"
+    HQ_PORT="${HQ_HOSTPORT#"$HQ_HOST"}"; HQ_PORT="${HQ_PORT#:}"; HQ_PORT="${HQ_PORT:-443}"
+
+    if [[ -z "${HQ_ENDPOINTS:-}" ]]; then
+      note "resolving ${HQ_HOST} on this provisioning host to pin its addresses…"
+      RESOLVED="$(getent ahostsv4 "$HQ_HOST" 2>/dev/null | awk '{print $1}' | sort -u || true)"
+      [[ -n "$RESOLVED" ]] || die "cannot resolve ${HQ_HOST}; set HQ_ENDPOINTS explicitly"
+      HQ_ENDPOINTS="$(printf '%s\n' "$RESOLVED" | sed "s/\$/:${HQ_PORT}/" | paste -sd, -)"
+      note "pinned HQ addresses: ${HQ_ENDPOINTS}"
+      note "NOTE: a platform behind a CDN or an elastic address will move. Re-provision"
+      note "      the admin station when it does, or put a fixed address in front of HQ."
+    fi
+    EXTRA+=" zuup.hq_url=${HQ_BASE_URL}"
+  fi
+
+  [[ -n "${HQ_ENDPOINTS:-}" ]] || die "ADMIN_STATION needs HQ_ENDPOINTS (or HQ_BASE_URL to resolve) in the centre config"
   EXTRA+=" zuup.hq=${HQ_ENDPOINTS}"
-elif [[ -n "${HQ_ENDPOINTS:-}" ]]; then
+
+  # ── the courier's credentials, onto the ESP ─────────────────────────────
+  #
+  # They cannot ride the cmdline: /proc/cmdline is world-readable on the running
+  # machine, and these are shared secrets rather than public identity. They go
+  # where wg0.conf goes — the FAT ESP, outside dm-verity — and the residual risk
+  # is the same one stated at the top of this file, bounded the same way: HQ
+  # signs every bundle the Edge accepts, and every answer that leaves is
+  # ciphertext wrapped to a key in HQ's HSM. A stolen stick can carry post; it
+  # cannot write it or read it.
+  OLD_UMASK="$(umask)"; umask 077
+  if [[ -n "${HQ_CENTRE_KEY:-}" ]]; then
+    printf '%s\n' "$HQ_CENTRE_KEY" > "$DEST/hq-centre.key"
+  else
+    note "WARNING: no HQ_CENTRE_KEY in the centre config — the courier will find no"
+    note "         credential and this station will not sync. Mint one at HQ with"
+    note "         POST /api/v1/centre-sync/centres/<id>/key (tier-0)."
+  fi
+  if [[ -n "${EDGE_PROVISIONING_KEY:-}" ]]; then
+    printf '%s\n' "$EDGE_PROVISIONING_KEY" > "$DEST/edge-provisioning.key"
+  else
+    note "WARNING: no EDGE_PROVISIONING_KEY in the centre config — the courier can"
+    note "         reach HQ but cannot write what it fetches into the Edge."
+  fi
+  umask "$OLD_UMASK"
+elif [[ -n "${HQ_ENDPOINTS:-}" || -n "${HQ_BASE_URL:-}" ]]; then
   note "capability is ${CAPABILITY} — HQ endpoints deliberately NOT placed on this terminal's cmdline."
 fi
 
@@ -330,11 +390,17 @@ cat <<EOF
   tunnel      ${TUNNEL_IP}  →  edge ${EDGE_TUNNEL_IP} via ${EDGE_LAN_IP}:51820
   wg pubkey   ${WG_PUB}
   egress      $( [[ "$CAPABILITY" == "ADMIN_STATION" ]] && echo "HQ ${HQ_ENDPOINTS} (window still gated by the Edge)" || echo "none — no HQ destination exists on this machine" )
+  hq uplink   $( [[ "$CAPABILITY" == "ADMIN_STATION" ]] && echo "${HQ_BASE_URL:-none} — courier verifies TLS against this name, pinned to the addresses above" || echo "none" )
 
   written to  ${DEST}/
     BOOTX64.EFI    → the stick's /EFI/BOOT/BOOTX64.EFI
     wg0.conf       → the stick's ESP as /zuup/wg0.conf   (mode 0600)
-    registry.json  → merge into the centre bundle
+    registry.json  → merge into the centre bundle$( [[ "$CAPABILITY" == "ADMIN_STATION" ]] && cat <<'ADMIN'
+
+    hq-centre.key          → the stick's ESP as /zuup/hq-centre.key         (0600)
+    edge-provisioning.key  → the stick's ESP as /zuup/edge-provisioning.key (0600)
+ADMIN
+)
 
   NEXT: this terminal has no attestation key and no golden PCRs yet, so every
   privileged login on it will deny. Re-run this command with --enrol, boot the

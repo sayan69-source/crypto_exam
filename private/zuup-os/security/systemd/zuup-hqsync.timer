@@ -1,0 +1,33 @@
+# ZUUP-OS HQ courier schedule.
+#
+# The cadence is chosen against what the courier is waiting for, not against
+# how fresh the data needs to be. Two things gate it and neither is quick:
+#
+#   * before exam day, a Centre Admin opens the egress window deliberately;
+#   * after the paper, the window opens only once every present candidate has
+#     submitted and the exam's window has closed.
+#
+# So a five-minute tick would spend a centre's entire week finding a shut
+# firewall. Every 15 minutes is frequent enough that a bundle lands within one
+# tick of the window opening, and rare enough that the station is idle almost
+# all of the time — which is the point of an image that argues it has no
+# internet.
+#
+# `Persistent=` is deliberately absent: /run is a tmpfs and the machine holds no
+# state across boots, so there is no missed-run history to catch up on. A
+# freshly booted station syncs after OnBootSec instead.
+
+[Unit]
+Description=ZUUP-OS HQ courier schedule (bundle in, sealed ledger out)
+
+[Timer]
+# Late enough that the tunnel, the firewall and the egress supervisor have all
+# settled; early enough that a station powered on for a pre-exam sync gets one
+# without an operator waiting a quarter of an hour.
+OnBootSec=3min
+OnUnitInactiveSec=15min
+AccuracySec=30s
+Unit=zuup-hqsync.service
+
+[Install]
+WantedBy=zuup-session.target

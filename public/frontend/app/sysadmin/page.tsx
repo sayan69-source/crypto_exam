@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { adminApi, type ExamRequestItem, type StaffApproval } from '@/lib/api/admin';
 import { sysLedgerApi } from '@/lib/api/sys-ledger';
+import { centreSyncApi, type CentreUplink, type ReceivedGroup } from '@/lib/api/centre-sync';
 import {
   AdminPage, PageHeader, Card, CardGrid, Stat, Badge, Button, LinkButton, Table,
   ErrorState, EmptyState, SkeletonRows, cellMono, cellStrong,
@@ -168,6 +169,10 @@ export default function SysAdminConsolePage() {
 
       <div style={{ marginTop: 'var(--space-xl)' }}>
         <AnswerVault />
+      </div>
+
+      <div style={{ marginTop: 'var(--space-xl)' }}>
+        <CentreUplinks />
       </div>
 
       {/* One line of scope, not a lecture. The reader is the root of trust for
@@ -401,6 +406,155 @@ function ExamRequests() {
           ))}
         </Table>
       )}
+    </Card>
+  );
+}
+
+
+/**
+ * The centre uplinks — the other end of the courier running inside the OS.
+ *
+ * Each hall has exactly one machine permitted to reach this platform: the
+ * ADMIN_STATION, whose `zuup-hqsync` timer pulls that centre's bundle before
+ * exam day and pushes its sealed answers back afterwards, with nobody logged
+ * in. It authenticates with a per-centre credential minted here.
+ *
+ * Two operator questions, and this is where both are answered: has a centre
+ * been given its credential, and have that centre's papers actually arrived.
+ * "Arrived" is a count of SEALED envelopes — reading them is the vault above,
+ * and needs the HSM.
+ */
+function CentreUplinks() {
+  const [centres, setCentres] = useState<CentreUplink[]>([]);
+  const [groups, setGroups] = useState<ReceivedGroup[]>([]);
+  const [hqKey, setHqKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [minted, setMinted] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [list, rec] = await Promise.all([
+        centreSyncApi.list(),
+        centreSyncApi.received().catch(() => ({ ok: false, total: 0, groups: [] })),
+      ]);
+      setCentres(list.centres);
+      setHqKey(list.hqSigningKey);
+      setGroups(rec.groups);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load the centre uplinks');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function mint(id: string) {
+    setBusy(id);
+    try {
+      const r = await centreSyncApi.mintKey(id);
+      // Shown once — only the hash is stored, so this is the only moment the
+      // operator can copy it into the centre's centre.conf.
+      setMinted((m) => ({ ...m, [id]: r.syncKey }));
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not mint the credential');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const arrived = groups.reduce((n, g) => n + g.count, 0);
+
+  return (
+    <Card
+      title="Centre uplinks"
+      actions={<Button onClick={load} disabled={loading}>Refresh</Button>}
+    >
+      <p style={{ marginTop: 0, marginBottom: 'var(--space-lg)', fontSize: 13, color: 'var(--color-navy-400)' }}>
+        One credential per centre. The Admin Station inside the locked OS uses it to pull that
+        centre&rsquo;s bundle and deliver its sealed answers — no session, no operator.
+      </p>
+
+      {error && <ErrorState message={error} onRetry={load} />}
+
+      <div style={{ marginBottom: 'var(--space-lg)' }}>
+        <CardGrid minColumn={200}>
+          <Stat label="Centres provisioned" value={centres.filter((c) => c.provisioned).length} />
+          <Stat label="Sealed records received" value={arrived} />
+          <Stat
+            label="Bundle signing"
+            value={hqKey ? 'Armed' : 'Unsigned'}
+            hint={hqKey
+              ? `${hqKey.slice(0, 16)}… — each Edge is configured with this as HQ_PROVISIONING_PUBKEY`
+              : 'Set HQ_PROVISIONING_SIGNING_SEED so centres can refuse a bundle this platform did not sign'}
+          />
+        </CardGrid>
+      </div>
+
+      <Table head={['Centre', 'Credential', 'Issued', 'Last sync', '']}>
+        {loading && <SkeletonRows rows={2} cols={5} />}
+
+        {!loading && centres.length === 0 && (
+          <tr>
+            <td colSpan={5} style={{ padding: 0, borderBottom: 0 }}>
+              <EmptyState
+                title="No centres yet"
+                hint="A centre appears here once it exists on the platform."
+              />
+            </td>
+          </tr>
+        )}
+
+        {!loading && centres.map((c) => (
+          <tr key={c.id}>
+            <td className={cellStrong}>{c.name}<br /><span className={cellMono} style={{ fontSize: 11 }}>{c.id}</span></td>
+            <td>
+              <Badge tone={c.provisioned ? 'ok' : 'warn'} dot>
+                {c.provisioned ? 'Issued' : 'Not issued'}
+              </Badge>
+            </td>
+            <td>{c.issuedAt ? new Date(c.issuedAt).toLocaleDateString('en-IN') : '—'}</td>
+            <td>{c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString('en-IN', { hour12: false }) : 'never'}</td>
+            <td style={{ textAlign: 'right' }}>
+              {minted[c.id] ? (
+                <code style={{ fontSize: 11.5, wordBreak: 'break-all' }} title="Shown once. Paste into the centre's centre.conf as HQ_CENTRE_KEY.">
+                  {minted[c.id]}
+                </code>
+              ) : (
+                <Button variant="primary" disabled={busy === c.id} onClick={() => mint(c.id)}>
+                  {busy === c.id ? 'Minting…' : c.provisioned ? 'Rotate' : 'Issue'}
+                </Button>
+              )}
+            </td>
+          </tr>
+        ))}
+      </Table>
+
+      {groups.length > 0 && (
+        <div style={{ marginTop: 'var(--space-lg)' }}>
+          <Table head={['Centre (hashed)', 'Exam', 'Sealed records', 'Decrypted', 'Last delivery']}>
+            {groups.map((g) => (
+              <tr key={`${g.centreIdHash}:${g.examId}`}>
+                <td className={cellMono}>{g.centreIdHash.slice(0, 16)}…</td>
+                <td className={cellMono}>{g.examId.slice(0, 8)}…</td>
+                <td>{g.count}</td>
+                <td>{g.decrypted}</td>
+                <td>{g.lastReceivedAt ? new Date(g.lastReceivedAt).toLocaleString('en-IN', { hour12: false }) : '—'}</td>
+              </tr>
+            ))}
+          </Table>
+        </div>
+      )}
+
+      <p style={{ marginTop: 'var(--space-md)', fontSize: 12.5, color: 'var(--color-navy-400)' }}>
+        A credential is shown once and stored only as a hash. Rotating one revokes the
+        previous key immediately — the station stops syncing until it is re-provisioned.
+      </p>
     </Card>
   );
 }

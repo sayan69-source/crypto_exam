@@ -86,6 +86,12 @@ for name in edge-token-secret edge-bind-secret edge-node-sign-seed edge-provisio
   chmod 0600 "$OUT/$name"
 done
 
+# The Edge ingest secret is also handed to the admin station, so the courier can
+# write the bundle it pulls from HQ into its own Edge. Read it back rather than
+# regenerating: the two must be the same value or the station's every ingest is
+# a 401 nobody would connect to this file.
+PROV_KEY="$(cat "$OUT/edge-provisioning-key")"
+
 # ── the Edge's WireGuard identity ───────────────────────────────────────────
 if command -v wg >/dev/null 2>&1; then
   wg genkey > "$OUT/wg-edge.key"; chmod 0600 "$OUT/wg-edge.key"
@@ -118,11 +124,33 @@ TUNNEL_SUBNET=10.9.0
 EDGE_PUBLIC_KEY=${EDGE_PUB}
 CENTRE_PRESHARED_KEY=${PSK}
 
-# HQ endpoints, ip:port, comma separated. Used ONLY for the ADMIN_STATION —
-# provision-terminal.sh refuses to place these on any other capability, and
+# ── the uplink, which exactly one terminal in the centre gets ─────────────
+#
+# HQ_BASE_URL is the public platform, as a NAME: it is what the courier verifies
+# HQ's TLS certificate against and the origin it appends /api/v1/centre-sync/...
+# to. Leave HQ_ENDPOINTS blank and provision-terminal.sh resolves that name ON
+# THE PROVISIONING HOST and freezes the addresses into the signed cmdline —
+# because a terminal has no resolver (§6.3 drops DNS) and must not take the exam
+# hall's word for where HQ lives.
+#
+# Set HQ_ENDPOINTS by hand instead when HQ sits behind a fixed address you want
+# pinned regardless of DNS. Either way these are ADMIN_STATION-only:
+# provision-terminal.sh refuses to place them on another capability and
 # zuup-identity.sh ignores them if they somehow arrive there.
-# There is no DNS on a terminal, so these are addresses, not names.
-HQ_ENDPOINTS=REPLACE:443
+HQ_BASE_URL=https://REPLACE-WITH-THE-PUBLIC-PLATFORM
+HQ_ENDPOINTS=
+
+# This centre's credential at HQ. Mint it as tier-0 with
+#   POST /api/v1/centre-sync/centres/${CENTRE_ID}/key
+# and paste the value here; HQ keeps only its hash and will not show it twice.
+# provision-terminal.sh writes it to the admin station's ESP.
+HQ_CENTRE_KEY=REPLACE-WITH-THE-CENTRE-SYNC-KEY
+
+# The Edge write credential, repeated here so provision-terminal.sh can put it
+# on the admin station's ESP: the courier writes the bundle it fetches into the
+# Edge with it, and the Edge additionally requires HQ's signature on that bundle
+# (HQ_PROVISIONING_PUBKEY) — so this key carries post and cannot write it.
+EDGE_PROVISIONING_KEY=${PROV_KEY}
 EOF
 chmod 0600 "$OUT/centre.conf"
 
