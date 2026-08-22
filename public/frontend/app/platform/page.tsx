@@ -85,7 +85,7 @@ export default function PlatformPage() {
       <section className={`${s.role} ${s.dark} reveal reveal-left`} id="setter">
         <div className={`wrap ${s.roleGrid}`}>
           <div>
-            <span className={s.roleLabel}>02 · Setter Workbench</span>
+            <span className={s.roleLabel}>02 · Setter Portal</span>
             <h2>Authoring under lock.</h2>
             <span className={s.roleTag}>
               <span className={`icon-chip ${s.roleTagChipSmall} ${s.darkChip}`}>
@@ -96,19 +96,17 @@ export default function PlatformPage() {
           </div>
           <div>
             <p>
-              A dense, dark, data-forward workbench for examination authors. Questions are
-              authored as parametric templates, verified, red-teamed and sealed — without the
+              A dense, dark, data-forward portal for examination authors. Questions are
+              authored as parametric templates, verified, and sealed — without the
               paper ever existing in plaintext outside the lock.
             </p>
             <p className={s.roleGridPSpace}>
-              The Setter Workbench derives every answer key from a formula rather than an
-              assertion, generates the ZK proof of difficulty, runs red-team adversarial
-              review, and seals the final paper under a key only the network can release at T₀.
+              The Setter Portal derives every answer key from a formula rather than an
+              assertion, generates the ZK proof of difficulty, and seals the final 
+              paper under a key only the network can release at T₀.
             </p>
             <ul className={s.featureList}>
               <Feature icon="binary" title="ZK-SNARK difficulty proof" desc="Groth16 proof attests the paper's difficulty distribution without revealing the questions." variant="dark" />
-              <Feature icon="swords" title="Red-team review pipeline" desc="Adversarial reviewers stress-test items for ambiguity, leakage and bias before sealing." variant="dark" />
-              <Feature icon="git-branch" title="Provisional IRT estimates" desc="3PL parameters derived from item features. Calibration proper needs response data from a sitting, and is not claimed until then." variant="dark" />
               <Feature icon="function-square" title="Computed answer keys" desc="Setters author parametric templates; the key is the result of evaluating a formula against the substituted parameters, so a wrong key cannot be asserted." variant="dark" />
               <Feature icon="dices" title="N forms, drawn at T₀" desc="Candidate papers are committed together under one root days ahead; a public beacon picks which one runs, and anyone can recompute the draw." variant="dark" />
               <Feature icon="printer" title="Print delivery for paper centres (§30)" desc="A centre with no terminal per candidate unlocks the SAME sealed bundle at T₀ — from a drand beacon cached before the air-gap, or from on-site Shamir shards when no window existed. Built and cross-language verified against the Python implementation; PDF render and printer spool are not yet built." variant="dark" />
