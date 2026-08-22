@@ -345,7 +345,7 @@ function ExamRequests() {
                 <td>{e.examName}</td>
                 <td>{e.proposedDate ? new Date(e.proposedDate).toLocaleDateString('en-IN') : '—'}</td>
                 <td>
-                  <Badge tone={e.status === 'PENDING' ? 'warn' : e.status === 'ACTIVE' ? 'ok' : 'error'} dot>
+                  <Badge tone={e.status === 'PENDING' ? 'warn' : e.status === 'ACTIVE' ? 'ok' : 'danger'} dot>
                     {e.status}
                   </Badge>
                 </td>
