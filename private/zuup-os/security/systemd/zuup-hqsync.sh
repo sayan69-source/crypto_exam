@@ -43,7 +43,14 @@
 set -euo pipefail
 
 IDENTITY_DIR="${ZUUP_IDENTITY_DIR:-/run/zuup-identity}"
-EDGE="${ZUUP_EDGE_URL:-http://edge.local:4000}"
+# Same order of authority as the kiosk: an explicit override, then the origin
+# published from the signed cmdline, then the historical name that resolves
+# nowhere on a production terminal.
+EDGE="${ZUUP_EDGE_URL:-}"
+if [[ -z "$EDGE" && -r "${ZUUP_IDENTITY_DIR:-/run/zuup-identity}/edge-url" ]]; then
+  EDGE="$(tr -d ' \n' < "${ZUUP_IDENTITY_DIR:-/run/zuup-identity}/edge-url")"
+fi
+EDGE="${EDGE:-http://edge.local:4000}"
 STATE_DIR="${ZUUP_HQSYNC_STATE:-/run/zuup-hqsync}"
 CURL_TIMEOUT="${ZUUP_HQ_TIMEOUT:-45}"
 
@@ -132,6 +139,29 @@ for k in sys.argv[1].split("."):
         doc = None
 print("" if doc is None else (doc if isinstance(doc, str) else json.dumps(doc)))
 ' "$1" 2>/dev/null || true; }
+
+# ── 0. which port does this centre's Edge actually answer on? ──────────────
+#
+# A deployment choice this machine cannot see from the cmdline: an Edge
+# appliance fronted by Caddy serves the API on :80 under /api/*, while a bare
+# Fastify Edge listens on :4000. Getting it wrong is not diagnosable from a
+# terminal with no shell, and it is discovered on exam morning.
+#
+# So ask, once, before anything depends on the answer. Both candidates are the
+# SAME pinned address — the firewall permits exactly one peer either way — so
+# this widens no boundary; it only removes a configuration step that had no
+# feedback.
+if ! edge_curl -o /dev/null "${EDGE%/}/api/health"; then
+  if [[ "$EDGE" != *:4000 ]] && edge_curl -o /dev/null "${EDGE%/}:4000/api/health"; then
+    EDGE="${EDGE%/}:4000"
+    log "the Edge answers on :4000 rather than the bare origin; using $EDGE."
+  else
+    # Not fatal on its own: the run below still tries, and its failures name
+    # what could not be reached. Said here because "the Edge is unreachable" and
+    # "HQ is unreachable" look identical in a log that only reports the second.
+    log "the Edge did not answer /api/health at $EDGE — the centre link may be down." warning
+  fi
+fi
 
 # ── 1. reachable at all? ────────────────────────────────────────────────────
 HELLO="$STATE_DIR/hello.json"

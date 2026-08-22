@@ -38,7 +38,19 @@ log() {
   echo "zuup-kiosk: $*" > /dev/kmsg 2>/dev/null || true
 }
 
-EDGE="${ZUUP_EDGE_URL:-https://edge.local}"
+# The Edge origin, in order of authority:
+#   1. ZUUP_EDGE_URL          an explicit override in a unit drop-in (the
+#                             all-in-one sets it to its own loopback Caddy);
+#   2. /run/zuup-identity/edge-url  published at boot from the SIGNED cmdline;
+#   3. https://edge.local     the historical default, which resolves on no
+#                             production terminal — DNS is refused and the image
+#                             ships no hosts entry. Kept only so an image built
+#                             before (2) existed still behaves as it used to.
+EDGE="${ZUUP_EDGE_URL:-}"
+if [ -z "$EDGE" ] && [ -r /run/zuup-identity/edge-url ]; then
+  EDGE="$(tr -d ' \n' < /run/zuup-identity/edge-url)"
+fi
+[ -n "$EDGE" ] || EDGE="https://edge.local"
 # Identity comes from /run first — published at boot by zuup-identity.service
 # out of the signed kernel cmdline (production) or by zuup-commission.sh (the
 # all-in-one). /etc/zuup/terminal-id is the image's baked placeholder and is

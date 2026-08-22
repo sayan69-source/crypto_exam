@@ -49,7 +49,16 @@ old values, because a drop-in adds to `Environment=` rather than replacing it.
 
 ```bash
 bash image-build/docker-build.sh          # no --dev, no --allinone
+bash image-build/docker-build.sh -- --usb-boot   # …if terminals boot from a stick
 ```
+
+`--usb-boot` compiles USB mass-storage back in, which §7.2 otherwise leaves out
+("no exfil medium") because a production terminal is expected to boot by PXE or
+from an internal disk. A laptop estate booting from sticks needs the driver for
+the stick. The flag is explicit, loud during the build, recorded in the image at
+`/etc/zuup/kernel-relaxations`, and stage 20 refuses to pair a production rootfs
+with a USB-capable kernel that nobody asked for. See
+[MULTI-LAPTOP-BRINGUP.md](MULTI-LAPTOP-BRINGUP.md).
 
 The rootfs is built **once** and is byte-identical across the estate. The build
 now asserts its own posture and fails if any development relaxation survived:

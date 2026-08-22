@@ -94,11 +94,22 @@ Already built in, from `x86_64_defconfig` plus the ZUUP fragments:
 - **Graphics**: Intel `i915`; `simpledrm`/`simplefb` over the UEFI framebuffer as
   a vendor-neutral fallback, which is what lets the kiosk run on a machine whose
   GPU has no in-kernel driver
-- **Network**: `e1000`, `e1000e`, `igb`, `igc`, `r8169`, plus USB Ethernet
-  (`rtl8152`, `ax88179`) for thin laptops with no port
+- **Network**: Intel (`e1000`, `e1000e`, `igb`, `igc`), Realtek (`r8169`,
+  `8139too`), Broadcom (`tg3`, `bnx2`), Atheros (`atl1c`, `atl1e`), Marvell
+  (`sky2`), nVidia (`forcedeth`), VIA (`via-rhine`, `via-velocity`) and JMicron
+  (`jme`). Breadth is deliberate here: a terminal with no driver for its NIC has
+  no link, so WireGuard never handshakes and the machine powers itself off — on a
+  borrowed laptop that is indistinguishable from a broken image, and it cannot be
+  diagnosed from a screen with no shell.
+- **USB Ethernet**: `ax88179_178a`, `asix`, `rtl8152`, `cdc_ether`, `cdc_ncm`,
+  `rndis_host` — for a laptop with no port, or one whose built-in NIC is not
+  covered above. A dongle at each end and an ordinary lead is also the only
+  "USB cable" that networks two laptops: neither has a device-side controller,
+  so a host-to-host USB link is not possible.
 - **No Wi-Fi, no Bluetooth** — deliberate, and not a compatibility gap. §6.2's
   isolation is partly structural: a driver that does not exist cannot associate
-  with an access point
+  with an access point. There is also no `wpa_supplicant` and no
+  `/usr/lib/firmware` in the rootfs, so this cannot be undone at runtime either.
 
 ### Known gaps, honestly
 

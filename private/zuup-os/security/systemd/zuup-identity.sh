@@ -170,6 +170,27 @@ if [[ -n "$EDGE_IP" ]]; then
   if [[ "$EDGE_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
     printf 'add element inet zuup edge_lan { %s }\n' "$EDGE_IP" > "$NFT_DIR/10-edge-peer.nft"
     log "edge peer pinned to $EDGE_IP"
+
+    # ── and the ORIGIN everything on this machine talks to it through ─────
+    #
+    # The kiosk launcher and the courier both defaulted to `edge.local`, and
+    # nothing on a production terminal resolves that name: DNS is refused by
+    # zuup-lan.network, /etc is inside the read-only dm-verity root so no hosts
+    # entry can be added at runtime, and the image ships none. The kiosk
+    # therefore opened a name that could not resolve and showed the browser's own
+    # "server not found" — indistinguishable from an Edge that is down.
+    #
+    # The address is already here, on the signed cmdline, so publish it as an
+    # origin and let both consumers read it.
+    #
+    # http, not https, and deliberately: this origin is only ever reached
+    # THROUGH WireGuard, which already authenticates the peer by key and
+    # encrypts the carriage. TLS on top would need a certificate for a name
+    # nothing resolves, issued by a CA the image would have to trust — a second
+    # PKI to run per centre, protecting a hop that is already point-to-point and
+    # mutually authenticated. An estate that fronts its Edge with TLS anyway can
+    # override ZUUP_EDGE_URL in a unit drop-in.
+    printf 'http://%s\n' "$EDGE_IP" > "$IDENTITY_DIR/edge-url"
   else
     log "zuup.edge='${EDGE_IP}' is not an IPv4 address — no peer pinned, the tunnel cannot open." err
   fi
