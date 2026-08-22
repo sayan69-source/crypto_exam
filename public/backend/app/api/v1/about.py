@@ -136,7 +136,7 @@ _VALUES = [
           description="Proofs are public. Personal data is not. Biometrics are processed "
                       "on-device. Question content stays sealed until T₀."),
     Value(code="VALUE 03", title="Built for India, not retrofitted.",
-          description="Eleven languages, on-device biometric processing, DPDP Act 2023 "
+          description="On-device biometric processing, DPDP Act 2023 "
                       "alignment, and centres designed for the operating reality of Indian "
                       "examination halls."),
 ]
