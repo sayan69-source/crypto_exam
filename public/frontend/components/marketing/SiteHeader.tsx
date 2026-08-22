@@ -61,6 +61,16 @@ export default function SiteHeader() {
   const { session } = useAuth();
   const role = session?.role ?? null;
 
+  // The sysadmin console has its own shell chrome (header, footer, sign-out).
+  // Rendering the marketing header on top of it creates a confusing double
+  // header and wastes vertical space. The login and register pages ARE full-
+  // page surfaces without the shell, so they still get the site header.
+  const isSysadminPortal =
+    pathname.startsWith('/sysadmin') &&
+    pathname !== '/sysadmin/login' &&
+    pathname !== '/sysadmin/register';
+  if (isSysadminPortal) return null;
+
   const [isMac, setIsMac] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);

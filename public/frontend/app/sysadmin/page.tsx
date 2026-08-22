@@ -321,7 +321,7 @@ function ExamRequests() {
     }
   }
 
-  const waiting = rows.filter((r) => r.status === 'PENDING').length;
+  const waiting = rows.filter((r) => r.status === 'PENDING' || r.status === 'SUBMITTED').length;
 
   return (
     <Card
@@ -350,8 +350,13 @@ function ExamRequests() {
                 <td>{e.examName}</td>
                 <td>{e.proposedDate ? new Date(e.proposedDate).toLocaleDateString('en-IN') : '—'}</td>
                 <td>
-                  <Badge tone={e.status === 'PENDING' ? 'warn' : e.status === 'ACTIVE' ? 'ok' : 'danger'} dot>
-                    {e.status}
+                  <Badge tone={
+                    (e.status === 'PENDING' || e.status === 'SUBMITTED') ? 'warn'
+                    : (e.status === 'SYSADMIN_APPROVED' || e.status === 'ADMIN_APPROVED') ? 'info'
+                    : e.status === 'ACTIVE' ? 'ok'
+                    : 'danger'
+                  } dot>
+                    {e.status === 'SUBMITTED' ? 'PENDING' : e.status}
                   </Badge>
                 </td>
                 <td style={{ textAlign: 'right' }}>
@@ -381,15 +386,20 @@ function ExamRequests() {
                         </div>
                       </div>
                       
-                      {e.status === 'PENDING' && (
+                      {(e.status === 'PENDING' || e.status === 'SUBMITTED' || e.status === 'SYSADMIN_APPROVED' || e.status === 'ADMIN_APPROVED') && (
                         <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                          <Button 
-                            variant="primary" 
-                            disabled={busyId === e.id} 
-                            onClick={() => handleApprove(e.id)}
-                          >
-                            {busyId === e.id ? 'Processing...' : 'Approve & Make Live'}
-                          </Button>
+                          {!e.sysadminApproved && (
+                            <Button 
+                              variant="primary" 
+                              disabled={busyId === e.id} 
+                              onClick={() => handleApprove(e.id)}
+                            >
+                              {busyId === e.id ? 'Processing...' : 'Approve & Make Live'}
+                            </Button>
+                          )}
+                          {e.sysadminApproved && !e.adminApproved && (
+                            <Badge tone="info" dot>Your approval recorded — awaiting administration</Badge>
+                          )}
                           <Button 
                             disabled={busyId === e.id} 
                             onClick={() => handleReject(e.id)}

@@ -235,7 +235,8 @@ async def queue(
         .options(selectinload(ExamRequest.locations), selectinload(ExamRequest.subjects))
         .order_by(ExamRequest.created_at.desc())
     )).scalars().all()
-    return {"requests": [_serialise(r) for r in rows]}
+    serialised = [_serialise(r) for r in rows]
+    return {"items": serialised, "total": len(serialised), "page": 1, "per_page": len(serialised)}
 
 
 @router.post("/{request_id}/approve")
@@ -284,20 +285,54 @@ async def approve(
         await db.commit()
         logger.info("exam request %s ACTIVE — exam=%s", req.reference, req.exam_id)
         
-        # Send automated email
+        # Send automated approval email — fire-and-forget so a mail delivery
+        # failure does not prevent the approval from being recorded.
         from app.services.email import send_email
+        proposed = req.proposed_date.strftime("%d %B %Y") if req.proposed_date else "to be confirmed"
         email_body = (
             f"Dear {req.contact_name},\n\n"
-            f"Your request to conduct the examination '{req.exam_name}' has been APPROVED and is now LIVE.\n\n"
-            f"Exam Administrator ({admin_email}) can now register on the portal using their email address to manage the examination.\n\n"
-            f"Candidates and centre staff can also begin registration.\n\n"
-            f"CryptoExam Core System Admin"
+            f"We are pleased to confirm that your examination request has been APPROVED.\n\n"
+            f"────────────────────────────────\n"
+            f"  Reference:      {req.reference}\n"
+            f"  Exam Name:      {req.exam_name}\n"
+            f"  Organisation:   {req.organisation}\n"
+            f"  Proposed Date:  {proposed}\n"
+            f"  Status:         ACTIVE — registration is now open\n"
+            f"────────────────────────────────\n\n"
+            f"NEXT STEPS\n\n"
+            f"1. The Exam Administrator ({admin_email}) should register on the\n"
+            f"   CryptoExam Core portal to manage the examination.\n\n"
+            f"2. Candidates can now register at the Candidate Enrolment page.\n\n"
+            f"3. Centre staff (invigilators, centre admins) can register via\n"
+            f"   the Staff Registration page.\n\n"
+            f"If you have questions, reply to this email or use the Contact\n"
+            f"page on the platform.\n\n"
+            f"CryptoExam Core — System Administration\n"
         )
-        await send_email(
-            to=req.contact_email,
-            subject=f"Exam Request Approved: {req.exam_name}",
-            body=email_body,
-        )
+        try:
+            await send_email(
+                to=req.contact_email,
+                subject=f"✅ Exam Approved: {req.exam_name} [{req.reference}]",
+                body=email_body,
+            )
+            # Also notify the exam administrator if their email differs
+            if admin_email and admin_email.lower() != req.contact_email.lower():
+                admin_body = (
+                    f"Dear {exam_admin.full_name if exam_admin else 'Exam Administrator'},\n\n"
+                    f"The examination '{req.exam_name}' (ref: {req.reference}) has been\n"
+                    f"approved and is now ACTIVE.\n\n"
+                    f"You have been designated as the Exam Administrator. Please register\n"
+                    f"on the CryptoExam Core portal using this email address ({admin_email})\n"
+                    f"to begin managing the examination.\n\n"
+                    f"CryptoExam Core — System Administration\n"
+                )
+                await send_email(
+                    to=admin_email,
+                    subject=f"You are the Exam Administrator for: {req.exam_name}",
+                    body=admin_body,
+                )
+        except Exception as mail_err:
+            logger.warning("approval email failed for %s: %s", req.reference, mail_err)
 
         return {"ok": True, "status": req.status.value, "examId": req.exam_id,
                 "offeringId": offering.id,
@@ -327,4 +362,34 @@ async def reject(
     req.rejected_by = current_user.get("sub") or current_user.get("id")
     req.rejection_reason = body.reason.strip()
     await db.commit()
+
+    # Send rejection email — fire-and-forget.
+    from app.services.email import send_email
+    proposed = req.proposed_date.strftime("%d %B %Y") if req.proposed_date else "not specified"
+    reject_body = (
+        f"Dear {req.contact_name},\n\n"
+        f"We regret to inform you that your examination request has been REJECTED.\n\n"
+        f"────────────────────────────────\n"
+        f"  Reference:      {req.reference}\n"
+        f"  Exam Name:      {req.exam_name}\n"
+        f"  Organisation:   {req.organisation}\n"
+        f"  Proposed Date:  {proposed}\n"
+        f"  Status:         REJECTED\n"
+        f"────────────────────────────────\n\n"
+        f"REASON FOR REJECTION\n\n"
+        f"  {body.reason.strip()}\n\n"
+        f"If you believe this decision should be reconsidered, or if you\n"
+        f"wish to submit a revised request addressing the above, please\n"
+        f"use the exam request form on the platform or contact us.\n\n"
+        f"CryptoExam Core — System Administration\n"
+    )
+    try:
+        await send_email(
+            to=req.contact_email,
+            subject=f"❌ Exam Request Rejected: {req.exam_name} [{req.reference}]",
+            body=reject_body,
+        )
+    except Exception as mail_err:
+        logger.warning("rejection email failed for %s: %s", req.reference, mail_err)
+
     return {"ok": True, "status": req.status.value}
