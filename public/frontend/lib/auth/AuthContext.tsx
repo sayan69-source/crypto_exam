@@ -110,6 +110,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace('/login');
       }
     } else if (session) {
+      // Check if user navigated outside their designated portal
+      let allowedPrefixes: string[] = [];
+      if (session.role === 'admin') allowedPrefixes = ['/admin'];
+      else if (session.role === 'sysadmin') allowedPrefixes = ['/sysadmin'];
+      else if (session.role === 'setter') allowedPrefixes = ['/setter'];
+      else if (session.role === 'invigilator') allowedPrefixes = ['/invigilator'];
+      else if (session.role === 'candidate') allowedPrefixes = ['/exam'];
+
+      // Also allow the user to be on the login page of their own role before redirecting them inside
+      const isInsidePortal = allowedPrefixes.some(prefix => inArea(prefix) || pathname.startsWith(prefix));
+
+      if (!isInsidePortal) {
+        // User left their portal - clear session silently to prevent back-button access
+        sessionStorage.removeItem('cryptoexam_session');
+        setSession(null);
+        setAuthToken(null);
+        return; // Exit effect early, session is now null
+      }
+
       // Role-based protection — wrong role for the area
       if (inArea('/setter') && pathname !== '/setter/login' && session.role !== 'setter') {
         router.replace('/setter/login');
@@ -138,6 +157,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [session, pathname, loading, router]);
+
+  // Prevent back button (bfcache) bypassing by checking session on page show
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        // Page was restored from bfcache
+        const storedSession = sessionStorage.getItem('cryptoexam_session');
+        if (!storedSession && session) {
+          // Session was cleared elsewhere (e.g. they navigated away and it got cleared)
+          setSession(null);
+          setAuthToken(null);
+        }
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [session]);
 
   const login = async (role: AuthRole, identifier: string, name?: string, token?: string) => {
     // When a real backend JWT is supplied, use it (and arm the API client so
