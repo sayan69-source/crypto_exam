@@ -25,10 +25,6 @@ const FAQS = [
     q: "Is the platform compliant with Indian data law?",
     a: "Yes. CryptoExam Core is built to comply with the Digital Personal Data Protection Act, 2023. Biometric data is processed on-device and never leaves the candidate’s hardware in raw form.",
   },
-  {
-    q: "Which languages are supported?",
-    a: "The candidate interface supports 11 Indian languages with native script rendering, including Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati and Odia.",
-  },
 ];
 
 export default function FaqPage() {
