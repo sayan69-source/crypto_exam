@@ -20,7 +20,17 @@ DEV=0
 # from a USB stick), so it needs the SAME dev kernel relaxations as --dev — above
 # all USB mass-storage, or the stick never enumerates as a block device and the
 # initramfs HALTs at verity open ("no matching root found on any disk").
-for a in "$@"; do case "$a" in --dev|--allinone) DEV=1 ;; esac; done
+USB_BOOT=0
+for a in "$@"; do
+  case "$a" in
+    --dev|--allinone) DEV=1 ;;
+    # A PRODUCTION image that boots off a USB stick. Separate from --dev on
+    # purpose: --dev also disables attestation and WireGuard, which is not what
+    # an estate of borrowed laptops needs — they need the real fail-closed boot
+    # path and a kernel that can read the stick it was flashed to.
+    --usb-boot) USB_BOOT=1 ;;
+  esac
+done
 
 [[ -d "$SRC" ]] || { echo "[zuup-os] kernel source missing — run stage 00 first" >&2; exit 1; }
 cd "$SRC"
@@ -36,14 +46,29 @@ cp "$HERE/configs/image.config"                  "$FRAGS/image.config"
 # medium") and boots via PXE-into-RAM or an internal disk — this fragment is
 # never merged into a production image.
 EXTRA_FRAGS=""
-if [[ $DEV == 1 ]]; then
+if [[ $DEV == 1 || $USB_BOOT == 1 ]]; then
   cat > "$FRAGS/dev.config" <<'EOF'
 CONFIG_USB_STORAGE=y
 CONFIG_USB_UAS=y
 EOF
   EXTRA_FRAGS="$FRAGS/dev.config"
-  echo "[zuup-os] DEV: USB mass-storage ENABLED for laptop/USB boot (never in production)"
+  if [[ $DEV == 1 ]]; then
+    echo "[zuup-os] DEV: USB mass-storage ENABLED for laptop/USB boot"
+  else
+    # Loud, and recorded in the image, because it is a real reduction of §7.2's
+    # claim: with this compiled in, a terminal can read and write a USB block
+    # device. USBGuard still pins which devices may attach at all, so the
+    # remaining exposure is a stick plugged into an authorised port on a machine
+    # that has already been rooted — but the structural barrier is gone and the
+    # image must not pretend otherwise.
+    echo "[zuup-os] ⚠ PRODUCTION + --usb-boot: USB mass-storage is compiled IN."
+    echo "[zuup-os]   §7.2's 'no exfil medium' no longer holds structurally; USBGuard"
+    echo "[zuup-os]   remains the only control. Use only where terminals must boot"
+    echo "[zuup-os]   from a stick (no PXE, no internal disk to flash)."
+    : > "$BUILD/.usb-boot"
+  fi
 fi
+[[ $USB_BOOT == 1 ]] || rm -f "$BUILD/.usb-boot"
 
 echo "[zuup-os] merging configs (defconfig ⊕ zuup.config ⊕ image.config${EXTRA_FRAGS:+ ⊕ dev.config})…"
 make mrproper >/dev/null
@@ -52,8 +77,9 @@ scripts/kconfig/merge_config.sh -m arch/x86/configs/x86_64_defconfig \
 make olddefconfig >/dev/null
 
 # In dev, confirm the USB-boot relaxation actually survived dependency resolution.
-if [[ $DEV == 1 ]]; then
-  grep -q "^CONFIG_USB_STORAGE=y" .config || { echo "[zuup-os] FAIL: USB_STORAGE missing in dev build" >&2; exit 1; }
+if [[ $DEV == 1 || $USB_BOOT == 1 ]]; then
+  grep -q "^CONFIG_USB_STORAGE=y" .config \
+    || { echo "[zuup-os] FAIL: USB_STORAGE was requested but did not survive the merge — the stick will not enumerate and the initramfs will halt at verity open" >&2; exit 1; }
 else
   # And in production, confirm it did NOT. `--allinone` implies DEV=1, so the
   # only image ever built carried USB mass-storage — verified in the shipped

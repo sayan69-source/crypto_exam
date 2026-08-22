@@ -63,6 +63,19 @@ AmbientCapabilities=CAP_SYS_ADMIN CAP_CHOWN CAP_DAC_OVERRIDE
 # The one path it writes, and the only place it may create a mount point.
 # ProtectSystem=strict makes everything else read-only.
 ReadWritePaths=/run/zuup-identity
+# And the one networkd drop-in directory an ADMIN_STATION writes: the host
+# routes to its pinned HQ endpoints, derived from the signed cmdline. Without
+# this path the write is silently denied by the sandbox and the admin station
+# boots with an open firewall and no route through it — a failure that looks
+# like "the internet is down" and is not.
+#
+# `-/run/systemd` and not `/run/systemd/network`: ProtectSystem=strict makes the
+# whole hierarchy read-only, so the drop-in DIRECTORY has to be creatable too,
+# and this unit runs before networkd — the directory may not exist yet. A
+# ReadWritePaths entry naming a path that does not exist fails the unit at
+# namespace setup (status=226/NAMESPACE), which is how the kiosk unit once
+# crash-looped. The leading dash makes the entry tolerate absence.
+ReadWritePaths=-/run/systemd
 SystemCallFilter=@system-service @mount
 SystemCallFilter=~@debug @reboot @swap @obsolete
 SystemCallArchitectures=native

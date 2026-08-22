@@ -477,7 +477,28 @@ if [[ $DEV == 0 ]]; then
   [[ -e "$ROOT/usr/lib/zuup/zuup-commission.sh" ]] \
     && fail_prod "zuup-commission.sh is present — self-commissioning is all-in-one only"
 
-  echo "[zuup-os] production posture OK (no dev drop-ins, port-pinned USB, no login surface, no self-commissioning)"
+  # ── the kernel this rootfs is about to be paired with ──────────────────
+  #
+  # Stage 10 owns the USB-storage decision, and stage 10 is skippable: a cached
+  # bzImage from an earlier `--dev` run is reused by a later production
+  # `docker-build.sh 20 30 40` without anything re-checking it. That is exactly
+  # how a production rootfs came to ship on a kernel with USB mass-storage
+  # compiled in, with nothing anywhere saying so.
+  #
+  # So the pairing is asserted HERE, where the two meet, against the config the
+  # cached kernel was actually built from. A relaxed kernel is allowed — some
+  # estates have no PXE and no disk to flash — but only when it was asked for
+  # deliberately, and then the image records it where an operator can read it.
+  if [[ -r "$BUILD/kernel.config" ]] && grep -q "^CONFIG_USB_STORAGE=y" "$BUILD/kernel.config"; then
+    [[ -e "$BUILD/.usb-boot" ]] \
+      || fail_prod "the cached kernel has CONFIG_USB_STORAGE=y but --usb-boot was not requested — this rootfs would ship on a DEV kernel while calling itself production. Rebuild stage 10, or pass --usb-boot if you mean it."
+    printf 'usb-storage\n' > "$ROOT/etc/zuup/kernel-relaxations"
+    echo "[zuup-os] recorded /etc/zuup/kernel-relaxations = usb-storage (--usb-boot)"
+  else
+    rm -f "$ROOT/etc/zuup/kernel-relaxations"
+  fi
+
+  echo "[zuup-os] production posture OK (no dev drop-ins, port-pinned USB, no login surface, no self-commissioning, kernel pairing checked)"
 fi
 
 BYTES=$(du -sb "$ROOT" | awk '{print $1}')

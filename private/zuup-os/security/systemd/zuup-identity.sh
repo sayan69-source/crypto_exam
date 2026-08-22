@@ -222,6 +222,48 @@ if [[ "$CAPABILITY" == "ADMIN_STATION" && -n "$HQ_LIST" ]]; then
           printf '%s:%s:%s\n' "$host" "${urlport:-443}" "$ip" >> "$IDENTITY_DIR/hq-resolve"
         done
         log "HQ endpoint published for the courier: $HQ_URL -> $(tr '\n' ' ' < "$IDENTITY_DIR/hq-resolve")"
+
+        # ── and a way for a packet to actually GET there ──────────────────
+        #
+        # The firewall permitting a destination is not the same as the kernel
+        # having a route to it, and this is where that gap bit: zuup-lan.network
+        # takes an address from DHCP and refuses the lease's gateway and routes
+        # outright (UseGateway=no, UseRoutes=no), so a terminal has NO default
+        # route by design. On a candidate seat that is the whole point — there is
+        # nowhere off-link for a packet to go. On the admin station it meant the
+        # uplink could never work: `hq_dest` accepted the packet and the routing
+        # table had nowhere to send it, so every courier run failed to connect
+        # against a firewall that was open.
+        #
+        # The fix is deliberately NOT to accept the default route. That would
+        # hand this machine the whole internet and leave nftables as the only
+        # thing between an exam hall and the outside — one layer where §6.2 asks
+        # for four. Instead each pinned HQ address gets its own /32 route via the
+        # lease's gateway, written as a networkd drop-in before the link is
+        # configured. The routing table then contains exactly the destinations
+        # the authority signed, and nothing else is reachable even if the
+        # firewall were flushed.
+        #
+        # `Gateway=_dhcp4` is systemd's own way of saying "the router from the
+        # lease", which is the only way to express this: the gateway is not known
+        # until DHCP completes, and this unit runs long before that.
+        # mkdir -p creates /run/systemd/network too, which may not exist yet:
+        # this unit runs before networkd, and networkd is not what creates it.
+        ROUTE_DIR=/run/systemd/network/10-zuup-lan.network.d
+        if mkdir -p "$ROUTE_DIR" 2>/dev/null; then
+          {
+            echo "# Written at boot by zuup-identity.sh from the signed cmdline."
+            echo "# Host routes to the pinned HQ endpoints only — never a default route."
+            while IFS= read -r line; do
+              ip="${line##*:}"
+              [[ -n "$ip" ]] || continue
+              printf '[Route]\nDestination=%s/32\nGateway=_dhcp4\n\n' "$ip"
+            done < "$IDENTITY_DIR/hq-resolve"
+          } > "$ROUTE_DIR/10-hq-routes.conf"
+          log "HQ host routes staged for networkd ($(grep -c '^Destination=' "$ROUTE_DIR/10-hq-routes.conf") destination(s), via the DHCP gateway)"
+        else
+          log "could not stage HQ routes in /run/systemd/network — the uplink will have no route." err
+        fi
       else
         # Refused rather than trimmed. `http://` would carry this centre's
         # credential in clear text across the internet, and a URL with a path
