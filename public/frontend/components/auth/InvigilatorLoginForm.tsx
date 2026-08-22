@@ -35,6 +35,7 @@ export default function InvigilatorLoginForm() {
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailOtp, setEmailOtp] = useState('');
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+  const [resendCount, setResendCount] = useState(0);
 
   const [timeLeft, setTimeLeft] = useState(120);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,8 +97,8 @@ export default function InvigilatorLoginForm() {
   }
 
   // ── creds (Request Email OTP) ───────────────────────────────────────
-  async function startCreds(e: React.FormEvent) {
-    e.preventDefault();
+  async function startCreds(e: React.FormEvent | null, isResend = false) {
+    if (e) e.preventDefault();
     setError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(staffId)) { setError('Enter a valid staff email.'); return; }
     
@@ -107,14 +108,14 @@ export default function InvigilatorLoginForm() {
       setEmailChallengeId(res.challenge_id);
       setStep('email_otp');
       setTimeLeft(120);
+      if (isResend) setResendCount(prev => prev + 1);
+      else setResendCount(0);
       
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timerRef.current!);
-            setStep('creds');
-            setError('OTP expired. Please try again.');
             return 0;
           }
           return prev - 1;
@@ -295,7 +296,17 @@ export default function InvigilatorLoginForm() {
             <div className={styles.field}>
               <input className={`${styles.input} ${styles.otpInput}`} type="text" inputMode="numeric" maxLength={6} value={emailOtp}
                 onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ''))} placeholder="● ● ● ● ● ●" autoFocus />
-              <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+              {timeLeft > 0 ? (
+                <p style={{ fontSize: 11, color: '#7d5610', marginTop: 6 }}>Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  {resendCount < 5 ? (
+                    <button type="button" onClick={() => startCreds(null, true)} style={{ background: 'none', border: 'none', color: '#0056b3', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 }}>Resend Verification Code</button>
+                  ) : (
+                    <p style={{ color: '#d93025', fontSize: 13, margin: 0 }}>Maximum OTP resend attempts reached. Please restart the registration process.</p>
+                  )}
+                </div>
+              )}
             </div>
             <button type="submit" className={`${styles.btnPrimary} ${styles.fullBtn}`} disabled={busy}>
               {busy ? <span className={styles.spinner} /> : 'Verify Email & Continue'}

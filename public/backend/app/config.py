@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     EMAIL_OTP_TTL_SECONDS: int = 300
     EMAIL_OTP_MAX_ATTEMPTS: int = 5
     EMAIL_OTP_RESEND_COOLDOWN_SECONDS: int = 60
-    EMAIL_OTP_MAX_SENDS_PER_HOUR: int = 5
+    EMAIL_OTP_MAX_SENDS_PER_HOUR: int = 6
     EMAIL_OTP_SECRET: str = "default_unsafe_secret_for_dev_only"
     EMAIL_OTP_DEV_MODE: bool = True
     # Resolve the domain's MX (then A/AAAA) records before spending a send, so a

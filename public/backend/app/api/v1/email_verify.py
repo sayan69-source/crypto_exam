@@ -163,7 +163,7 @@ async def request_email_verification(req_data: EmailOtpRequest, req: Request, db
     )
     hour_count = len((await db.execute(hour_stmt)).scalars().all())
     if hour_count >= settings.EMAIL_OTP_MAX_SENDS_PER_HOUR:
-        raise HTTPException(status_code=429, detail="Maximum verification requests per hour reached.")
+        raise HTTPException(status_code=429, detail="Maximum OTP resend attempts reached. Please restart the registration process.")
 
     # Per-SOURCE, across every address. The two limits above are per (email,
     # purpose) and so are silent about a caller that asks for one code each for
