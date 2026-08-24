@@ -63,6 +63,43 @@ Check which happened, on the machine, without a shell:
 /run/zuup-identity/capability     → what it actually became
 ```
 
+<<<<<<< HEAD
+## It will not work unless: a TPM, on the two stations
+
+Attestation is not optional on a production image. A machine that cannot produce
+a TPM 2.0 quote **powers itself off about thirty seconds into its first boot**,
+and because production is `console=null` it does so in silence.
+
+TPM 2.0 did not ship on laptops before roughly 2016, and where it does exist the
+firmware usually leaves it off. Look in the BIOS for **Intel PTT** (Platform
+Trust Technology) or **AMD fTPM** — that is a firmware TPM and it counts.
+
+This image is built with `--untrusted-seats`, which softens exactly one case:
+
+| Role | No TPM 2.0 |
+|---|---|
+| `CANDIDATE_SEAT` | boots, and is refused every privileged login |
+| `INVIGILATOR_STATION` | halts |
+| `ADMIN_STATION` | halts |
+
+That is the same argument the image already makes when it demotes an unverified
+BIOS boot to a seat: a seat's trust comes from the invigilator's attested station
+and the candidate's own credentials, not from its own firmware. The machines that
+admit people, and the one machine that reaches the internet, still have to prove
+their boot chain. Build without the flag and every machine must have a TPM.
+
+**When a machine does halt, it now says why.** The reason is written to the
+stick's ESP before the power goes, so you can pull it and read it anywhere:
+
+```
+/zuup/last-halt.txt        on the ESP — reason, capability, boot trust, time
+```
+
+Without that file a laptop switching itself off looks identical to a bad flash,
+a dead battery or a broken image, and there is no shell to ask.
+
+=======
+>>>>>>> d0ce5ef (feat(hardware): make a real laptop estate boot, and give the admin station a route)
 ## It will not work unless: a cable
 
 There is **no Wi-Fi**. Not partially — the image has no wireless driver, no
@@ -95,9 +132,18 @@ cd private/zuup-os/image-build
 ZUUP_OUT=$PWD/out-production \
 ZUUP_DB_KEY=/zuup/private/zuup-os/image-build/out-prod/keys/db.key \
 ZUUP_DB_CRT=/zuup/private/zuup-os/image-build/out-prod/keys/db.crt \
+<<<<<<< HEAD
+  ./docker-build.sh -- --usb-boot --untrusted-seats
+```
+
+`--untrusted-seats` lets a candidate seat with no TPM 2.0 boot; see above for
+exactly what it does and does not concede. Drop it and every machine needs a TPM.
+
+=======
   ./docker-build.sh -- --usb-boot
 ```
 
+>>>>>>> d0ce5ef (feat(hardware): make a real laptop estate boot, and give the admin station a route)
 `--usb-boot` is required for laptops. Production normally compiles USB
 mass-storage **out** — §7.2's "no exfil medium" — and boots from PXE or an
 internal disk. A laptop booting from a stick needs the driver for the stick, so
@@ -176,10 +222,23 @@ Getting at the ESP on Windows needs `diskpart`; the steps are in
 
 ## 5. Set the clocks
 
+<<<<<<< HEAD
+A terminal has no NTP — the DHCP lease's NTP server is refused along with its
+gateway and DNS — and TLS to the platform will not validate against a clock that
+is years out. On the second-hand machines a centre actually fields, a flat CMOS
+battery means the firmware says 1970, and the only symptom is that the courier
+reports HQ as unreachable while everything else looks healthy.
+
+The image now ships a clock epoch stamped at build time, so systemd drags a
+stuck clock forward to release day at boot. That covers the dead battery. It
+cannot move a clock **backwards**, so a firmware clock set to some year in the
+future is still yours to fix.
+=======
 A terminal has no NTP — the DHCP lease's NTP server is refused like everything
 else — and TLS to the platform will not validate against a clock that is years
 out. The image bumps a stuck clock forward to its own build time, which covers a
 dead CMOS battery, but not a firmware clock set to the wrong year.
+>>>>>>> d0ce5ef (feat(hardware): make a real laptop estate boot, and give the admin station a route)
 
 Set the BIOS clock roughly right on each laptop before you start. "Roughly" is
 enough: certificates are valid for months.
@@ -189,6 +248,10 @@ enough: certificates are valid for months.
 | Machine | Expected first boot |
 |---|---|
 | Any, unprovisioned | identity says "not provisioned", firewall stays shut, powers off |
+<<<<<<< HEAD
+| Any, no TPM, not a seat | powers off; `/zuup/last-halt.txt` on the ESP says why |
+=======
+>>>>>>> d0ce5ef (feat(hardware): make a real laptop estate boot, and give the admin station a route)
 | Candidate seat | tunnel up → attestation attempted → denied (`NO_ATTESTATION_KEY_REGISTERED`) until enrolled |
 | Invigilator | same, plus the console once enrolled |
 | Admin station | the above, plus `zuup-hqsync` on a 15-minute timer |
@@ -221,9 +284,15 @@ journalctl -t zuup-hqsync -b
 
 - **A `--usb-boot` image is not the §7.2 posture.** USB storage is a driver
   again. Use PXE or an internal disk for a real estate.
+<<<<<<< HEAD
+- **Attestation needs a TPM 2.0**, and without `--untrusted-seats` a machine
+  that has none does not boot at all — it powers off, silently. With the flag,
+  only candidate seats are excused; the reason is on the stick either way.
+=======
 - **Attestation needs a TPM 2.0.** Laptops older than roughly 2016 mostly have
   none; those machines can boot and be seats, but cannot be enrolled, so
   privileged logins on them will always deny.
+>>>>>>> d0ce5ef (feat(hardware): make a real laptop estate boot, and give the admin station a route)
 - **A BIOS-booted machine is a candidate seat, whatever its stick says.**
 - **Nothing here has run on real hardware yet.** The production chain has been
   watched end to end in QEMU with a virtual TPM, and the uplink's TLS has been

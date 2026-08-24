@@ -23,12 +23,19 @@ BROWSER_PKG="${ZUUP_BROWSER_PKG:-firefox-esr}"
 
 DEV=0
 ALLINONE=0
+UNTRUSTED_SEATS=0
 for a in "$@"; do
   case "$a" in
     --dev)      DEV=1 ;;
     --allinone) ALLINONE=1; DEV=1 ;;  # the all-in-one bundles its own Edge, so
-  esac                                # it takes the DEV boot path (no remote
-done                                  # WireGuard peer / TPM-attested Edge).
+                                      # it takes the DEV boot path (no remote
+                                      # WireGuard peer / TPM-attested Edge).
+    # Let a candidate seat with no TPM 2.0 boot, on a PRODUCTION image. Nothing
+    # else: an invigilator or admin station still halts. See the long note in
+    # boot/attest/zuup-attest.sh for what this does and does not concede.
+    --untrusted-seats) UNTRUSTED_SEATS=1 ;;
+  esac
+done
 [[ "${ZUUP_DEV:-0}" == "1" ]] && DEV=1
 [[ "${ZUUP_ALLINONE:-0}" == "1" ]] && { ALLINONE=1; DEV=1; }
 
@@ -368,6 +375,43 @@ ln -sf ../usr/lib/os-release "$ROOT/etc/os-release"
 # thin image looking for an Edge appliance that isn't there looks identical to a
 # broken all-in-one. Stage 25 overwrites this with `allinone`.
 printf '%s\n' "$([[ $DEV == 1 ]] && echo dev || echo production)" > "$ROOT/etc/zuup/image-variant"
+
+# ── the clock, on a machine that has no way to learn the time ──────────────
+#
+# A terminal has no NTP: zuup-lan.network refuses the lease's NTP server along
+# with its gateway and DNS, and there is no timesyncd in this rootfs. So the
+# clock is whatever the firmware says — and on the second-hand laptops an exam
+# centre actually fields, the CMOS battery is often flat and the firmware says
+# 1970.
+#
+# That breaks the uplink in a way nobody would connect to a battery: TLS to the
+# platform fails with "certificate is not yet valid", the courier reports HQ as
+# unreachable, and everything else on the machine looks perfectly healthy.
+#
+# systemd fixes this if you let it. At boot it advances a clock that is earlier
+# than the mtime of this file — so shipping it, stamped at build time, means the
+# worst case is a terminal that believes it is release day rather than 1970.
+# Certificates are valid for months, so that is enough for the handshake.
+#
+# It cannot move a clock BACKWARDS and is not a substitute for a correct
+# firmware clock; docs/MULTI-LAPTOP-BRINGUP.md tells the operator to set that.
+# ── this estate's seat policy ──────────────────────────────────────────────
+#
+# Present only when the build was asked for it. zuup-attest.sh reads this file
+# and nothing else decides the question, so an image without it behaves exactly
+# as production always has: no TPM, no boot.
+if [[ "$UNTRUSTED_SEATS" == 1 ]]; then
+  printf 'allow-untrusted-seats\n' > "$ROOT/etc/zuup/seat-policy"
+  echo "[zuup-os] ⚠ seat policy: CANDIDATE_SEAT may run WITHOUT a TPM 2.0."
+  echo "[zuup-os]   Invigilator and admin stations still halt without one, and an"
+  echo "[zuup-os]   unattested seat is refused every privileged login."
+else
+  rm -f "$ROOT/etc/zuup/seat-policy"
+fi
+
+: > "$ROOT/usr/lib/clock-epoch"
+chmod 0644 "$ROOT/usr/lib/clock-epoch"
+echo "[zuup-os] clock epoch stamped ($(date -u '+%Y-%m-%dT%H:%M:%SZ')) — a flat CMOS battery no longer breaks TLS"
 
 # §7.3: no package manager, no compiler, no editor, no rescue tooling ships.
 chroot "$ROOT" bash -c 'apt-get -y purge apt apt-utils >/dev/null 2>&1 || true; \

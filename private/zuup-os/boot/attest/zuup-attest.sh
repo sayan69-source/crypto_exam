@@ -101,7 +101,16 @@ AK_CTX="$(first_existing "${ZUUP_AK_CTX:-}" /etc/zuup/ak.ctx /run/zuup-identity/
 #                                           (image specific, and the per-terminal
 #                                            identity is inside it)
 PCR_LIST="${ZUUP_PCR_LIST:-sha256:0,4,7,11}"
-WORK="$(mktemp -d /run/zuup-attest.XXXXXX)"   # tmpfs: nothing lands on disk
+# Inside the unit's RuntimeDirectory, which is the one path ProtectSystem=strict
+# leaves writable. A bare /run/... here fails at mktemp and powers the machine
+# off for a reason that has nothing to do with attestation.
+# mkdir -p as well as RuntimeDirectory=: systemd creates the directory when it
+# starts this unit, but the script also runs from a shell during bring-up and
+# on a build host, and a bare mktemp into a directory that does not exist dies
+# under `set -e` — which, with FailureAction=poweroff-force, is a machine that
+# switches off for a reason that has nothing to do with attestation.
+mkdir -p /run/zuup-attest 2>/dev/null || true
+WORK="$(mktemp -d /run/zuup-attest/work.XXXXXX)"   # tmpfs: nothing lands on disk
 trap 'rm -rf "$WORK"' EXIT
 
 VARIANT=unknown
@@ -112,10 +121,59 @@ note() {
   echo "zuup-attest: $1" > /dev/kmsg 2>/dev/null || true
 }
 
+# ── leave the reason somewhere a person can read it ────────────────────────
+#
+# A production terminal is console=null, its journal is volatile and /run is a
+# tmpfs — so when this script powers the machine off, everything explaining why
+# dies with it. On a bench that is merely annoying. In a hall, with a borrowed
+# laptop that switches itself off thirty seconds into its first boot and says
+# nothing, it is indistinguishable from a broken image, a bad stick, or dead
+# hardware, and there is no shell to ask.
+#
+# So the reason is written to the ESP, which is FAT and outside dm-verity: pull
+# the stick, read one file on any machine. Nothing reads this back — it is a
+# breadcrumb for an operator, never an input to a decision, so a tampered file
+# changes nothing about what this terminal will do on its next boot.
+#
+# Mounted read-write for the length of one write and unmounted immediately. If
+# any of it fails the halt still happens: a diagnostic must never be able to
+# keep a machine that should be off alive.
+breadcrumb() {
+  local mnt dev
+  mnt="$(mktemp -d /run/zuup-attest/esp.XXXXXX)" || return 0
+  for dev in /dev/disk/by-label/ZUUPESP "/dev/disk/by-partlabel/EFI System"; do
+    [[ -e "$dev" ]] || continue
+    if mount -t vfat -o rw,nosuid,nodev,noexec "$dev" "$mnt" 2>/dev/null; then
+      mkdir -p "$mnt/zuup" 2>/dev/null
+      {
+        echo "ZUUP-OS halted this machine."
+        echo
+        echo "when     : $(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo unknown)"
+        echo "variant  : $VARIANT"
+        echo "terminal : $(cat "$ID_FILE" 2>/dev/null || echo '(none — not provisioned)')"
+        echo "seat     : $(cat /run/zuup-identity/seat-no 2>/dev/null || echo '(none)')"
+        echo "capability: $(cat /run/zuup-identity/capability 2>/dev/null || echo '(none)')"
+        echo "boot     : $(cat /run/zuup-identity/boot-trust 2>/dev/null || echo '(unknown)')"
+        echo
+        echo "reason   : $1"
+        echo
+        echo "This file is written by the terminal for diagnosis only. Nothing"
+        echo "reads it back; deleting it changes nothing."
+      } > "$mnt/zuup/last-halt.txt" 2>/dev/null
+      sync 2>/dev/null
+      umount "$mnt" 2>/dev/null
+      break
+    fi
+  done
+  rmdir "$mnt" 2>/dev/null || true
+  return 0
+}
+
 # A boot chain that FAILED to verify. The image is not the image we signed, or
 # the machine is not the machine we registered. Always fatal, every variant.
 halt() {
   echo "ZUUP-ATTEST HALT: $1" | systemd-cat -t zuup-attest -p emerg || true
+  breadcrumb "$1" || true
   systemctl poweroff --force
   exit 1
 }
@@ -132,6 +190,37 @@ halt() {
 # denies with TPM_ATTESTATION_INVALID and says so on screen.
 uncommissioned() {
   if [[ "$VARIANT" == "production" ]]; then
+    # ── the one production exception, and only for a seat ────────────────
+    #
+    # An estate of borrowed laptops is mostly machines with no TPM 2.0 — the
+    # chip did not ship before roughly 2016, and where it does exist the
+    # firmware usually leaves it switched off. Halting all of them means the
+    # image cannot run at all on the hardware a centre actually has.
+    #
+    # So an estate may declare, at BUILD time, that its candidate seats are
+    # allowed to run unattested. Two things keep that bounded:
+    #
+    #   * it applies to CANDIDATE_SEAT and nothing else. An invigilator station
+    #     or an admin station still halts, so the machines that approve people
+    #     and the one machine that reaches the internet must still prove their
+    #     boot chain.
+    #   * it grants the seat nothing. With no attestation on record the Edge
+    #     denies every privileged login on it with TPM_ATTESTATION_INVALID; the
+    #     seat renders a Gate, and the candidate at it is still admitted by the
+    #     invigilator's attested station and their own credentials.
+    #
+    # It is the same argument zuup-identity.sh already makes when it demotes an
+    # unverified BIOS boot to a seat: a seat's trust does not come from its own
+    # firmware. It is still a real reduction of §7.1, which is why it must be
+    # asked for at build time and is recorded in the image.
+    local capability="" policy=""
+    [[ -r /run/zuup-identity/capability ]] && capability="$(tr -d ' \n' < /run/zuup-identity/capability)"
+    [[ -r /etc/zuup/seat-policy ]] && policy="$(tr -d ' \n' < /etc/zuup/seat-policy)"
+
+    if [[ "$capability" == "CANDIDATE_SEAT" && "$policy" == "allow-untrusted-seats" ]]; then
+      note "$1 — this image allows UNATTESTED CANDIDATE SEATS, so the boot continues. Every privileged login on this machine will deny; it may only ever be a seat."
+      exit 0
+    fi
     halt "$1"
   fi
   note "$1 — continuing on variant=$VARIANT; every privileged login will deny (no attestation on record)."

@@ -23,6 +23,15 @@ FailureAction=poweroff-force
 # ── §7.5 hardening: this unit talks to ONE host and reads ONE device ────────
 NoNewPrivileges=yes
 ProtectSystem=strict
+# ProtectSystem=strict mounts the WHOLE hierarchy read-only except /dev, /proc
+# and /sys — /run included. The script's own `mktemp -d /run/zuup-attest.XXXXXX`
+# would therefore fail under `set -e`, and because FailureAction=poweroff-force
+# the machine would switch off with the operator told nothing: the same outcome
+# as a failed attestation, for a completely different reason. One declared
+# runtime directory fixes that and is the only writable path this unit gets.
+RuntimeDirectory=zuup-attest
+RuntimeDirectoryMode=0700
+ReadWritePaths=/run/zuup-attest
 ProtectHome=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
