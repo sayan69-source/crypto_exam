@@ -1,0 +1,273 @@
+PROPRIETARY SOFTWARE LICENSE
+CryptoExam · ZUUP-OS
+
+Copyright (c) 2026 sayan69-source. All rights reserved.
+
+================================================================================
+NOTICE
+================================================================================
+
+This is NOT open-source software. It is not licensed under the MIT, Apache,
+BSD, GPL, or any other open-source or free-software licence, and no such
+licence should be inferred from the fact that this source code is visible.
+
+The absence of a permissive licence means all rights are reserved by the
+copyright holder. Reading this repository grants you no right to copy it,
+redistribute it, mirror it, host it, publish it, or build on it.
+
+================================================================================
+1. DEFINITIONS
+================================================================================
+
+1.1  "Licensor" means sayan69-source, the sole owner of the Software and of all
+     copyright and other intellectual property rights in it.
+
+1.2  "Software" means the entire contents of this repository — including source
+     code, object code, build scripts, operating-system images, smart contracts,
+     zero-knowledge circuits, configuration, database schemas, test suites,
+     specifications, design documents, diagrams, written documentation, brand
+     names, logos and assets — in every version, branch, tag, commit, archive
+     (including any .zip or .tar.gz export) and derivative form.
+
+1.3  "You" means any individual or legal entity that accesses, views, downloads,
+     receives or otherwise obtains any part of the Software, by any means.
+
+1.4  "Third-Party Components" means software authored by others and incorporated
+     into or depended upon by the Software, each of which remains subject to its
+     own licence. See Section 7.
+
+================================================================================
+2. OWNERSHIP
+================================================================================
+
+The Software is the exclusive property of the Licensor and is protected by the
+Indian Copyright Act, 1957, by international copyright treaties (including the
+Berne Convention), and by other applicable intellectual property laws. The
+Software is licensed, never sold. No title, ownership interest or intellectual
+property right in the Software transfers to You under any circumstance.
+
+Publication of the Software in a publicly readable location does not place it in
+the public domain, does not dedicate it to the public, and does not waive,
+exhaust or diminish any right of the Licensor.
+
+================================================================================
+3. GRANT OF RIGHTS
+================================================================================
+
+3.1  NO LICENCE IS GRANTED BY DEFAULT. Except for the narrow permission in
+     Section 3.2, You are granted no licence, right, immunity or permission of
+     any kind, whether express, implied, by estoppel, by exhaustion or otherwise.
+
+3.2  LIMITED PERMISSION TO READ. You may view and read the Software where the
+     Licensor has made it visible to You, and may quote short excerpts for the
+     purpose of commentary, review, teaching, security research or news
+     reporting, provided such quotation is accompanied by clear attribution to
+     the Licensor and a link to the original repository, and provided it does
+     not amount to redistribution of the Software or any substantial part of it.
+
+3.3  ANY OTHER USE REQUIRES A SEPARATE WRITTEN LICENCE signed by the Licensor.
+     Silence, inaction, or a failure by the Licensor to enforce this Licence is
+     not permission and is not a waiver.
+
+================================================================================
+4. PROHIBITED CONDUCT
+================================================================================
+
+Without the Licensor's prior express written permission, You must NOT:
+
+4.1  REDISTRIBUTE. Copy, reproduce, publish, mirror, re-host, re-upload,
+     re-package, sell, rent, lease, sublicense, lend, transmit or otherwise
+     distribute the Software or any part of it, in source or compiled form, to
+     any third party or on any platform. This expressly includes downloading a
+     ZIP or archive of this repository and uploading its contents to another
+     repository, account, organisation, package registry, container registry,
+     model hub, app store, file-sharing service, CDN or website, whether public
+     or private, and whether attributed or not.
+
+4.2  CLAIM AUTHORSHIP. Present the Software, or any work substantially derived
+     from it, as Your own creation; submit it under Your name to any hackathon,
+     competition, examination, academic assessment, grant application, job
+     application, portfolio, funding round or client engagement; or remove,
+     obscure, alter or falsify any copyright notice, authorship attribution,
+     licence text or provenance metadata contained in it.
+
+4.3  CREATE DERIVATIVE WORKS. Modify, adapt, translate, port, refactor, rebrand
+     or build upon the Software, or incorporate any part of it into another
+     product, service, repository or codebase.
+
+4.4  USE IT IN OPERATION. Deploy, run, host or operate the Software — or any
+     part of it — to conduct, administer, invigilate, score or verify any
+     examination or assessment, or to provide any service to any third party,
+     whether commercially or free of charge.
+
+4.5  REVERSE ENGINEER. Decompile, disassemble or reverse engineer any compiled,
+     obfuscated or binary portion of the Software, including the ZUUP-OS
+     terminal images, except to the minimum extent that such a restriction is
+     unenforceable under mandatory applicable law.
+
+4.6  RELICENSE. Apply, attach or assert any other licence over the Software,
+     including any open-source licence, or contribute it to any project that
+     would subject it to one.
+
+4.7  TRAIN ON IT. Use the Software as training data, fine-tuning data,
+     evaluation data or retrieval corpus for any machine-learning model,
+     large language model or AI system, or scrape it for that purpose.
+
+4.8  MISUSE THE SECURITY DESIGN. Use the Software, its documentation or its
+     threat model to compromise, circumvent, defeat or defraud any examination
+     system, including any deployment of the Software itself.
+
+4.9  MISUSE THE MARKS. Use the names "CryptoExam", "ZUUP-OS", "ZUUP", or any
+     associated logo, wordmark or brand asset, in any product, service, domain
+     name, repository name or promotional material.
+
+================================================================================
+5. FORKS, ARCHIVES AND PLATFORM MECHANISMS
+================================================================================
+
+5.1  Where the Software is hosted on a platform whose terms of service grant
+     other users of that platform a limited right to view and to fork
+     repositories within the platform (for example, the GitHub Terms of Service
+     for public repositories), that platform-internal permission is the only
+     copying right You may hold, and it is strictly limited to what those terms
+     provide.
+
+5.2  That platform permission does NOT extend to: publishing the fork's contents
+     outside the platform; re-uploading the Software as a new, independent
+     repository not linked to the original by the platform's fork mechanism;
+     removing the fork relationship or the provenance it records; distributing an
+     exported archive; or any of the conduct listed in Section 4.
+
+5.3  Any archive of this repository (.zip, .tar.gz, release asset, container
+     image or otherwise), however obtained, carries this Licence with it. The
+     terms above bind the holder of that archive exactly as they bind a reader of
+     the repository.
+
+================================================================================
+6. CONTRIBUTIONS
+================================================================================
+
+6.1  The Licensor is under no obligation to accept contributions.
+
+6.2  If You submit any contribution — a pull request, patch, issue containing
+     code, suggestion or otherwise — You irrevocably assign to the Licensor all
+     right, title and interest in that contribution worldwide, including all
+     copyright, and You waive any moral rights in it to the extent permitted by
+     law. Where such assignment is not permitted by applicable law, You instead
+     grant the Licensor a perpetual, irrevocable, worldwide, royalty-free,
+     sublicensable and exclusive licence to use it for any purpose.
+
+6.3  You warrant that each contribution is Your original work, that You have the
+     right to make it, and that it is free of any third-party claim or licence
+     obligation that would encumber the Software.
+
+6.4  A merged contribution confers on You no ownership of, and no continuing
+     licence to, the Software.
+
+================================================================================
+7. THIRD-PARTY COMPONENTS
+================================================================================
+
+The Software depends on and may embed Third-Party Components. Each such
+component remains the property of its respective owner and is governed by its
+own licence, which continues to apply to it and is not superseded by this
+Licence. Nothing in this Licence restricts any right You hold in a Third-Party
+Component under that component's own terms, and nothing in a Third-Party
+Component's terms grants You any right in the Software as a whole or in any
+original work of the Licensor.
+
+================================================================================
+8. CONFIDENTIALITY OF NON-PUBLIC MATERIAL
+================================================================================
+
+Parts of the Software — in particular the contents of `private/`, provisioning
+material, key material, platform threat models and security review documents —
+describe the security posture of an examination system. Where such material has
+been disclosed to You in confidence, or is not publicly visible, You must treat
+it as confidential, must not disclose it, and must use it solely for the purpose
+for which it was disclosed to You.
+
+================================================================================
+9. NO WARRANTY
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, ACCURACY,
+NON-INFRINGEMENT, SECURITY, OR UNINTERRUPTED OR ERROR-FREE OPERATION. THE
+LICENSOR DOES NOT WARRANT THAT THE SOFTWARE IS FIT TO CONDUCT ANY EXAMINATION OR
+TO PROTECT ANY EXAMINATION AGAINST ANY ATTACK.
+
+================================================================================
+10. LIMITATION OF LIABILITY
+================================================================================
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR SHALL NOT BE
+LIABLE FOR ANY CLAIM, DAMAGE OR OTHER LIABILITY — WHETHER DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY OR CONSEQUENTIAL, AND WHETHER IN CONTRACT, TORT
+(INCLUDING NEGLIGENCE) OR OTHERWISE — ARISING FROM, OUT OF, OR IN CONNECTION
+WITH THE SOFTWARE OR ITS USE, INCLUDING ANY LOSS OF DATA, LOSS OF PROFIT, EXAM
+COMPROMISE, EXAM CANCELLATION, REPUTATIONAL HARM OR REGULATORY PENALTY.
+
+================================================================================
+11. TERMINATION AND ENFORCEMENT
+================================================================================
+
+11.1 The permission in Section 3.2 terminates automatically and immediately,
+     without notice, upon any breach of this Licence.
+
+11.2 On termination You must cease all use of the Software and permanently
+     destroy every copy in Your possession or control, including working trees,
+     forks, archives, build outputs, caches and backups, and must confirm that
+     destruction in writing if the Licensor asks.
+
+11.3 The Licensor may pursue every remedy available in law and equity, including
+     injunctive relief, statutory damages, an account of profits, and takedown
+     procedures under the Digital Millennium Copyright Act (17 U.S.C. § 512),
+     the Information Technology Act, 2000 and its Intermediary Guidelines, and
+     the equivalent notice-and-takedown mechanism of any hosting platform.
+
+11.4 Because unauthorised distribution of the Software causes harm that cannot be
+     adequately remedied by money alone, the Licensor is entitled to seek
+     injunctive relief without posting a bond or proving actual damages.
+
+11.5 Sections 2, 4, 6, 8, 9, 10, 11 and 12 survive termination.
+
+================================================================================
+12. GENERAL
+================================================================================
+
+12.1 GOVERNING LAW. This Licence is governed by the laws of the Republic of
+     India, without regard to its conflict-of-law rules. The courts of competent
+     jurisdiction in India have exclusive jurisdiction over any dispute arising
+     under it, and You submit to that jurisdiction.
+
+12.2 SEVERABILITY. If any provision is held unenforceable, it is to be limited
+     to the minimum extent necessary to make it enforceable, and the remaining
+     provisions continue in full force.
+
+12.3 NO WAIVER. A failure or delay by the Licensor in enforcing any provision is
+     not a waiver of that provision or of any other.
+
+12.4 ENTIRE AGREEMENT. This Licence is the entire agreement between You and the
+     Licensor concerning the Software and supersedes any prior understanding,
+     other than a separate written licence signed by the Licensor.
+
+12.5 AMENDMENT. The Licensor may issue revised terms for future versions of the
+     Software. The version of this Licence distributed with a given copy governs
+     that copy.
+
+================================================================================
+13. LICENSING ENQUIRIES
+================================================================================
+
+To request permission to use, deploy, redistribute or build upon the Software,
+open an issue on the original repository or contact the Licensor directly:
+
+    sayan69-source
+    https://github.com/sayan69-source/crypto_exam
+
+Unauthorised copies may be reported to the same address.
+
+--------------------------------------------------------------------------------
+END OF LICENSE

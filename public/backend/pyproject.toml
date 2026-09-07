@@ -3,6 +3,12 @@ name = "cryptoexam-backend"
 version = "0.1.0"
 description = "CryptoExam Core — Zero-Trust Examination Infrastructure Backend"
 requires-python = ">=3.12"
+license = { text = "Proprietary — All Rights Reserved. See LICENSE at the repository root." }
+classifiers = [
+    "License :: Other/Proprietary License",
+    # Rejected by PyPI on upload — this package is never to be published.
+    "Private :: Do Not Upload",
+]
 dependencies = [
     # ── Core Framework ──
     "fastapi>=0.115.0",

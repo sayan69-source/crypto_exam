@@ -2,6 +2,7 @@
   "name": "exam-terminal",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "description": "Examination-centre terminal software — hosts the candidate and invigilator portals only. Designed to run inside the future centre OS shell.",
   "scripts": {
     "dev": "next dev",

@@ -2,6 +2,7 @@
   "name": "edge-server",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "type": "module",
   "description": "Centre Edge Server (§5, §13). On-prem centre appliance: TPM attestation, match-all identity, one-time codes, random seat assignment, ciphertext answer ledger + Merkle hash-chain. LAN-only, NO WAN.",
   "scripts": {

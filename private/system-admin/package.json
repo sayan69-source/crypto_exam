@@ -2,6 +2,7 @@
   "name": "system-admin",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "description": "System Admin Portal (§13.5, tier-0). The root of trust: approves Centre Admins (issues the one-time code shown ONLY here), oversees every centre's counts, and is the boundary past which sealed answers are decrypted (HQ + HSM). Never holds a centre's data; counts + hashes only.",
   "scripts": {
     "dev": "next dev -p 3004",

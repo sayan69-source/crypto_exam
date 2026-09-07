@@ -2,6 +2,7 @@
   "name": "zuup-os",
   "version": "2.0.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "description": "ZUUP-OS \u2014 Secure Examination Terminal OS & Multi-Portal Control Plane (monorepo root). See private/zuup_os_implementation_plan.md.",
   "workspaces": [
     "packages/*",

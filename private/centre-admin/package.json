@@ -2,6 +2,7 @@
   "name": "centre-admin",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "description": "Centre Admin Portal (§10.3). Runs on an ADMIN_STATION kiosk on the centre LAN. Counts for THIS centre only; approves invigilators; holds answer CIPHERTEXT as a blind courier (cannot decrypt — INV-6).",
   "scripts": {
     "dev": "next dev -p 3002",

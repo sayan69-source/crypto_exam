@@ -181,3 +181,25 @@ server-measured end to end; the invariants run in CI against a real database.
 It has never scored an examination, never met a real TPM or camera, and never
 been driven at scale. Read [WHAT-IS-LEFT.md](WHAT-IS-LEFT.md) before treating
 any of it as finished.
+
+---
+
+## License
+
+**Proprietary. All rights reserved.** Copyright © 2026 sayan69-source.
+
+This source is readable, not open. There is no MIT, Apache, BSD or GPL grant
+here, and none should be inferred from the fact that you can see the code.
+
+You **may** read it, and quote short excerpts with attribution.
+
+You **may not** redistribute it, mirror it, re-upload it, download an archive of
+it and publish the contents elsewhere, submit it as your own work to any
+competition or assessment, build derivative works from it, deploy it to conduct
+an examination, or use it as training data — without prior written permission
+from the copyright holder.
+
+Third-party dependencies remain under their own licences.
+
+Full terms: [LICENSE](LICENSE). Licensing enquiries: open an issue on
+[the original repository](https://github.com/sayan69-source/crypto_exam).
